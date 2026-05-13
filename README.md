@@ -1,9 +1,6 @@
 # Catalyst
 
-
-
 Catalyst is an Internal Developer Platform (IDP) that automates the work platform engineersdo every day at a retail pharmacy and insurance provider: blue/green deployments, secrets management, GitHub-driven workflows, and operational intelligence. It is delivered as one coherent product on AWS, framed as a Toyota production line — every PR is a car body moving down the line, every gate is a proving check, every alarm is an andon cord.
-
 
 ## How Catalyst is built (the Honda way)
 
@@ -26,3 +23,4 @@ encodes those principles into specific files and features:
 | **Standardised work** | [`.github/PULL_REQUEST_TEMPLATE.md`](./.github/pull_request_template.md), [`docs/adr/template.md`](./docs/adr/template.md) | Every PR / ADR follows a known shape. |
 | **Genchi Genbutsu** (go and see) | Structured JSON logs capture real request shape; `ops-intel` queries real AWS APIs (Cost Explorer, Trusted Advisor) | Decisions made from primary sources. |
 | **Hansei** (honest reflection) | [`docs/POST-MORTEM-TEMPLATE.md`](./docs/POST-MORTEM-TEMPLATE.md); the open PR `#42 — self-correction` | Reflection is shipped, not hidden. |
+
