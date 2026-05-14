@@ -276,7 +276,137 @@ and explicitly cites the AWS ADR process so future agents treat the immutability
 rule as binding. The plugin's skill includes a `generate-adr` capability that
 emits this exact shape.
 
-### 2.7 GenAI platform-engineering blog
+### 2.7 Container supply chain — Trivy / Docker Scout / SBOM / ECR Enhanced
+
+Sources:
+
+- **Trivy** — [https://trivy.dev/](https://trivy.dev/) (project) and
+  [aquasecurity/trivy-action](https://github.com/aquasecurity/trivy-action)
+  (the GitHub Action used in the CI snippets).
+- **Docker Scout** — [https://docs.docker.com/scout/](https://docs.docker.com/scout/)
+  (product docs) and [docker/scout-action](https://github.com/docker/scout-action)
+  (the GitHub Action used in the alternative CI snippet).
+- **SPDX 2.3** — [https://spdx.dev/](https://spdx.dev/) (spec).
+- **CycloneDX 1.5** — [https://cyclonedx.org/](https://cyclonedx.org/) (spec).
+- **AWS ECR enhanced scanning** — [Image scanning enhanced (AWS-prescriptive)](https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-scanning-enhanced.html).
+- **Amazon Inspector V2 + ECR** — [Scanning ECR repositories with Amazon Inspector (AWS-prescriptive)](https://docs.aws.amazon.com/inspector/latest/user/scanning-ecr.html).
+- **GitHub code scanning + SARIF** — [About code scanning](https://docs.github.com/en/code-security/code-scanning) + [SARIF v2.1.0 spec](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html).
+
+Key normative points Catalyst encodes:
+
+- **Trivy is the primary scanner.** Single tool covers OS packages, language
+  libraries, IaC, Dockerfile misconfig, AND SBOM emission (`--format
+  spdx-json`, `--format cyclonedx`). SARIF is native. Pinned-by-SHA Action
+  available. The skill's `generate-container-scan-workflow` capability emits
+  the canonical workflow.
+- **Docker Scout is the documented alternative.** Use when Docker Hub /
+  Docker Desktop is already in the developer loop OR when an active Scout
+  subscription already pays for the policy + remediation features. Same
+  SARIF + SBOM artifact contract as Trivy. No third option (per ADR-005
+  §Container supply chain decision boundary).
+- **SBOMs in BOTH SPDX 2.3 JSON AND CycloneDX 1.5 JSON.** Customers,
+  regulators, and vulnerability platforms split on which spec they consume.
+  Producing both is cheap and removes friction at consumption.
+- **ECR Enhanced (Inspector V2)** is the AWS-prescriptive runtime registry
+  scanning. `aws_ecr_registry_scanning_configuration { scan_type = "ENHANCED" }`
+  declared once per account (typically Security Tooling or Shared Services per
+  the SRA — §2.3) provides continuous scanning of registry-resident images;
+  findings flow to Security Hub via the SRA delegated admin pattern.
+- **Severity gate**: build fails on `HIGH,CRITICAL` by default. Documented
+  exceptions live in `.trivyignore` with a rationale + a `review-by` date,
+  reviewed quarterly.
+- **Base-image policy** (B-1..B-8): pin by digest, minimal/distroless or
+  AL2023-minimal only, multi-stage builds, non-root user, `HEALTHCHECK`,
+  no build-time secrets, documented exceptions, OCI image labels for
+  chargeback.
+- **Currency**: Dependabot watches the `docker` ecosystem so pinned digests
+  are kept current; PRs land as `type/kaizen` and are gated by the same
+  scan workflow.
+
+This composes with §2.3 (SRA) — Inspector V2 findings go to Security Hub in
+the Security Tooling account, then via Catalyst's webhook-handler into
+`type/ops-intel-finding` issues per ADR-001. No new state vocabulary or
+dispatcher.
+
+The skill's bound capabilities for this layer are #9-#13 in
+[`.cursor/skills/aws-platform-engineering/SKILL.md`](../../.cursor/skills/aws-platform-engineering/SKILL.md):
+`generate-container-scan-workflow` (Trivy),
+`generate-container-scan-scout-workflow`, `generate-ecr-scan-on-push`,
+`generate-base-image-policy`, `generate-dependabot-container`.
+
+### 2.8 Python tooling — pytest + knack + moto
+
+Sources:
+
+- **pytest** —
+  [docs.pytest.org / stable](https://docs.pytest.org/en/stable/),
+  [How to use fixtures](https://docs.pytest.org/en/stable/how-to/fixtures.html),
+  [How to parametrize](https://docs.pytest.org/en/stable/how-to/parametrize.html),
+  [Configuration](https://docs.pytest.org/en/stable/reference/customize.html),
+  [How to monkeypatch / mock](https://docs.pytest.org/en/stable/how-to/monkeypatch.html),
+  [tmp_path](https://docs.pytest.org/en/stable/how-to/tmp_path.html),
+  [Capture stdout/stderr](https://docs.pytest.org/en/stable/how-to/capture-stdout-stderr.html),
+  [Markers](https://docs.pytest.org/en/stable/how-to/mark.html).
+- **pytest-cov** — [pypi.org/project/pytest-cov/](https://pypi.org/project/pytest-cov/).
+- **pytest-xdist** — [pypi.org/project/pytest-xdist/](https://pypi.org/project/pytest-xdist/).
+- **moto** — [docs.getmoto.org](https://docs.getmoto.org/) (v5 unified `mock_aws()`).
+- **knack** — [github.com/microsoft/knack](https://github.com/microsoft/knack)
+  (the framework Microsoft Azure CLI is built on);
+  [knack/docs/commands.md](https://github.com/microsoft/knack/blob/dev/docs/commands.md),
+  [knack/docs/arguments.md](https://github.com/microsoft/knack/blob/dev/docs/arguments.md),
+  [knack/docs/help.md](https://github.com/microsoft/knack/blob/dev/docs/help.md),
+  [knack/docs/output.md](https://github.com/microsoft/knack/blob/dev/docs/output.md).
+
+Key normative points Catalyst encodes (per ADR-005 §Python tooling and the
+[`python-cli-and-testing`](../../.cursor/skills/python-cli-and-testing/SKILL.md) skill):
+
+- **CLI = `knack`.** `CLICommandsLoader.load_command_table` declares the
+  command table; `CommandGroup` groups commands; `ArgumentsContext`
+  customises arguments and registers `validator`s; YAML help authoring
+  via the `helps[]` dict at module scope. knack ships JSON / JSON-colored
+  / Table / TSV output; the Catalyst scaffold adds a YAML formatter via
+  `OutputProducer.format_dict["yaml"] = ...` for parity with `--output`
+  conventions developers expect from cloud CLIs. Knack's `dev` branch
+  carries the canonical docs.
+- **Tests = `pytest`** with `[tool.pytest.ini_options]` in
+  `pyproject.toml`. The Catalyst defaults (per the skill):
+  `addopts = "-ra --strict-markers --strict-config --showlocals
+  --tb=short --import-mode=importlib"`,
+  `testpaths = ["tests"]`,
+  `markers = [...]` (registers `slow`, `integration`, `e2e`, `moto`),
+  `filterwarnings = ["error", ...]`. Coverage gate
+  `[tool.coverage.report] fail_under = 85`.
+- **Fixtures lean on built-ins** (`tmp_path`, `monkeypatch`, `capsys`)
+  per pytest's how-to-fixtures docs. Construct-anchor fixture
+  (`tenant`/`environment`/`landing_zone`/`project`/`application`) supplies
+  the labels every Catalyst service expects.
+- **AWS mocking = `moto` v5 `mock_aws()`.** One context manager handles
+  any service; the `tests/conftest.py` ships `s3_client` / `ddb_client`
+  fixtures that yield a moto-mocked boto3 client. `placebo` and `vcrpy`
+  are permitted only with a written justification in the test module's
+  docstring.
+- **Markers select the test class** at run time:
+  `pytest -m "not e2e and not slow"` for the default loop;
+  `pytest -m moto` for AWS-touching tests; `pytest -n auto` for parallel
+  via `pytest-xdist`. `e2e` tests are auto-skipped unless `RUN_E2E=1`
+  per a `pytest_collection_modifyitems` hook in the conftest.
+- **CI command (canonical)**:
+  `pytest -q -ra --strict-markers --strict-config --junitxml=junit.xml
+  --cov --cov-report=xml --cov-fail-under=85 -m "not e2e and not slow"`.
+  Emitted by the skill's `scaffold-pytest-ci-workflow` capability across
+  a `python: ["3.11", "3.12"]` matrix.
+- **Automation-service handlers** are factored so business logic is unit-
+  testable *without* the HTTP / Lambda envelope. The integration test uses
+  FastAPI's `TestClient` (sync) or `httpx.AsyncClient` (async) and
+  monkeypatches the dep-injection seam at the consumption point — never
+  reaching the network.
+
+This composes with §2.6 (AWS prescriptive ADR process — supersession
+governs Python tooling decisions just like everything else) and
+§2.7 (container supply chain — pytest CI workflow is a separate workflow
+from the Trivy scan workflow; both run on the same PR).
+
+### 2.9 GenAI platform-engineering blog
 
 Source: [Accelerating generative AI applications with a platform engineering approach](https://aws.amazon.com/blogs/machine-learning/accelerating-generative-ai-applications-with-a-platform-engineering-approach/)
 (Foo & Bhatt, AWS, ~2025).
@@ -524,3 +654,38 @@ All sources fetched and read during this work. Format: `URL — short label
 - https://docs.aws.amazon.com/prescriptive-guidance/latest/migration-aws-environment/preparing-landing-zone.html — landing-zone setup (`AWS-prescriptive`)
 - https://docs.aws.amazon.com/prescriptive-guidance/latest/load-balancer-stickiness/subnets-routing.html — ALB subnet routing (`AWS-prescriptive`)
 - https://docs.aws.amazon.com/prescriptive-guidance/latest/patterns/generate-a-static-outbound-ip-address-using-a-lambda-function-amazon-vpc-and-a-serverless-architecture.html — static-egress pattern
+
+**Container supply chain:**
+
+- https://trivy.dev/ — Trivy (project)
+- https://github.com/aquasecurity/trivy-action — Trivy GitHub Action
+- https://docs.docker.com/scout/ — Docker Scout (product docs)
+- https://github.com/docker/scout-action — Docker Scout GitHub Action
+- https://spdx.dev/ — SPDX 2.3 spec
+- https://cyclonedx.org/ — CycloneDX 1.5 spec
+- https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-scanning-enhanced.html — ECR enhanced scanning (`AWS-prescriptive`)
+- https://docs.aws.amazon.com/inspector/latest/user/scanning-ecr.html — Inspector V2 + ECR (`AWS-prescriptive`)
+- https://docs.github.com/en/code-security/code-scanning — GitHub code scanning
+- https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html — SARIF v2.1.0 spec
+- https://github.com/GoogleContainerTools/distroless — distroless base images
+- https://docs.aws.amazon.com/linux/al2023/ug/minimal-container.html — Amazon Linux 2023 minimal container
+- https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file — dependabot.yml reference
+
+**Python tooling:**
+
+- https://docs.pytest.org/en/stable/ — pytest docs root
+- https://docs.pytest.org/en/stable/how-to/fixtures.html — pytest fixtures
+- https://docs.pytest.org/en/stable/how-to/parametrize.html — pytest parametrize
+- https://docs.pytest.org/en/stable/reference/customize.html — pytest configuration (pyproject.toml)
+- https://docs.pytest.org/en/stable/how-to/monkeypatch.html — pytest monkeypatch
+- https://docs.pytest.org/en/stable/how-to/tmp_path.html — pytest tmp_path
+- https://docs.pytest.org/en/stable/how-to/capture-stdout-stderr.html — pytest capsys / capture
+- https://docs.pytest.org/en/stable/how-to/mark.html — pytest markers
+- https://pypi.org/project/pytest-cov/ — pytest-cov
+- https://pypi.org/project/pytest-xdist/ — pytest-xdist
+- https://docs.getmoto.org/ — moto (v5 unified `mock_aws()`)
+- https://github.com/microsoft/knack — knack repo
+- https://github.com/microsoft/knack/blob/dev/docs/commands.md — knack commands doc
+- https://github.com/microsoft/knack/blob/dev/docs/arguments.md — knack arguments doc
+- https://github.com/microsoft/knack/blob/dev/docs/help.md — knack help authoring
+- https://github.com/microsoft/knack/blob/dev/docs/output.md — knack output formats

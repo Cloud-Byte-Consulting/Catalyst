@@ -84,6 +84,54 @@ radius.
 - `secrets-scrubbed` modifier label set on any issue where the scrubber
   found and replaced a secret on input.
 
+### Container supply-chain review (G-13) — `AWS-prescriptive`
+
+For every PR that touches a Dockerfile or builds a container image:
+
+1. **Scan workflow present?** PR MUST include the Trivy
+   (`generate-container-scan-workflow`) or Docker Scout
+   (`generate-container-scan-scout-workflow`) job. Missing scan workflow
+   is a hard reject.
+2. **Severity gate intact?** Default is `HIGH,CRITICAL`. Any relaxation
+   (e.g., `MEDIUM`, `LOW` allowed) requires a PR-body justification and a
+   `severity-gate-relaxed` modifier label on the tracking issue.
+3. **SBOMs present?** Workflow MUST produce BOTH SPDX 2.3 JSON and
+   CycloneDX 1.5 JSON artifacts. Single-format output is a hard reject.
+4. **SARIF uploaded?** `github/codeql-action/upload-sarif@v3` step present;
+   findings visible in the Security tab.
+5. **`.trivyignore` audit.** Every entry MUST have a `# rationale: <text>`
+   comment AND a `review-by: <date>` line. Entries past their `review-by`
+   date are findings (severity/medium); open `type/kaizen`.
+6. **ECR repo has scan-on-push?** Cross-check the matching Terraform: the
+   `aws_ecr_repository` MUST set `image_scanning_configuration { scan_on_push = true }`.
+   Find the `aws_ecr_registry_scanning_configuration` in the
+   security-tooling / shared-services account; verify `scan_type = "ENHANCED"`.
+   Findings flow to Security Hub via SRA delegated admin (G-4).
+7. **Base-image policy followed?** Verify B-1..B-8 in the Dockerfile:
+   - B-1: pinned by digest (`@sha256:`); not `:latest`.
+   - B-2: minimal/distroless/AL2023-minimal only.
+   - B-3: multi-stage build (build deps stripped from runtime).
+   - B-4: `USER` set to non-root UID.
+   - B-5: `HEALTHCHECK` instruction present.
+   - B-6: no `COPY .env` / no inline credentials.
+   - B-7: `.trivyignore` exceptions documented.
+   - B-8: OCI image labels (revision, source, tenant, application).
+8. **Pinned-by-SHA Actions in scan workflows?** Third-party Actions in the
+   workflow MUST be pinned by SHA before merge; `# pin to a verified SHA before merge`
+   markers MUST be replaced. Dependabot keeps them current.
+9. **Decision-boundary respected?** Trivy default OR Scout — never a third
+   scanner. PRs introducing Grype/Snyk/Clair instead of one of the two
+   sanctioned options are rejected with a pointer to ADR-005 §Container
+   supply chain.
+
+Sources to cite when writing findings:
+- Trivy: https://trivy.dev/
+- Docker Scout: https://docs.docker.com/scout/
+- ECR Enhanced + Inspector V2: https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-scanning-enhanced.html
+- SPDX 2.3: https://spdx.dev/
+- CycloneDX 1.5: https://cyclonedx.org/
+- SARIF + GitHub code scanning: https://docs.github.com/en/code-security/code-scanning
+
 ## Output format
 
 ```

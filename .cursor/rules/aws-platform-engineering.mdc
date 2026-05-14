@@ -109,6 +109,7 @@ the stable `### Context / ### Decision / ### Rationale / ### Alternatives /
 | New ADR | `generate-adr` template; `Status: Proposed`; immutability rule (G-8). | n/a — supersession is the only path to changing an Accepted ADR. |
 | Bedrock-backed service | `generate-bedrock-service-skeleton`; controls layer present (G-10). | Explicit user waiver + Generative AI Lens trade-off note. |
 | New CI workflow | `generate-actions-oidc-workflow`; OIDC; no static keys (G-1). | n/a — there is no override for "use static keys". |
+| Container PR / new Dockerfile | Trivy scan workflow (G-13); SPDX 2.3 + CycloneDX 1.5 SBOMs; SARIF to Security tab; HIGH/CRITICAL gate; ECR scan-on-push enabled; pinned base images. | Scout workflow (same contract) only; severity-gate relaxation requires PR-body justification; `.trivyignore` exceptions require rationale + review-by date. |
 
 ## IaC preferences (binding)
 
@@ -131,6 +132,65 @@ policy binds on `repository:Cloud-Byte-Consulting/Catalyst:*` plus a `ref`
 condition for production workflows. Never `aws-access-key-id` /
 `aws-secret-access-key`. Workflows that pass this check are tagged with
 `# AWS-AUTH: oidc` at the top.
+
+## Python tooling (G-14) — `Catalyst-prescriptive`
+
+Python work in Catalyst standardises on three tools (per ADR-005
+§Python tooling):
+
+- **CLI framework**: Microsoft [`knack`](https://github.com/microsoft/knack).
+  Generate new CLIs via the [`python-cli-and-testing`](../skills/python-cli-and-testing/SKILL.md)
+  skill's `scaffold-knack-cli` capability. Never hand-roll `argparse`,
+  `Click`, or `Typer` into a new Catalyst CLI. Every CLI MUST support
+  `--help` per subcommand AND `--output {table,json,tsv,yaml}`.
+- **Test framework**: [`pytest`](https://docs.pytest.org/en/stable/) with
+  `[tool.pytest.ini_options]` in `pyproject.toml`, strict markers + strict
+  config, `tests/{unit,integration,e2e}` layout, markers (`slow`,
+  `integration`, `e2e`, `moto`), coverage via `pytest-cov` with
+  `--cov-fail-under=85`. Generate via the skill's `scaffold-pytest-config`
+  capability.
+- **AWS service mocking**: [`moto`](https://docs.getmoto.org/) via
+  `mock_aws()` (v5 unified decorator). `placebo` / `vcrpy` are permitted
+  only with a written justification in the test module's docstring.
+
+CI MUST run `pytest -q -ra --strict-markers --strict-config --cov
+--cov-report=xml --cov-fail-under=85 -m "not e2e and not slow"` (the
+skill's `scaffold-pytest-ci-workflow` capability emits this verbatim).
+
+Validator failures in CLIs MUST exit non-zero with a structured error
+(`catalyst_cli.exceptions.EXIT_CODES`). Bare traceback exits are a hard
+reject.
+
+## Container supply chain (G-13) — `AWS-prescriptive` for Catalyst
+
+Every PR that builds or modifies a container image MUST include a Trivy
+(or Docker Scout) scan step that:
+
+- Fails the build on `HIGH,CRITICAL` by default. Threshold relaxation
+  requires a PR-body justification.
+- Produces both **SPDX 2.3 JSON** and **CycloneDX 1.5 JSON** SBOMs uploaded
+  as workflow artifact `sbom-${{ github.sha }}` (90-day retention) and
+  attached to GitHub Releases on tagged pushes.
+- Uploads SARIF to GitHub code scanning (Security tab).
+- Documented exceptions live in committed `.trivyignore` (each entry
+  carries a `# rationale: <text>` AND `review-by: <date>` line); reviewed
+  quarterly.
+
+Every ECR repository provisioned by Catalyst Terraform MUST have
+`scan_on_push = true`. The account hosting the registry MUST have a
+registry-wide `aws_ecr_registry_scanning_configuration` set to `ENHANCED`
+(Inspector V2 continuous scanning) — typically declared in the SRA Security
+Tooling or Shared Services account, not per-workload.
+
+Every Dockerfile MUST follow the binding base-image policy (B-1..B-8):
+pin by digest, minimal/distroless or AL2023-minimal only, multi-stage,
+non-root user, `HEALTHCHECK`, no build-time secrets, OCI image labels for
+chargeback.
+
+Decision boundary (per ADR-005 §Container supply chain): Trivy is the
+default; Docker Scout is the documented alternative and uses the same SARIF
++ SPDX + CycloneDX artifact contract — the workflows are interchangeable.
+Do NOT pick a third option.
 
 ## Composition with existing Catalyst rules
 

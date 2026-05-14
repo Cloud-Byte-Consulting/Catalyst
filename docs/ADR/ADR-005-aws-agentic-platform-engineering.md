@@ -238,6 +238,216 @@ The deliberate choices in the decision are:
 | **Use AWS CDK as the default IaC language** | Catalyst's existing infra is Terraform; CDK introduces a Python/TypeScript runtime in the platform path that doesn't exist today. CDK remains an explicit option in the skill, but not the default. |
 | **Make the persona auto-activate on every Cursor session in the repo** | Noise on unrelated tasks (RLM work, doc edits, issue triage). The rule is `alwaysApply: false` and matches AWS contexts only — same convention as `rlm-workflow.mdc`. |
 
+## Container supply chain
+
+### Decision
+
+- **Trivy** is the **primary** container image scanner for Catalyst.
+  Skill capability `generate-container-scan-workflow` emits the canonical
+  GitHub Actions workflow.
+- **Docker Scout** is the **documented alternative**. Skill capability
+  `generate-container-scan-scout-workflow` emits the equivalent workflow.
+  Both produce the SAME artifact contract — SARIF + SPDX 2.3 + CycloneDX 1.5
+  — so swapping scanners is a workflow-file change, not a downstream-consumer
+  change.
+- **SBOMs** are produced in BOTH **SPDX 2.3 JSON** AND **CycloneDX 1.5 JSON**,
+  uploaded as the workflow artifact `sbom-${{ github.sha }}` (90-day
+  retention), and attached to GitHub Releases on tagged pushes.
+- **Severity gate**: build fails on `HIGH,CRITICAL` by default. Relaxation
+  requires PR-body justification; documented exceptions live in
+  `.trivyignore` with a `# rationale: <text>` and a `review-by: <date>`
+  for every entry; reviewed quarterly.
+- **Registry-side scanning**: every ECR repo has `scan_on_push = true`
+  (basic) AND the account has registry-wide `ENHANCED` scanning via
+  Inspector V2 (`aws_ecr_registry_scanning_configuration`). Findings flow
+  to AWS Security Hub via the SRA Security Tooling delegated admin
+  pattern.
+- **Base-image policy** (B-1..B-8): pin by digest, minimal/distroless or
+  AL2023-minimal only, multi-stage builds, non-root user, `HEALTHCHECK`,
+  no build-time secrets, documented `.trivyignore` exceptions, OCI image
+  labels for chargeback.
+- **Currency**: Dependabot watches the `docker` ecosystem on every
+  containerised path; PRs land as `type/kaizen` and are gated by the same
+  scan workflow.
+- **Decision boundary**: Trivy default; Scout alternative; **no third
+  scanner**. PRs introducing Grype/Snyk/Clair are rejected with a pointer
+  to this section.
+
+### Rationale
+
+- **Trivy is OSS, broad coverage, SARIF-native.** Single tool covers OS
+  packages, language libraries, IaC, Dockerfile misconfig, and SBOM
+  generation. Native SARIF + SPDX + CycloneDX output. Pinned-by-SHA
+  Action available (`aquasecurity/trivy-action`). Aligned to GitHub's
+  code-scanning conventions out of the box.
+- **Scout is the right alternative when Docker is already in the loop.**
+  Teams already paying for Docker Hub / Docker Desktop and using Scout's
+  policy + remediation features should not be forced off it. The same
+  artifact contract means downstream Catalyst consumers (Security Hub
+  forwarder, release pipeline) do not care which scanner produced the
+  SARIF / SBOM.
+- **Both SPDX 2.3 and CycloneDX 1.5.** Customers, regulators, and
+  vulnerability platforms split on which spec they consume. Producing both
+  costs marginal CI time and removes a friction point at consumption.
+- **ECR Enhanced (Inspector V2) for runtime scanning.** Continuous
+  scanning of registry-resident images catches vulns disclosed AFTER
+  build time (the most common case). Inspector V2 -> Security Hub -> 
+  Catalyst's webhook-handler -> `type/ops-intel-finding` issues completes
+  the loop into the existing state machine without inventing a new
+  pipeline.
+- **HIGH/CRITICAL gate.** Lower-severity gates create alert fatigue and
+  push teams to silence findings; HIGH/CRITICAL is the level where the
+  tradeoff between false-positive rate and exploitability favours
+  blocking.
+- **Pin-by-digest base-image rule.** Tag drift is the single most common
+  cause of "I rebuilt and now it's vulnerable / no longer vulnerable"
+  flake. Digest pins make builds reproducible and SBOMs accurate.
+
+### Consequences
+
+#### Good
+
+- Container PRs ship with a uniform contract: a SARIF in the Security tab,
+  two SBOMs in artifact storage, a HIGH/CRITICAL gate enforced by CI.
+- Findings flow into the existing GitHub-Issues state machine via
+  ECR-Enhanced -> Inspector V2 -> Security Hub -> webhook-handler. No new
+  state vocabulary, no new dispatcher.
+- The Trivy/Scout split honours team preference without fragmenting the
+  downstream contract.
+- `.trivyignore` becomes auditable rather than a silent allowlist; the
+  `review-by` date stops permanent exceptions from accumulating.
+
+#### Trade-offs we accept
+
+- **Build-time gate cost.** Trivy scan + SBOM jobs add ~3-7 minutes per
+  PR for a typical service image. Acceptable; outweighed by the cost of
+  shipping a known HIGH/CRITICAL CVE.
+- **`.trivyignore` governance.** Every exception requires a rationale + a
+  date. This is operational toil that the persona owns; the alternative
+  (silent allowlists) is worse.
+- **SBOM storage / retention.** 90-day artifact retention + indefinite
+  Release attachment costs money. Acceptable; SBOMs are the audit trail
+  for supply-chain incidents.
+- **Scout requires Docker Hub auth** even for ECR-resident images; the
+  Scout workflow uses `secrets.DOCKERHUB_USERNAME` + `DOCKERHUB_TOKEN` and
+  the trade-off is documented at the top of the workflow.
+- **Inspector V2 is per-account.** The `aws_ecr_registry_scanning_configuration`
+  MUST be declared once per account (typically Security Tooling or Shared
+  Services); duplicating it per workload is a design error.
+
+### Alternatives considered
+
+| Alternative | Why rejected |
+|---|---|
+| **Grype + Syft** (Anchore stack) — Grype for vulns, Syft for SBOM | Two-tool split adds CI orchestration cost. Trivy's vulns + SBOM in one tool wins on simplicity. Syft's SBOM output is excellent but Trivy's is sufficient for our consumers. |
+| **Snyk** (commercial) | Adds vendor cost + lock-in for marginal capability over Trivy. Better triage UI, but our triage UI is the GitHub Issue (per ADR-001), not a vendor dashboard. |
+| **Clair** (Quay-aligned) | Less active maintenance vs Trivy; weaker SBOM story; weaker GitHub Action integration. |
+| **ECR Basic only** | Misses IaC misconfig + Dockerfile lint that Trivy catches at build time. Basic scan also lacks Inspector V2's continuous re-scanning of already-pushed images. |
+| **SBOM in only one format (e.g., SPDX)** | Forces consumers to bridge formats. Producing both costs marginal CI time and removes a friction point. |
+| **No build-time gate; fix-forward only** | Leaves a window where shipped images carry known HIGH/CRITICAL CVEs. The SRE prompt's MTTR SLO would balloon. |
+| **Allow Grype/Snyk/Clair as third options "if a team prefers"** | Fragments the artifact contract; downstream consumers (Security Hub forwarder, release pipeline) would have to support multiple SARIF / SBOM dialects. The Trivy ↔ Scout swap is sufficient to honour team preference. |
+
+## Python tooling
+
+### Decision
+
+- **CLI framework**: Microsoft [`knack`](https://github.com/microsoft/knack)
+  for any new Catalyst Python CLI. The
+  [`python-cli-and-testing`](../../.cursor/skills/python-cli-and-testing/SKILL.md)
+  skill's `scaffold-knack-cli` capability emits the canonical
+  `cli.py` / `commands.py` / `arguments.py` / `validators.py` /
+  `formatters.py` / `help.py` / `exceptions.py` shape. CLI ships with
+  `--help` per subcommand, `--output {table,json,tsv,yaml}` (knack ships
+  the first three; the YAML formatter is added by the Catalyst scaffold),
+  declarative validators, structured exceptions with mapped exit codes.
+- **Test framework**: [`pytest`](https://docs.pytest.org/en/stable/)
+  configured in `pyproject.toml` `[tool.pytest.ini_options]` with
+  `--strict-markers` + `--strict-config` + `addopts = "-ra"`, the
+  `tests/{unit,integration,e2e}` layout, registered markers
+  (`slow`, `integration`, `e2e`, `moto`), and coverage via
+  [`pytest-cov`](https://pypi.org/project/pytest-cov/) with
+  `--cov-fail-under=85`. The skill's `scaffold-pytest-config` capability
+  emits the config; `scaffold-pytest-ci-workflow` emits the GitHub
+  Actions job.
+- **AWS service mocking in tests**: [`moto`](https://docs.getmoto.org/)
+  via the v5 unified `mock_aws()` decorator / context manager. The
+  `tests/conftest.py` ships with `aws_credentials`, `s3_client`, and
+  `ddb_client` fixtures wired through `mock_aws()`.
+- **Parallelism**: [`pytest-xdist`](https://pypi.org/project/pytest-xdist/)
+  available for `pytest -n auto`. Not required by default; CI defaults
+  to single-process for deterministic ordering.
+
+### Rationale
+
+- **knack is small, declarative, and battle-tested.** It is the framework
+  Microsoft Azure CLI is built on (per [microsoft/knack repo](https://github.com/microsoft/knack)),
+  which means the `CLICommandsLoader` / `ArgumentsContext` / YAML help
+  patterns are exercised by a CLI with hundreds of commands. Catalyst's
+  CLI grows in similar shape (groups of commands per resource), so the
+  patterns transfer cleanly. The framework removes the bespoke argparse
+  boilerplate that otherwise accretes around growing CLIs.
+- **pytest is the de-facto Python testing standard.** Rich fixture model,
+  native `@pytest.mark.parametrize`, mature plugin ecosystem (`pytest-cov`,
+  `pytest-xdist`, `pytest-asyncio`), and the assertion rewrite gives
+  unittest-style TDD without unittest's class-and-method ceremony. Strict
+  markers + strict config catch typos at collection time rather than
+  silently no-op-ing.
+- **moto is the lowest-friction AWS mocking layer.** v5's `mock_aws()`
+  context manager replaces the per-service `mock_s3` / `mock_dynamodb` /
+  ... decorators (per [docs.getmoto.org](https://docs.getmoto.org/)), so
+  one fixture covers any service without per-test boilerplate. moto runs
+  in-process — no Docker, no LocalStack, no recorded fixtures to maintain.
+
+### Consequences
+
+#### Good
+
+- Every Catalyst Python CLI looks the same: same help layout, same output
+  switches, same exit-code semantics. Operators learn one CLI shape.
+- Every Catalyst test suite looks the same: same `pyproject.toml` config,
+  same fixture names, same coverage gate. New contributors find tests in
+  the expected place.
+- AWS mocking is uniform — moto-backed tests look identical across
+  services; reviewers do not have to remember whether a given service is
+  `placebo`-recorded or `vcrpy`-recorded.
+- `--strict-markers` + `--strict-config` keeps test config honest.
+
+#### Trade-offs we accept
+
+- **Small extra deps** (`knack`, `pytest`, `pytest-cov`, `moto`). All are
+  pure-Python, all have stable APIs, all are in active maintenance.
+- **Learning curve** for `CLICommandsLoader` / `CommandGroup` style.
+  Documented in the skill with reference code; one read of
+  [knack/docs/commands.md](https://github.com/microsoft/knack/blob/dev/docs/commands.md)
+  and [knack/docs/arguments.md](https://github.com/microsoft/knack/blob/dev/docs/arguments.md)
+  is sufficient.
+- **Knack's `dev` branch is the doc source of truth.** The repo's docs
+  live on the `dev` branch (not `main`). The research doc cites those
+  URLs explicitly so the agent always reads from the active docs branch.
+- **YAML output is a custom formatter, not native.** knack ships JSON /
+  JSON-colored / Table / TSV (per [knack/docs/output.md](https://github.com/microsoft/knack/blob/dev/docs/output.md));
+  the Catalyst scaffold registers `yaml` via `OutputProducer.format_dict`.
+  This is a small piece of glue but it's pinned to a knack internal API
+  that *could* shift; covered by the CLI tests in
+  `tests/unit/test_formatters.py`.
+- **Coverage gate at 85%** is intentionally not 100%. 100% coverage
+  forces tests of trivial getters / dataclasses / `if TYPE_CHECKING:`
+  blocks. 85% with `branch = true` and the `exclude_lines` block in
+  `[tool.coverage.report]` strikes the right balance.
+
+### Alternatives considered
+
+| Alternative | Why rejected |
+|---|---|
+| **`Click`** | More popular than knack but encourages decorator-heavy CLI definitions that drift from a declarative model as the CLI grows. Click's parameter-on-command pattern complicates shared / inherited arguments — knack's `ArgumentsContext` with scope inheritance is cleaner for Catalyst's groups-within-groups shape. |
+| **`Typer`** | Typer wraps Click with type hints. Same drift concern as Click for a growing CLI. Typer's strength is small CLIs; Catalyst's CLI is not small. |
+| **`argparse` (stdlib)** | Floor-level. Re-derives knack's value (declarative groups, validators, output formatters, help authoring) by hand. Acceptable for one-off scripts; not the default for Catalyst's CLI. |
+| **`unittest`** | Older, class-and-method ceremony, weaker fixture model, no native parametrize, no assertion rewrite. Catalyst keeps existing `unittest`-style code in place; new tests use pytest. |
+| **`nose2`** | Less momentum than pytest. Plugin ecosystem is smaller. Some active development but pytest is the better bet. |
+| **`placebo`** | Records-and-replays real boto3 traffic. Recordings drift; refreshing them is operator toil. moto's in-process service simulation has fewer moving parts. |
+| **`vcrpy`** | Same critique as `placebo` — recorded HTTP cassettes drift. Useful for non-AWS HTTP testing; permitted for that case with a written justification. Not the default for AWS. |
+| **LocalStack** | Heavier (Docker-required) than moto for the unit/integration test surface Catalyst needs. Worth revisiting for `e2e`-marked tests. |
+
 ## Compliance
 
 - The `aws-platform-engineer` persona must be present at
@@ -245,14 +455,29 @@ The deliberate choices in the decision are:
 - The workspace rule `.cursor/rules/aws-platform-engineering.mdc` must include
   this ADR's filename in its `## References` section.
 - The skill at `.cursor/skills/aws-platform-engineering/SKILL.md` must list
-  exactly the eight capabilities in §Decision item 3; capability removals or
-  additions land via a successor ADR.
+  exactly the **thirteen** capabilities (eight original + five container
+  supply chain); capability removals or additions land via a successor ADR.
+- The companion skill at `.cursor/skills/python-cli-and-testing/SKILL.md`
+  must exist with the three capabilities listed in §Python tooling
+  (`scaffold-knack-cli`, `scaffold-pytest-config`,
+  `scaffold-pytest-ci-workflow`); capability removals or additions land
+  via a successor ADR.
 - The five prompts under `.cursor/prompts/` listed in §Decision item 4 must
   exist; new prompts may be added under the same naming pattern.
 - Any optional Python helper (e.g., the MCP wrapper) must pass
   `python -m py_compile` and depend only on stdlib.
 - AWS examples in any plugin asset use `123456789012` as a placeholder
   account ID; never a real one.
+- Container image PRs follow the contract in §Container supply chain;
+  workflows that bypass the scan job, omit either SBOM format, or relax
+  the HIGH/CRITICAL gate without justification are rejected by the
+  `aws-security-engineer` prompt.
+- New Catalyst Python CLIs use `knack` per §Python tooling; new test
+  suites use `pytest` with the strict-markers + `--cov-fail-under=85`
+  config from the `python-cli-and-testing` skill; AWS-touching tests
+  default to `moto` mocking.
+- This ADR is **immutable** once Accepted per the AWS prescriptive ADR
+  process; revisions land as a successor ADR.
 
 ## Notes
 
