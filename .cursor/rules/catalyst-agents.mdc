@@ -1,0 +1,46 @@
+---
+description: Auto-route Cursor sessions to the right Catalyst persona by topic match. Activates whenever the user mentions Terraform, OPA, Checkov, Score, AWS, security, IAM, encryption, container hardening, secret scanning, CI/CD, or PR review.
+alwaysApply: false
+---
+
+# Catalyst persona routing
+
+Catalyst's `.cursor/agents/` directory holds a small set of specialised personas vendored from `BittahCriminal/platform-catalyst` (BSD-3-Clause) and adapted per the 16 locked decisions in `docs/research/platform-catalyst-agents-evaluation.md`. This rule helps you pick the right one when a request maps to a single rubric area.
+
+## Routing table
+
+| When the user is asking about… | Invoke / cite |
+|---|---|
+| Terraform modules, `.tftest.hcl`, IAM policy authoring, KMS, ECS Fargate / Lambda / S3 / DynamoDB / Aurora / Bedrock HCL, OIDC trust, `terraform fmt` discipline | `.cursor/agents/terraform-engineer.md` |
+| Checkov gate failures, finding triage (`must-fix` / `risk-accepted` / `false-positive`), suppression policy, custom Checkov checks | `.cursor/agents/checkov-expert.md` |
+| OPA / Rego, Conftest in CI, `state_machine.rego` for ADR-001 transitions, bundle/discovery troubleshooting, `opa eval --explain` | `.cursor/agents/opa-expert.md` |
+| AWS-native code generation (templates for ECS Fargate, OIDC workflows, container scanning, static-egress VPC, golden-path docs) and the `aws-platform-engineering` MCP wrapper | `.cursor/agents/aws-platform-engineer.md` |
+| Secret scanning, secrets rotation contracts, container hardening, network segmentation, AI threat modelling, GitHub MCP `secret_protection` toolset | `.cursor/agents/security-hardener.md` |
+
+> Future personas land here as later import phases merge: `automation-architect`, `cicd-operator`, `ai-reviewer-architect`, `score-expert`, `platform-engineering-architect`. Keep this table additive — never remove a row, only add.
+
+## Routing protocol
+
+1. **Single-area request** — pick the one persona above whose row matches and read its file with the Read tool before composing the answer. The persona file is the system prompt for that part of the work.
+2. **Cross-cutting request** — name the personas you are coordinating (typically architect → terraform → security/CI/CD), and follow their **adjacent experts** sections to chain.
+3. **No persona match** — fall back to default Cursor behaviour and `AGENTS.md`. Do not invent a persona.
+4. **Long-context artifact** — every persona inherits the RLM bullet from decision #16. If the artifact you need to read exceeds ~50k chars, follow `.cursor/rules/rlm-workflow.mdc` first and let the persona consume the RLM summary instead of the raw blob.
+5. **Construct address** — every change carries the `tenant/env/lz/project/app` address from `docs/ADR/ADR-002-construct-hierarchy.md` as labels, tags, alarm names, EMF dimensions.
+6. **State machine** — every action that creates or transitions an Issue follows `docs/ADR/ADR-001-github-issues-as-state-machine.md` and `docs/ADR/STATE-MACHINE.md` (allowed `state/*` transitions, comment headings, audit shape).
+
+## Anti-patterns
+
+- Do **not** load multiple persona files at once when one suffices — the persona files are independent system prompts. Pick one and chain via "adjacent experts" only when truly needed.
+- Do **not** invent a new persona file inline; if a routing gap exists, open a `type/kaizen` issue under milestone #5 (Communication and Documentation) so a future phase can land it.
+- Do **not** drop or reword the `Vendored from` line in any persona file — it is the BSD-3-Clause attribution shape per decision #9.
+
+## Provenance
+
+Personas were imported in phased PRs against `release` per the import plan in `docs/plans/platform-catalyst-import-plan.md`:
+
+- Phase 1 (`rc/import-pc-phase-1-terraform`): `terraform-engineer`, `checkov-expert`, `opa-expert` + 7 skills + this rule.
+- Phase 2 (`rc/import-pc-phase-2-automation`): `automation-architect`, `cicd-operator` (+ overlay onto pre-existing `security-hardener`).
+- Phase 3 (`rc/import-pc-phase-3-ai-review`): `ai-reviewer-architect`, `score-expert`, separate Bedrock MCP server.
+- Phase 4 (`rc/import-pc-phase-4-architect`): `platform-engineering-architect` (with `docs-communicator` responsibilities merged in per decision #7).
+
+`intent-judge` lands as a Cursor rule + ~80-line MCP shim on `rc/intent-judge-shim` per decision #3 (the upstream `plugins/catalyst-judge/` package is intentionally not vendored).
