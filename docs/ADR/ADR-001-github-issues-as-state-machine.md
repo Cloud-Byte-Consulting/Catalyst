@@ -59,30 +59,45 @@ Concretely:
 4. Issue **comments** are the audit trail. Every state transition,
    intermediate step, error, and Bedrock-agent finding lands as a comment.
    This is git-observable: `gh issue view <N> --comments`.
-5. A **GitHub Project (v2 board)** named "Catalyst Andon" provides a visible
+5. Issue **descriptions** are structured: `## Context`, `## Scope`, and
+   `## Acceptance Criteria` where acceptance criteria MUST be written as a
+   fenced `gherkin` block (`Feature` + at least one `Scenario`).
+6. Execution **workflow status** is managed on the project board columns:
+   `todo` (picked up and planning), `in-progress`
+   (plan comment posted and executing), `on-hold` (dependency wait),
+   `review` (execution complete, awaiting review), and `done` (completed).
+7. An Issue is only considered "done" when tests have passed,
+   documentation updates are present, and PR disposition is explicit
+   (`pr_required`, `pr_merged`, optional `pr_url`; when PR is required it must be merged),
+   then transition to `state/done`.
+8. A **GitHub Project (v2 board)** named "Catalyst Andon" provides a visible
    state machine. Columns: `Pending`, `Agent Working`, `Blocked on Human`,
    `Done`, `Rolled Back`. The board IS the andon — anyone can see the line.
-6. **Labels and the Project are managed by Terraform** via the `github`
+9. **Labels and the Project are managed by Terraform** via the `github`
    provider, so the state machine is reproducible and version-controlled
-7. **DynamoDB** holds:
+10. **DynamoDB** holds:
    - Idempotency dedup keys (webhook delivery IDs, TTL 24h).
    - Per-repo daily Bedrock token budgets (DDB conditional updates).
    - A read-through cache of the issue catalog (so `catalyst-api`'s
      `GET /services` doesn't cold-call GitHub for every request).
-8. **Aurora SLv2** holds the relational service-catalog and
+11. **Aurora SLv2** holds the relational service-catalog and
    deployment-lineage data — joins still belong in SQL.
 
 ### What this means for the runtime
 
 - `catalyst-api`'s `POST /deploy` does not orchestrate the deploy. It
   **creates an Issue** with the deploy plan in the body and labels
-  `type/deploy`, `state/pending`. It returns the issue URL.
+  `type/deploy`, `state/pending`. The issue is moved to board status `todo`.
+  The body includes context/scope
+  and gherkin acceptance criteria. It returns the issue URL.
 - The webhook handler reacts to the `issues.labeled` event when a human or
   another automation transitions `state/pending → state/agent-working`. It
   enqueues a deploy-orchestration message to SQS.
 - The deploy-orchestrator Lambda picks up the SQS message, reads the issue
   body for the plan, runs CodeDeploy, and **comments on the issue** with
-  progress. Final state is `state/done` (success) or `state/rolled-back`
+  progress. Plan-posted comments move board status to `in-progress`.
+  Dependency waits move status to `on-hold` with `Depends on #N` in
+  comments. Final state is `state/done` (success) or `state/rolled-back`
   (failed) or `state/blocked-on-human` (refused — needs human decision).
 
 ### What this enables

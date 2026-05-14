@@ -175,11 +175,43 @@ No other GitHub APIs are called from automation paths.
 
 | Verb | What it does | Who can do it |
 |---|---|---|
-| **create** | `POST /repos/.../issues` — creates a new tracking Issue with type label and `state/pending` | catalyst-api (user-initiated requests), webhook-handler (PR events), ops-intel probes (findings) |
+| **create** | `POST /repos/.../issues` — creates a new tracking Issue with type label and `state/pending`; issue is moved to board status `todo`; auto-assigns to configured project board when backend supports it | catalyst-api (user-initiated requests), webhook-handler (PR events), ops-intel probes (findings) |
 | **comment** | `POST /repos/.../issues/{n}/comments` — appends to the audit trail. Mandatory after every state transition with a 1-line summary. | All Catalyst services |
 | **assign** | `POST /repos/.../issues/{n}/assignees` — sets ownership. Bot self-assigns on `state/agent-working`; un-assigns on `state/blocked-on-human` (re-assigns to human reviewers if known). | All Catalyst services |
 | **label** | `PATCH /repos/.../issues/{n}` with labels — atomic add/remove. Validated against the legal-transition table client-side BEFORE the API call. | All Catalyst services |
 | **close** | `PATCH /repos/.../issues/{n}` with `state: closed` and `state_reason`. Used only on terminal states. | All Catalyst services |
+
+### 4.1 Issue body contract (required)
+
+All newly created Catalyst-managed issues MUST include:
+
+1. `## Context` section
+2. `## Scope` section
+3. `## Acceptance Criteria` section containing a fenced `gherkin` block with:
+   - one `Feature:`
+   - at least one `Scenario:`
+
+This is machine-validated by issue tooling before issue creation.
+
+### 4.2 Workflow status contract (project board columns)
+
+In addition to `state/*` labels, execution workflow status MUST be tracked on
+the project board via these status keys:
+
+- `todo`: picked up and in discovery/planning
+- `in-progress`: plan comment posted and execution underway
+- `on-hold`: waiting on dependency or external unblocker
+- `review`: execution complete and awaiting review
+- `done`: completion/closed state
+
+Legacy `phase/*` labels are deprecated. Workflow tooling ignores them and
+strips them during updates so they cannot drive behavior.
+
+### 4.3 Required execution comments
+
+- When plan/discovery is complete, agent posts a plan comment before execution.
+- During execution, any non-trivial decision must be recorded in a comment with decision rationale and decision labels.
+- If waiting on dependency, agent posts an on-hold comment including `Depends on #N` where applicable.
 
 ## 5. Ownership semantics
 
@@ -242,6 +274,11 @@ For `type/ops-intel-finding`, the initial issue body contains:
 
 - An Issue is `close`d only on `state/done`, `state/rolled-back`, or
   `state/cancelled`.
+- `state/done` is only legal after verification confirms tests passed, documentation was updated/created, and PR disposition is explicit:
+  - `pr_required=true|false`
+  - `pr_merged=true|false`
+  - if `pr_required=true`, then `pr_merged=true`
+  - optional `pr_url` SHOULD be logged in the completion comment for traceability
 - `state_reason` MUST be `completed` for `state/done` and `state/cancelled`,
   and `not_planned` for `state/rolled-back`.
 - Re-opening an Issue is **not allowed** for terminal-state issues. If new
@@ -264,20 +301,19 @@ The webhook-handler validates `Depends on` before allowing
 ## 10. The GitHub Project (board) — Catalyst Andon
 
 A single GitHub Project (v2) named `Catalyst Andon` provides the visible
-state machine. It is **automated**: the Project's "Auto-add" workflow adds
-any new Issue with a `type/*` label; the "Status" field is bound to the
-`state/*` labels via project automation.
+workflow machine. It is **automated**: the Project's "Auto-add" workflow adds
+any new Issue with a `type/*` label, and workflow tooling moves cards using
+the workflow status keys (`todo`, `in-progress`, `on-hold`, `review`, `done`).
 
 Columns:
 
-| Column | Backed by label | Order |
+| Column | Backed by workflow status | Order |
 |---|---|---|
-| `Pending` | `state/pending` | 1 |
-| `Agent Working` | `state/agent-working` | 2 |
-| `Blocked on Human` | `state/blocked-on-human` | 3 |
-| `Done` | `state/done` | 4 |
-| `Rolled Back` | `state/rolled-back` | 5 |
-| `Cancelled` | `state/cancelled` | 6 |
+| `Todo` | `todo` | 1 |
+| `In Progress` | `in-progress` | 2 |
+| `On Hold` | `on-hold` | 3 |
+| `Review` | `review` | 4 |
+| `Done` | `done` | 5 |
 
 The Project board is the **andon**. SREs at 2 AM open the board, not a
 custom UI.

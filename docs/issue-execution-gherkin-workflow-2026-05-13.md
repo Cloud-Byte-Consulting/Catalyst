@@ -2,13 +2,34 @@
 
 ## Decision
 
-Introduce a Cursor skill **`issue-execution-gherkin-workflow`** so agents executing work against GitHub Issues (durable state machine per [ADR-001 — GitHub Issues as state machine](ADR/ADR-001-github-issues-as-state-machine.md); there is not yet a separate `ADR-008-github-issues-as-state-machine.md` in this repo — some docs cite **ADR-008** for the same concern until numbering is reconciled) use a consistent pattern: **Gherkin acceptance criteria**, **test mapping**, **documentation checklist**, **legal state transitions** (via `@github-state-machine`), **structured issue comments** that capture decisions and reasoning for later agents, and **dependency on-hold** via comments + `Depends on #N` without misusing `state/blocked-on-human` for pure cross-issue waits.
+Introduce a Cursor skill **`issue-execution-gherkin-workflow`** so agents executing work against GitHub Issues (durable state machine per [ADR-001 — GitHub Issues as state machine](ADR/ADR-001-github-issues-as-state-machine.md); there is not yet a separate `ADR-008-github-issues-as-state-machine.md` in this repo — some docs cite **ADR-008** for the same concern until numbering is reconciled) use a consistent pattern: **Context+Scope issue descriptions**, **Gherkin acceptance criteria**, **test mapping**, **documentation checklist**, **legal state transitions** (via `@github-state-machine`), **structured issue comments** that capture decisions and reasoning for later agents, and **dependency on-hold** via comments + `Depends on #N` without misusing `state/blocked-on-human` for pure cross-issue waits.
 
 ## Rationale
 
 - ADR-001 (and `docs/ADR/STATE-MACHINE.md`) define **labels, transitions, and comments-as-audit-trail**; they do not spell out **how** to run an implementation session end-to-end or **what shape** agent comments should take so a future run can resume without re-deriving intent.
+- New workflow requirement: issue creation must include `## Context`, `## Scope`, and `## Acceptance Criteria` with fenced `gherkin`.
 - The employer rubric rewards **testable acceptance** and **documentation**; Gherkin in the issue body makes both reviewable.
 - **`state/blocked-on-dependency`** does not exist yet; the skill documents the gap and a **comment + link** pattern until a Kaizen extends the vocabulary.
+
+## Workflow board status (required)
+
+Track progress by moving the issue card across project board status columns
+(not `phase/*` labels):
+
+- `todo`: picked up, discovery and planning active
+- `in-progress`: plan comment posted, implementation active
+- `on-hold`: blocked on dependency or external prerequisite
+- `review`: execution complete and awaiting review
+- `done`: fully completed and closed after done gates pass
+
+Done criteria:
+
+- tests passed
+- docs updated/created
+- PR disposition recorded (`pr_required`, `pr_merged`)
+- if PR is required, it is merged to `main`
+- optional `pr_url` captured in completion comment
+- then transition to `state/done`
 
 ## Alternatives considered
 
@@ -41,6 +62,7 @@ ADR-001 requires that **issue comments** carry the audit trail (transitions, int
 
 - **Optional machine hint** (first line inside the comment body, after the summary line): `<!-- catalyst-agent-log: progress | blocked | handoff -->` — lets automation distinguish progress noise from an intentional handoff without parsing prose.
 - **Dependencies**: when waiting on another issue, repeat `Depends on #N` in `### Context` or `### Next` and describe what unblocks you (aligns with ADR-001 cross-issue linking).
+- **Project board assignment**: issue creation should attempt automatic project assignment; if unavailable due to host support or missing permissions/config, emit a warning and keep execution unblocked.
 
 ### Example (illustrative)
 
