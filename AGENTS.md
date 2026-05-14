@@ -5,7 +5,7 @@
 
 ## Operating Rules
 
-- **RLM trigger rule**: If an artifact to be read exceeds ~50k characters, invoke the RLM workflow before reading inline. The threshold applies to diffs, terraform plan outputs, CloudWatch / CloudTrail exports, and codebase analysis spanning more than ~10 files. The skill lives at `.claude/skills/rlm/`, the sub-LLM at `.claude/agents/rlm-subcall.md`, and the persistent REPL at `.claude/skills/rlm/scripts/rlm_repl.py`. See `docs/ADR/ADR-004-rlm-for-long-context-agent-tasks.md` and `docs/rlm-integration-guide.md`.
+- **RLM trigger rule** (applies to both Claude Code and Cursor agents): If an artifact to be read exceeds ~50k characters, invoke the RLM workflow before reading inline. The threshold applies to diffs, terraform plan outputs, CloudWatch / CloudTrail exports, and codebase analysis spanning more than ~10 files. The REPL script at `.claude/skills/rlm/scripts/rlm_repl.py` is shared across both platforms. Claude Code agents use the `.claude/skills/rlm/` skill and `.claude/agents/rlm-subcall.md` subagent. Cursor agents use `.cursor/rules/rlm-workflow.mdc` for orchestration guidance and may use the MCP server at `.cursor/skills/rlm/rlm_mcp_server.py` (registered in `.cursor/mcp.json`) for tool-native access. In Cursor, chunk analysis is delegated to `Task` subagents (`subagent_type="generalPurpose"`). See `docs/ADR/ADR-004-rlm-for-long-context-agent-tasks.md` and `docs/rlm-integration-guide.md`.
 - After an RLM-assisted run, the issue-comment handoff MUST include the analysis query, chunk count, synthesis decision, next actions, and an explicit callout for any chunk-level finding the synthesis relied on at `confidence: low`. Use the template in `docs/rlm-issue-handoff-template.md`.
 
 ## Learned Workspace Facts

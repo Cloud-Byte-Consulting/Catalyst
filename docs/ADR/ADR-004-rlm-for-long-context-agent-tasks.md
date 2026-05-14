@@ -193,6 +193,50 @@ diffs).
 - Handoff template: [`docs/rlm-issue-handoff-template.md`](../rlm-issue-handoff-template.md)
 - Issue #3: <https://github.com/Cloud-Byte-Consulting/Catalyst/issues/3>
 
+### Cursor IDE compatibility layer (2026-05-14)
+
+The original RLM implementation was coupled to Claude Code primitives (`.claude/`
+skills, `.claude/agents/` subagents, Bash tool). This follow-up extends RLM support
+to Cursor IDE agents without modifying any existing Claude Code assets.
+
+**What was added**:
+
+| Path | Purpose |
+|---|---|
+| `.cursor/rules/rlm-workflow.mdc` | Cursor rule — documents the ~50k-char trigger, chunking → Task-subagent → synthesis orchestration, and all four canonical patterns mapped to Cursor's Shell + Task tools |
+| `.cursor/skills/rlm/rlm_mcp_server.py` | Lightweight MCP stdio server wrapping `rlm_repl.py` — exposes `rlm_init`, `rlm_status`, `rlm_peek`, `rlm_grep`, `rlm_chunk`, `rlm_exec`, `rlm_reset`, `rlm_export_buffers` as MCP tools |
+| `.cursor/mcp.json` | MCP server registration for the RLM wrapper |
+| `docs/rlm-integration-guide.md` | New "Cursor agent usage" section with quick-start, MCP tool mapping, subagent mapping, pattern equivalents, and orchestration checklist |
+| `AGENTS.md` | Updated RLM trigger rule to note applicability to both Claude Code and Cursor agents |
+
+**Platform mapping**:
+
+| RLM concept | Claude Code | Cursor |
+|---|---|---|
+| Root LM | Main Claude Code session | Root Cursor agent |
+| Sub-LM (`llm_query`) | `rlm-subcall` subagent (Haiku) | `Task` tool (`subagent_type="generalPurpose"`) |
+| External environment | Bash → `rlm_repl.py` | Shell tool → `rlm_repl.py` (or MCP `rlm-repl` server) |
+| Skill trigger | `/rlm` skill invocation | `.cursor/rules/rlm-workflow.mdc` (auto-activates on description match) |
+
+**Deviations from Claude Code**:
+
+1. Cursor's Task subagents do not support model selection (no Haiku-specific
+   targeting). The `generalPurpose` subagent uses the default model for the
+   workspace. Cost savings from Haiku sub-calls are Claude Code-specific;
+   Cursor agents should still benefit from context-window savings.
+2. Cursor does not have a native `/rlm` skill invocation command. The rule file
+   activates based on its `description` field when the Cursor agent encounters
+   a matching context. The rule is `alwaysApply: false` to avoid noise on
+   unrelated tasks.
+3. The MCP server wrapper is optional but recommended — it provides tool-native
+   access without Shell round-trips. It imports `rlm_repl.py` directly rather
+   than forking it, sharing the same state pickle.
+
+**Validation**: the MCP server compiles cleanly (`python -m py_compile` exit 0).
+The Cursor rule file includes all four patterns, trigger threshold, and
+orchestration steps. `AGENTS.md` updated. Integration guide extended. No
+existing Claude Code files were modified.
+
 **Open follow-ups discovered during implementation**:
 
 1. Re-run the Phase 6 dry-run from a Claude Code session so a real Haiku
