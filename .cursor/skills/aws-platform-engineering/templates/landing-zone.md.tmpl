@@ -1,0 +1,156 @@
+# Landing Zone — {{landing_zone_name}}
+
+**Status**: scaffold (not yet provisioned)
+**Tenant**: `{{tenant}}`
+**Primary region**: `{{primary_region}}`
+**DR region**: `{{dr_region}}`
+**Account baseline**: `{{account_baseline}}` (Control Tower preferred; Organizations + LZA when CT is not viable)
+**Authoritative ADRs**: [ADR-002 — construct hierarchy](../../docs/ADR/ADR-002-construct-hierarchy.md), [ADR-005 — AWS agentic platform engineering](../../docs/ADR/ADR-005-aws-agentic-platform-engineering.md)
+**Authoritative AWS sources** (`AWS-prescriptive`):
+
+- [AWS Security Reference Architecture (SRA)](https://docs.aws.amazon.com/prescriptive-guidance/latest/security-reference-architecture/architecture.html)
+- [What is a landing zone?](https://docs.aws.amazon.com/prescriptive-guidance/latest/migration-aws-environment/understanding-landing-zones.html)
+- [Setting up a secure and scalable multi-account AWS environment](https://docs.aws.amazon.com/prescriptive-guidance/latest/migration-aws-environment/preparing-landing-zone.html)
+
+This scaffold instantiates the SRA OU shape and the seven landing-zone
+foundational features. Operators take this scaffold to AWS Control Tower (or
+Landing Zone Accelerator if Control Tower is not viable) to provision.
+
+---
+
+## SRA-aligned OU + account layout
+
+```
+Org root ({{landing_zone_name}})
+├── (Org Management account)              <- billing, SCPs, AWS Organizations
+├── Security OU
+│   ├── Security Tooling account          <- delegated admin: GuardDuty, SecHub, Inspector, Macie, Access Analyzer
+│   └── Log Archive account               <- Org CloudTrail S3 + KMS, immutable
+├── Infrastructure OU
+│   ├── Network account                   <- TGW, central egress, NFW, DNS
+│   └── Shared Services account           <- IAM Identity Center, image factory, internal mirrors
+└── Workloads OU
+    └── workloads/<app>-<env>/            <- one account per (app x env)
+```
+
+Workload accounts inherit SCPs from the Workloads OU (deny: leave-org,
+disable-cloudtrail, root-actions, public-S3 by default, IMDSv1, …).
+
+## Seven landing-zone foundational features (compliance checklist)
+
+| # | Feature | Where it's addressed |
+|---|---|---|
+| 1 | Multi-account architecture | The OU/account layout above; Control Tower account factory or LZA. |
+| 2 | Initial security baseline | Security Tooling: GuardDuty, Security Hub (CIS + AWS Foundational + PCI), Inspector, Macie, Access Analyzer; Config rules; Org-trail. |
+| 3 | Identity and access management | IAM Identity Center in Shared Services; permission sets per persona; no IAM users; OIDC for CI. |
+| 4 | Governance | SCPs on each OU; Control Tower guardrails (or LZA equivalents); Config conformance packs; tag policies. |
+| 5 | Data security | KMS CMKs per account; S3 default encryption; AWS Backup vaults with delete-protection; PrivateLink for in-account services. |
+| 6 | Network design | Single TGW in the Network account; non-overlapping VPC CIDRs; centralised egress via NFW; centralised inbound resolvers. |
+| 7 | Logging | Org CloudTrail to Log Archive S3 with bucket policy denying writes outside org; CloudWatch cross-account observability sink in Security Tooling. |
+
+## Per-account responsibilities
+
+### Org Management account
+
+- AWS Organizations management; OUs; SCPs.
+- Consolidated billing; AWS Cost Explorer; AWS Cost Categories.
+- IAM Identity Center delegated admin handoff to Shared Services.
+- **Hard rule**: no workload runs here. No human signs in here except for
+  break-glass.
+
+### Security Tooling account (Security OU)
+
+- Delegated admin for: GuardDuty, Security Hub, Inspector, Macie, IAM Access
+  Analyzer, Detective, Audit Manager.
+- AWS Config aggregator (org-wide).
+- CloudWatch cross-account observability sink (read).
+- Security findings -> EventBridge -> SNS -> Catalyst `webhook-handler` ->
+  GitHub Issue with `type/ops-intel-finding` per ADR-001.
+
+### Log Archive account (Security OU)
+
+- Centralised S3 buckets for: Org CloudTrail, S3 access logs, VPC flow logs,
+  Config snapshots/history, ALB access logs.
+- Bucket policies deny `s3:DeleteObject` and `s3:PutBucketPolicy` to anyone
+  except the organization.
+- KMS CMK with key policy denying decrypt to anyone outside Security Tooling
+  + Org Management.
+- Lifecycle rules: hot 30d -> IA 90d -> Glacier IT 365d -> deep archive 7y.
+
+### Network account (Infrastructure OU)
+
+- AWS Transit Gateway (regional pair across primary + DR).
+- Centralised egress VPC with AWS Network Firewall.
+- Centralised inbound resolvers (Route 53 Resolver endpoints).
+- Direct Connect / Site-to-Site VPN (if hybrid).
+- IPAM pools for workload VPCs (no overlapping CIDRs).
+
+### Shared Services account (Infrastructure OU)
+
+- IAM Identity Center (SSO).
+- Golden AMI factory (EC2 Image Builder).
+- Internal package mirrors (CodeArtifact / ECR pull-through cache).
+- Centralised AppConfig / Parameter Store for shared config.
+
+### Workload accounts (Workloads OU) — one per (app x env)
+
+- Application runtime (ECS / EKS / Lambda) per the
+  `generate-platform-service-skeleton` capability.
+- Per-account KMS CMK; per-account secrets in Secrets Manager.
+- VPC attached to the regional TGW; routes to centralised egress.
+- IAM roles assumed via IAM Identity Center permission sets and OIDC for CI.
+
+## Mapping to Catalyst's construct hierarchy (ADR-002)
+
+| Construct level | AWS primitive |
+|---|---|
+| Tenant | AWS Org root |
+| Environment-class | OU (Workloads OU subdivides into env-class sub-OUs if scale demands it) |
+| Landing Zone | Account |
+| Project / Application | Tags + IAM scoping within the workload account |
+
+## Repo layout this scaffold produces
+
+```
+infrastructure/landing-zones/{{landing_zone_name}}/
+├── README.md                         (this file)
+├── org/
+│   ├── ous.tf
+│   ├── scps/
+│   │   ├── deny-leave-org.json
+│   │   ├── deny-root-actions.json
+│   │   ├── deny-disable-cloudtrail.json
+│   │   ├── deny-public-s3.json
+│   │   └── require-imdsv2.json
+│   └── delegated-admin.tf
+├── accounts/
+│   ├── org-management/
+│   ├── security-tooling/
+│   ├── log-archive/
+│   ├── network/
+│   ├── shared-services/
+│   └── workloads/
+└── docs/
+    └── golden-paths/
+```
+
+## Next steps
+
+1. Generate per-account Terraform modules via the
+   [`generate-terraform-module`](../SKILL.md#2-generate-terraform-module)
+   capability.
+2. Generate the OIDC CI workflows for each account via
+   [`generate-actions-oidc-workflow`](../SKILL.md#3-generate-actions-oidc-workflow-aws-prescriptive).
+3. Generate the developer-facing golden-path docs via
+   [`generate-golden-path-doc`](../SKILL.md#8-generate-golden-path-doc-aws-prescriptive).
+4. Open a `type/kaizen` issue per
+   [STATE-MACHINE.md §2.2](../../docs/ADR/STATE-MACHINE.md) tracking the
+   provisioning work; attach this scaffold doc.
+
+## Operator review checklist
+
+- [ ] All seven foundational features have a concrete realisation in this scaffold.
+- [ ] No real AWS account IDs in any committed file; placeholders use `123456789012`.
+- [ ] Control Tower vs LZA decision is explicit and justified.
+- [ ] SCPs present at the OU level (not inside the workload account).
+- [ ] OIDC trust policies bound to specific repos and refs (not wildcard).

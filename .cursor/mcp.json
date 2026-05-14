@@ -4,6 +4,11 @@
       "command": "python",
       "args": [".cursor/skills/rlm/rlm_mcp_server.py"],
       "env": {}
+    },
+    "aws-pe": {
+      "command": "python",
+      "args": [".cursor/skills/aws-platform-engineering/aws_pe_mcp_server.py"],
+      "env": {}
     }
   }
 }
