@@ -15,6 +15,11 @@
       "args": [".cursor/skills/bedrock-binding/bedrock_mcp_server.py"],
       "env": {}
     },
+    "intent-judge": {
+      "command": "python",
+      "args": [".cursor/skills/intent-judge-shim/intent_judge_mcp_server.py"],
+      "env": {}
+    },
     "github": {
       "type": "http",
       "url": "https://api.githubcopilot.com/mcp/",
