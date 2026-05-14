@@ -272,6 +272,14 @@ The deliberate choices in the decision are:
 - **Decision boundary**: Trivy default; Scout alternative; **no third
   scanner**. PRs introducing Grype/Snyk/Clair are rejected with a pointer
   to this section.
+- **GitHub MCP secret scanning** is enabled via the `secret_protection`
+  toolset and `run_secret_scanning` tool registered in `.cursor/mcp.json`.
+  Agents (specifically the `security-hardener` persona at
+  `.cursor/agents/security-hardener.md`) invoke secret scanning as a
+  **pre-merge gate** on PRs that add new files or credential-adjacent
+  content, alongside the Trivy image scan.
+  _Sources_: [Changelog GA 2026-05-05](https://github.blog/changelog/2026-05-05-secret-scanning-with-github-mcp-server-is-now-generally-available/),
+  [GHAS + AI coding agents guide](https://docs.github.com/en/code-security/how-tos/use-ghas-with-ai-coding-agents/scan-for-secrets-with-github-mcp-server).
 
 ### Rationale
 
