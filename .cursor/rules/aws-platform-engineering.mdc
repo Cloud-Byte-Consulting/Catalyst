@@ -1,0 +1,164 @@
+---
+description: AWS Agentic Platform Engineering workflow — activates the AWS Platform Engineer persona, the matching skill, and the AWS-flavoured prompts for any Catalyst work that touches AWS services, Terraform, IAM, GitHub Actions OIDC, Bedrock, ECS/EKS/Lambda, VPC/ALB, landing zones, or SRA-aligned account placement. Treats AWS prescriptive guidance (CAF Platform, IDP guide, SRA, landing zones, ADR process) as binding constraints, not suggestions.
+globs:
+alwaysApply: false
+---
+
+# AWS Agentic Platform Engineering — Cursor agent rule
+
+Activate when an agent task requires generating or reviewing AWS scaffolds —
+Terraform modules, GitHub Actions workflows that auth to AWS, ECS/EKS/Lambda
+services, Bedrock-backed gen-AI services, landing-zone scaffolds, IAM policies,
+ADRs for AWS architecture decisions, golden-path docs, or any IDP work in
+Catalyst.
+
+## What this rule wires
+
+- **Agent persona**: [`.cursor/agents/aws-platform-engineer.md`](../agents/aws-platform-engineer.md)
+- **Skill**: [`.cursor/skills/aws-platform-engineering/SKILL.md`](../skills/aws-platform-engineering/SKILL.md)
+- **Prompts**:
+  - [`.cursor/prompts/aws-architect.md`](../prompts/aws-architect.md)
+  - [`.cursor/prompts/aws-cost-engineer.md`](../prompts/aws-cost-engineer.md)
+  - [`.cursor/prompts/aws-security-engineer.md`](../prompts/aws-security-engineer.md)
+  - [`.cursor/prompts/aws-sre.md`](../prompts/aws-sre.md)
+  - [`.cursor/prompts/aws-idp-product-owner.md`](../prompts/aws-idp-product-owner.md)
+- **Optional MCP** (registered in [`.cursor/mcp.json`](../mcp.json) as `aws-pe`):
+  [`.cursor/skills/aws-platform-engineering/aws_pe_mcp_server.py`](../skills/aws-platform-engineering/aws_pe_mcp_server.py)
+- **ADR**: [`docs/ADR/ADR-005-aws-agentic-platform-engineering.md`](../../docs/ADR/ADR-005-aws-agentic-platform-engineering.md)
+- **Research synthesis**: [`docs/research/aws-agentic-platform-engineering.md`](../../docs/research/aws-agentic-platform-engineering.md)
+- **Plan**: [`docs/plans/aws-agentic-platform-engineering-plan.md`](../../docs/plans/aws-agentic-platform-engineering-plan.md)
+
+## When this rule applies (auto-activation contexts)
+
+The agent should treat this rule as in-effect when ANY of the following holds:
+
+1. The user mentions an AWS service by name (S3, EC2, ECS, EKS, Lambda, RDS,
+   Aurora, DynamoDB, Bedrock, Step Functions, IAM, Organizations, Control
+   Tower, VPC, ALB, NLB, CloudFront, API Gateway, Secrets Manager, SSM, KMS,
+   GuardDuty, Security Hub, Inspector, Macie, Access Analyzer, CloudWatch,
+   X-Ray, CloudTrail, Cost Explorer, EventBridge, SQS, SNS, Glue, Athena, …).
+2. The agent edits or creates files matching `*.tf`, `*.tfvars`,
+   `infrastructure/**`, `modules/**`.
+3. The agent edits `.github/workflows/*.yml` and the change references
+   `aws-actions/`, `arn:aws:`, `AWS_REGION`, `AWS_ACCOUNT_ID`, or any AWS
+   action.
+4. The agent claims an issue with labels `type/deploy`, `type/incident`,
+   `type/ops-intel-finding`, `type/secret-rotation`, `type/preview-env`, or any
+   `app/*` label tied to an AWS-hosted application.
+5. The user asks to "design / scaffold / bootstrap / open / standup" a new
+   AWS workload, account, landing zone, or platform service.
+
+## What the agent does when activated
+
+### Step 1 — switch persona
+
+Switch to the `aws-platform-engineer` persona behaviour. Specifically:
+
+- Adopt the persona's guardrails (G-1 through G-12 in the persona file) as
+  binding constraints, not suggestions.
+- Treat AWS prescriptive sources as normative — the agent does not invent
+  AWS account-structure / IAM / network patterns that conflict with the SRA,
+  CAF Platform perspective, or AWS landing-zone guidance.
+
+### Step 2 — reach for the skill before authoring inline
+
+If the work is one of the eight bound capabilities in the skill spec
+(`bootstrap-landing-zone-skeleton`, `generate-terraform-module`,
+`generate-actions-oidc-workflow`, `generate-adr`,
+`generate-platform-service-skeleton`, `generate-bedrock-service-skeleton`,
+`generate-static-egress-vpc`, `generate-golden-path-doc`), call the matching
+generator instead of authoring HCL/YAML/markdown inline. Use either:
+
+- The MCP tools (`aws_pe_*`) if the `aws-pe` server is registered in
+  `.cursor/mcp.json`, OR
+- Direct file reads of the templates under
+  `.cursor/skills/aws-platform-engineering/templates/` and adapt them in place.
+
+### Step 3 — invoke the matching prompt for cross-cutting reviews
+
+| User intent | Prompt |
+|---|---|
+| New service / module design / SRA OU placement / landing-zone reasoning | `aws-architect.md` |
+| Cost review, RI/SP analysis, tagging audit, NAT/egress cost optimisation | `aws-cost-engineer.md` |
+| IAM policy review, SCP design, GuardDuty/Security Hub finding triage, IAM Access Analyzer findings | `aws-security-engineer.md` |
+| Day-2 ops, alarm design, incident triage, runbook generation | `aws-sre.md` |
+| Treat the platform as a product — golden-path proposal, developer-survey synthesis, golden-path retro | `aws-idp-product-owner.md` |
+
+### Step 4 — long-context goes through RLM (per ADR-004)
+
+Any artifact above ~50k chars (terraform plan, CloudTrail export, large diff,
+multi-file codebase read) routes through the
+[RLM workflow](../rules/rlm-workflow.mdc) before the agent reads inline.
+
+### Step 5 — durable handoff via Issue comment
+
+Per ADR-001 + `docs/issue-execution-gherkin-workflow-2026-05-13.md`, post a
+structured `<!-- catalyst-agent-log: progress|blocked|handoff -->` comment with
+the stable `### Context / ### Decision / ### Rationale / ### Alternatives /
+### Actions taken / ### Verification / ### Risks / ### Next` headings.
+
+## Behavior on AWS resource generation
+
+| Resource type | Default behaviour | Override requires |
+|---|---|---|
+| New AWS workload account | Scaffolded under SRA Workloads OU; SCP inheritance honoured (G-4). | Successor ADR if SRA OU shape changes. |
+| New IAM role for CI | OIDC trust policy bound to specific repo + branch (G-1). | Explicit user statement + comment in role's Terraform citing why. |
+| New IAM policy | Least-privilege, no wildcard `Action`+`Resource` (G-2). | Issue label opt-in + written justification in PR description. |
+| New ALB | Internet-facing in public subnets; targets in private subnets (G-6). | Explicit opt-out comment citing rationale. |
+| Lambda needing static egress | `generate-static-egress-vpc` template; 2 NAT GW across AZs (G-7). | Cost-driven single-NAT override documented in module README. |
+| New ADR | `generate-adr` template; `Status: Proposed`; immutability rule (G-8). | n/a — supersession is the only path to changing an Accepted ADR. |
+| Bedrock-backed service | `generate-bedrock-service-skeleton`; controls layer present (G-10). | Explicit user waiver + Generative AI Lens trade-off note. |
+| New CI workflow | `generate-actions-oidc-workflow`; OIDC; no static keys (G-1). | n/a — there is no override for "use static keys". |
+
+## IaC preferences (binding)
+
+- **Terraform first**. CDK only when the construct model adds material clarity
+  (cross-stack references, complex L3 abstractions). State backend: S3 +
+  DynamoDB lock per env per landing zone, KMS-encrypted, versioned.
+- **Module shape**: every module ships `versions.tf`, `variables.tf`,
+  `outputs.tf`, `README.md`, `examples/<scenario>/`, and pre-commit hooks for
+  `tflint`, `tfsec`, `checkov`, `conftest` (OPA).
+- **Testing**: `terraform plan` in CI on `pull_request`; `terraform apply`
+  only on `push` to `release` via OIDC role.
+- **Region default**: persona asks before generating multi-region; default is
+  single-region in the env's primary region.
+
+## CI must use OIDC (G-1) — `AWS-prescriptive`
+
+Every workflow that touches AWS uses `aws-actions/configure-aws-credentials@v4`
+with `role-to-assume` and `audience: sts.amazonaws.com`. The OIDC role's trust
+policy binds on `repository:Cloud-Byte-Consulting/Catalyst:*` plus a `ref`
+condition for production workflows. Never `aws-access-key-id` /
+`aws-secret-access-key`. Workflows that pass this check are tagged with
+`# AWS-AUTH: oidc` at the top.
+
+## Composition with existing Catalyst rules
+
+- **`rlm-workflow.mdc`**: this rule defers to RLM for long-context analysis;
+  the two rules compose without conflict.
+- **ADR-001 / STATE-MACHINE**: this rule produces work *items* (issues + PRs);
+  the state machine governs how those items move. The persona transitions
+  board status; this rule does not duplicate that logic.
+- **ADR-002 (construct hierarchy)**: this rule's landing-zone scaffold maps
+  the construct hierarchy onto AWS Org / OU / Account / tags verbatim.
+- **ADR-003 (envs)**: env labels (`env/dev`, `env/stage`, `env/prod`,
+  `env/preview-*`) gate which OIDC role and which OU the generated scaffolds
+  target.
+
+## References
+
+- **ADR**: [`docs/ADR/ADR-005-aws-agentic-platform-engineering.md`](../../docs/ADR/ADR-005-aws-agentic-platform-engineering.md)
+- **Research**: [`docs/research/aws-agentic-platform-engineering.md`](../../docs/research/aws-agentic-platform-engineering.md)
+- **Plan**: [`docs/plans/aws-agentic-platform-engineering-plan.md`](../../docs/plans/aws-agentic-platform-engineering-plan.md)
+- **State machine**: [`docs/ADR/STATE-MACHINE.md`](../../docs/ADR/STATE-MACHINE.md)
+- **Gherkin workflow**: [`docs/issue-execution-gherkin-workflow-2026-05-13.md`](../../docs/issue-execution-gherkin-workflow-2026-05-13.md)
+- **AWS prescriptive sources** (cited verbatim in the research doc §7):
+  - CAF Platform perspective — `https://docs.aws.amazon.com/prescriptive-guidance/latest/aws-caf-platform-perspective/platform-eng.html`
+  - IDP guide — `https://docs.aws.amazon.com/prescriptive-guidance/latest/internal-developer-platform/introduction.html`
+  - SRA — `https://docs.aws.amazon.com/prescriptive-guidance/latest/security-reference-architecture/welcome.html`
+  - Landing zones — `https://docs.aws.amazon.com/prescriptive-guidance/latest/migration-aws-environment/understanding-landing-zones.html`
+  - ADR process — `https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html`
+  - ALB subnet routing — `https://docs.aws.amazon.com/prescriptive-guidance/latest/load-balancer-stickiness/subnets-routing.html`
+  - Static-egress pattern — `https://docs.aws.amazon.com/prescriptive-guidance/latest/patterns/generate-a-static-outbound-ip-address-using-a-lambda-function-amazon-vpc-and-a-serverless-architecture.html`
+  - GenAI platform engineering — `https://aws.amazon.com/blogs/machine-learning/accelerating-generative-ai-applications-with-a-platform-engineering-approach/`
+- **MS source**: `https://github.com/microsoftgbb/agentic-platform-engineering`
