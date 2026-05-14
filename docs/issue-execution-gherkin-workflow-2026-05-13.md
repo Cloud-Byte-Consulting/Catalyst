@@ -11,6 +11,30 @@ Introduce a Cursor skill **`issue-execution-gherkin-workflow`** so agents execut
 - The employer rubric rewards **testable acceptance** and **documentation**; Gherkin in the issue body makes both reviewable.
 - **`state/blocked-on-dependency`** does not exist yet; the skill documents the gap and a **comment + link** pattern until a Kaizen extends the vocabulary.
 
+## RLM workflow (required for long-context tasks)
+
+When the artifact an agent must read exceeds **~50k characters** (large diffs,
+terraform plan outputs, CloudWatch / CloudTrail exports, codebase analysis spanning
+more than ~10 files), invoke the **Recursive Language Model** workflow before reading
+inline. See [`docs/ADR/ADR-004-rlm-for-long-context-agent-tasks.md`](ADR/ADR-004-rlm-for-long-context-agent-tasks.md)
+for the decision and [`docs/rlm-integration-guide.md`](rlm-integration-guide.md) for
+the four canonical patterns:
+
+| Issue type | RLM pattern | Guide section |
+|---|---|---|
+| `type/pr-review` | Chunk diff by file; Haiku extracts findings per file; Opus synthesises verdict | [Pattern 1 — PR Review](rlm-integration-guide.md#pattern-1--pr-review-typepr-review) |
+| `type/ops-intel-finding` | Chunk CloudWatch / CloudTrail / S3 exports; Haiku extracts resource-level findings; Opus composes finding body | [Pattern 2 — Ops-Intel finding](rlm-integration-guide.md#pattern-2--ops-intel-finding-typeops-intel-finding) |
+| `type/deploy` | Chunk plan output by resource block; Haiku flags drift / cost / policy violations; Opus composes risk summary | [Pattern 3 — Terraform plan analysis](rlm-integration-guide.md#pattern-3--terraform-plan-analysis-typedeploy) |
+| Feature work spanning multiple services | Chunk relevant source files; Haiku extracts structural facts; Opus produces implementation plan | [Pattern 4 — Feature implementation](rlm-integration-guide.md#pattern-4--feature-implementation-long-codebase-read) |
+
+After an RLM-assisted run, the issue-comment handoff MUST include the analysis query,
+chunk count, synthesis decision, next actions, and explicit `confidence: low` callouts
+for any chunk-level finding the synthesis relied on without cross-corroboration. Use
+[`docs/rlm-issue-handoff-template.md`](rlm-issue-handoff-template.md) as the canonical
+shape; it composes the existing `### Context / ### Decision / ### Rationale /
+### Actions taken / ### Verification / ### Risks / ### Next` skeleton with the
+RLM-specific fields.
+
 ## Workflow board status (required)
 
 Track progress by moving the issue card across project board status columns
