@@ -241,6 +241,74 @@ def cap_golden_path(args: dict[str, Any]) -> dict[str, str]:
     return {"rendered": rendered, "target_path": target}
 
 
+def cap_container_scan_trivy(args: dict[str, Any]) -> dict[str, str]:
+    _required(args, "workflow_name", "dockerfile_dir", "aws_region", "ecr_repo")
+    name = args["workflow_name"]
+    filename = args.get("workflow_filename") or f"{slug(name)}.yml"
+    tmpl = load_template("container-scan-trivy.yml.tmpl")
+    rendered = render(tmpl, {
+        "workflow_name": name,
+        "workflow_filename": filename,
+        "dockerfile_dir": args["dockerfile_dir"],
+        "aws_region": args["aws_region"],
+        "ecr_repo": args["ecr_repo"],
+    })
+    target = f".github/workflows/{filename}"
+    return {"rendered": rendered, "target_path": target}
+
+
+def cap_container_scan_scout(args: dict[str, Any]) -> dict[str, str]:
+    _required(args, "workflow_name", "dockerfile_dir", "aws_region", "ecr_repo")
+    name = args["workflow_name"]
+    filename = args.get("workflow_filename") or f"{slug(name)}.yml"
+    tmpl = load_template("container-scan-scout.yml.tmpl")
+    rendered = render(tmpl, {
+        "workflow_name": name,
+        "workflow_filename": filename,
+        "dockerfile_dir": args["dockerfile_dir"],
+        "aws_region": args["aws_region"],
+        "ecr_repo": args["ecr_repo"],
+    })
+    target = f".github/workflows/{filename}"
+    return {"rendered": rendered, "target_path": target}
+
+
+def cap_ecr_scan_on_push(args: dict[str, Any]) -> dict[str, str]:
+    _required(args, "ecr_repo_name")
+    name = args["ecr_repo_name"]
+    tmpl = load_template("ecr-scan-on-push.tf.tmpl")
+    rendered = render(tmpl, {
+        "ecr_repo_name": name,
+        "scan_frequency": args.get("scan_frequency", "CONTINUOUS_SCAN"),
+    })
+    target = f"infrastructure/modules/composite/ecr-{slug(name)}/main.tf"
+    return {"rendered": rendered, "target_path": target}
+
+
+def cap_base_image_policy(args: dict[str, Any]) -> dict[str, str]:
+    _required(args, "service_or_module_name")
+    name = args["service_or_module_name"]
+    tmpl = load_template("base-image-policy.md.tmpl")
+    rendered = render(tmpl, {
+        "service_or_module_name": name,
+        "tenant": args.get("tenant", "catalyst"),
+        "application": args.get("application", name),
+        "date_iso": args.get("date", today_iso()),
+    })
+    target = f"docs/policies/base-image-{slug(name)}.md"
+    return {"rendered": rendered, "target_path": target}
+
+
+def cap_dependabot_container(args: dict[str, Any]) -> dict[str, str]:
+    _required(args, "service_dir")
+    tmpl = load_template("dependabot-container.yml.tmpl")
+    rendered = render(tmpl, {
+        "service_dir": args["service_dir"],
+    })
+    target = ".github/dependabot.yml"
+    return {"rendered": rendered, "target_path": target}
+
+
 CAPABILITIES: dict[str, Callable[[dict[str, Any]], dict[str, str]]] = {
     "landing_zone": cap_landing_zone,
     "terraform_module": cap_terraform_module,
@@ -250,6 +318,11 @@ CAPABILITIES: dict[str, Callable[[dict[str, Any]], dict[str, str]]] = {
     "bedrock_skeleton": cap_bedrock_skeleton,
     "static_egress_vpc": cap_static_egress_vpc,
     "golden_path": cap_golden_path,
+    "container_scan_trivy": cap_container_scan_trivy,
+    "container_scan_scout": cap_container_scan_scout,
+    "ecr_scan_on_push": cap_ecr_scan_on_push,
+    "base_image_policy": cap_base_image_policy,
+    "dependabot_container": cap_dependabot_container,
 }
 
 
@@ -406,6 +479,95 @@ TOOLS = [
             "required": ["golden_path_name", "linked_module"],
         },
     },
+    {
+        "name": "aws_pe_container_scan_trivy",
+        "description": (
+            "Render the Trivy-based container scan + SBOM workflow (PRIMARY). "
+            "Produces SPDX 2.3 + CycloneDX 1.5 SBOMs, fails the build on HIGH,CRITICAL, "
+            "uploads SARIF to GitHub code scanning. AWS-prescriptive for any container "
+            "workload built in this repo."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_name": {"type": "string"},
+                "workflow_filename": {"type": "string", "description": "Defaults to slug(workflow_name)+'.yml'."},
+                "dockerfile_dir": {"type": "string", "description": "Path to the Dockerfile context."},
+                "aws_region": {"type": "string"},
+                "ecr_repo": {"type": "string", "description": "ECR repo name (without registry prefix)."},
+            },
+            "required": ["workflow_name", "dockerfile_dir", "aws_region", "ecr_repo"],
+        },
+    },
+    {
+        "name": "aws_pe_container_scan_scout",
+        "description": (
+            "Render the Docker Scout container scan + SBOM workflow (ALTERNATIVE to Trivy). "
+            "Same SARIF + SBOM artifact contract as the Trivy workflow. Use when Docker Hub / "
+            "Docker Desktop tooling is already part of the developer loop or the org has an "
+            "active Scout subscription."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_name": {"type": "string"},
+                "workflow_filename": {"type": "string"},
+                "dockerfile_dir": {"type": "string"},
+                "aws_region": {"type": "string"},
+                "ecr_repo": {"type": "string"},
+            },
+            "required": ["workflow_name", "dockerfile_dir", "aws_region", "ecr_repo"],
+        },
+    },
+    {
+        "name": "aws_pe_ecr_scan_on_push",
+        "description": (
+            "Render Terraform for an ECR repo with scan-on-push enabled and registry-wide "
+            "ENHANCED scanning (Inspector V2). AWS-prescriptive. Includes immutable tags, "
+            "KMS encryption, lifecycle policy."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ecr_repo_name": {"type": "string"},
+                "scan_frequency": {"type": "string", "enum": ["SCAN_ON_PUSH", "CONTINUOUS_SCAN"]},
+            },
+            "required": ["ecr_repo_name"],
+        },
+    },
+    {
+        "name": "aws_pe_base_image_policy",
+        "description": (
+            "Render the binding base-image policy doc (B-1..B-8): pin by digest, "
+            "minimal/distroless/AL2023-minimal only, multi-stage, non-root, HEALTHCHECK, "
+            "no build-time secrets, documented .trivyignore exceptions, OCI labels."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "service_or_module_name": {"type": "string"},
+                "tenant": {"type": "string"},
+                "application": {"type": "string"},
+                "date": {"type": "string"},
+            },
+            "required": ["service_or_module_name"],
+        },
+    },
+    {
+        "name": "aws_pe_dependabot_container",
+        "description": (
+            "Render a dependabot.yml snippet with `docker` ecosystem updates for repo-root and "
+            "per-service Dockerfiles, plus `github-actions` ecosystem updates to keep "
+            "pinned-by-SHA Actions fresh. MERGE into existing .github/dependabot.yml."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "service_dir": {"type": "string", "description": "Directory under services/ containing the Dockerfile."},
+            },
+            "required": ["service_dir"],
+        },
+    },
 ]
 
 
@@ -418,6 +580,11 @@ TOOL_TO_CAPABILITY = {
     "aws_pe_bedrock_skeleton": "bedrock_skeleton",
     "aws_pe_static_egress_vpc": "static_egress_vpc",
     "aws_pe_golden_path": "golden_path",
+    "aws_pe_container_scan_trivy": "container_scan_trivy",
+    "aws_pe_container_scan_scout": "container_scan_scout",
+    "aws_pe_ecr_scan_on_push": "ecr_scan_on_push",
+    "aws_pe_base_image_policy": "base_image_policy",
+    "aws_pe_dependabot_container": "dependabot_container",
 }
 
 

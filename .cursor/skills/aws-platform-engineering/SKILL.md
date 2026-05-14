@@ -31,6 +31,11 @@ The persona owns *intent*; this skill owns *artifacts*.
 | 6 | `generate-bedrock-service-skeleton` | [`templates/bedrock-service.tf.tmpl`](templates/bedrock-service.tf.tmpl) | partial — GenAI blueprint |
 | 7 | `generate-static-egress-vpc` | [`templates/static-egress-vpc.tf.tmpl`](templates/static-egress-vpc.tf.tmpl) | yes — static-outbound-IP pattern |
 | 8 | `generate-golden-path-doc` | [`templates/golden-path.md.tmpl`](templates/golden-path.md.tmpl) | yes — AWS IDP guide vocabulary |
+| 9 | `generate-container-scan-workflow` (Trivy — primary) | [`templates/container-scan-trivy.yml.tmpl`](templates/container-scan-trivy.yml.tmpl) | yes — container supply chain |
+| 10 | `generate-container-scan-scout-workflow` (Docker Scout — alternative) | [`templates/container-scan-scout.yml.tmpl`](templates/container-scan-scout.yml.tmpl) | partial — alternative tool, same artifact contract |
+| 11 | `generate-ecr-scan-on-push` | [`templates/ecr-scan-on-push.tf.tmpl`](templates/ecr-scan-on-push.tf.tmpl) | yes — ECR Enhanced + Inspector V2 |
+| 12 | `generate-base-image-policy` | [`templates/base-image-policy.md.tmpl`](templates/base-image-policy.md.tmpl) | yes — pin by digest; minimal/distroless; non-root; HEALTHCHECK |
+| 13 | `generate-dependabot-container` | [`templates/dependabot-container.yml.tmpl`](templates/dependabot-container.yml.tmpl) | partial — keep pinned digests current |
 
 ---
 
@@ -363,6 +368,186 @@ golden paths").
 
 ---
 
+---
+
+## 9. `generate-container-scan-workflow` (Trivy — primary) — `AWS-prescriptive`
+
+**When to use.** Any new GitHub Actions workflow that builds / pushes a
+container image to ECR. Adds the build job + SBOM job (SPDX 2.3 + CycloneDX
+1.5) + Trivy vuln-scan job that **fails on `HIGH,CRITICAL`** by default and
+uploads SARIF to the GitHub Security tab.
+
+**Inputs.**
+
+- `workflow_name` — display name (e.g., `Catalyst API — container scan`).
+- `workflow_filename` — filename basename (e.g., `catalyst-api-scan.yml`).
+- `dockerfile_dir` — path to the Dockerfile context.
+- `aws_region` — target ECR region.
+- `ecr_repo` — ECR repo name (without registry prefix).
+
+**Output shape.** A workflow YAML with three jobs:
+
+1. **`build`** — buildx build, OIDC-auth to ECR, push only on
+   `push -> release`; saves the image as a workflow artifact on PRs so the
+   downstream jobs scan exactly what was built.
+2. **`sbom`** — Trivy `--format spdx-json` + `--format cyclonedx`; uploads
+   both artifacts (90-day retention); attaches to GitHub Release on tag.
+3. **`vuln-scan`** — Trivy SARIF upload to GitHub code scanning + a second
+   Trivy run with `exit-code: "1"` on `severity: HIGH,CRITICAL`. Threshold
+   override happens by setting `env.SEVERITY_GATE` in the workflow.
+
+**Guardrails (binding — `AWS-prescriptive` for Catalyst container workloads).**
+
+- Severity gate defaults to `HIGH,CRITICAL`; raising the gate (i.e., relaxing
+  it) requires a PR-body justification.
+- Documented exceptions live in `.trivyignore` at repo root; every entry MUST
+  carry a `# rationale: <text>` comment AND a `review-by: <date>` line.
+- SBOMs MUST be produced in BOTH SPDX 2.3 JSON and CycloneDX 1.5 JSON — the
+  artifact contract downstream consumers depend on.
+- ECR push uses OIDC role (`vars.OIDC_ROLE_ECR_PUSH`); never static keys (G-1).
+- Third-party Actions are pinned by SHA before merge; the template ships
+  with `# pin to a verified SHA before merge` markers next to every `uses:`.
+- SARIF uploaded with `category: trivy-image` so multiple workflows can
+  contribute findings without overwriting each other.
+
+Cite sources: [Trivy](https://trivy.dev/),
+[`aquasecurity/trivy-action`](https://github.com/aquasecurity/trivy-action),
+[SPDX 2.3](https://spdx.dev/),
+[CycloneDX 1.5](https://cyclonedx.org/),
+[GitHub code scanning](https://docs.github.com/en/code-security/code-scanning),
+[SARIF spec](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html).
+
+---
+
+## 10. `generate-container-scan-scout-workflow` (Docker Scout — alternative)
+
+**When to use.** Use as the alternative scanner when Docker Hub /
+Docker Desktop tooling is already in the developer's loop OR the org has an
+active Docker Scout subscription. Same SARIF + SBOM artifact contract as
+capability #9 — workflows are interchangeable from a downstream-consumer
+perspective. Trivy is the default per ADR-005 §Container supply chain.
+
+**Inputs.** Same as capability #9.
+
+**Output shape.** Three jobs (`build`, `scout-cves`, `scout-sbom`) using
+`docker/scout-action@v1` with `command: quickview` (PR comment summary),
+`command: cves` (gate; `exit-code: true`; SARIF), and
+`command: sbom` (SPDX). For guaranteed CycloneDX 1.5 output the template
+recommends adding `syft` as a fallback step (Scout's CycloneDX export is
+weaker than Trivy's at present).
+
+**Guardrails.**
+
+- The decision to swap from Trivy to Scout is documented in the PR body
+  citing one of the two valid reasons (Docker Hub/Desktop integration or
+  active Scout subscription).
+- Severity gate defaults to `high,critical` (Scout uses lowercase tokens).
+- Scout requires Docker Hub auth even for ECR-resident images; the template
+  uses `secrets.DOCKERHUB_USERNAME` + `secrets.DOCKERHUB_TOKEN` with the
+  trade-off documented in the workflow header.
+- The contract Catalyst depends on (SPDX + CycloneDX SBOM artifact named
+  `sbom-${{ github.sha }}`; SARIF in the Security tab; failing build on
+  the severity gate) is identical to capability #9.
+
+Cite sources: [Docker Scout](https://docs.docker.com/scout/),
+[`docker/scout-action`](https://github.com/docker/scout-action).
+
+---
+
+## 11. `generate-ecr-scan-on-push` — `AWS-prescriptive`
+
+**When to use.** Any new ECR repository created by Catalyst Terraform.
+Combines per-repo `scan_on_push = true` (basic) with a registry-wide
+`ENHANCED` configuration that uses Inspector V2 for continuous scanning.
+Findings flow to AWS Security Hub via the standard SecHub integration in the
+Security Tooling account.
+
+**Inputs.**
+
+- `ecr_repo_name` — kebab-case repo name.
+- `scan_frequency` — `SCAN_ON_PUSH` (low-traffic) or `CONTINUOUS_SCAN` (prod).
+
+**Output shape.** Terraform module with:
+
+- `aws_ecr_repository` with `image_tag_mutability = "IMMUTABLE"`,
+  `scan_on_push = true`, KMS encryption, lifecycle policy (keep last 30
+  tagged; expire untagged after 14 days).
+- `aws_ecr_registry_scanning_configuration` set to `ENHANCED` with the
+  configured `scan_frequency`. This resource is account-wide; declared
+  ONCE per account.
+
+**Guardrails (binding — `AWS-prescriptive`).**
+
+- `image_tag_mutability = "IMMUTABLE"` — no silent tag overwrites.
+- `ENHANCED` scanning is the default; `BASIC` is only acceptable for
+  short-lived sandbox repos and the choice is documented in the module
+  README.
+- The `aws_ecr_registry_scanning_configuration` resource lives in ONE
+  module per account (typically the Security Tooling or Shared Services
+  account) — never duplicated per workload.
+- Inspector V2 findings flow to SecHub via the SRA Security Tooling
+  delegated admin (G-4); the workload account does not enable Inspector
+  per-account.
+
+Cite sources: [ECR enhanced scanning](https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-scanning-enhanced.html),
+[Inspector V2 + ECR](https://docs.aws.amazon.com/inspector/latest/user/scanning-ecr.html).
+
+---
+
+## 12. `generate-base-image-policy` — `AWS-prescriptive`
+
+**When to use.** When a new service is being containerised, OR a Dockerfile
+is failing review for repeated reasons (`:latest`, root user, missing
+`HEALTHCHECK`, etc.). Emits a binding policy doc for the service.
+
+**Inputs.**
+
+- `service_or_module_name` — kebab-case.
+- `tenant`, `application` — for OCI labels.
+
+**Output shape.** A markdown doc encoding eight binding rules (B-1..B-8):
+pin by digest, minimal/distroless/AL2023-minimal only, multi-stage builds,
+non-root user, `HEALTHCHECK`, no build-time secrets, documented
+`.trivyignore` exceptions, OCI image labels for chargeback. Each rule
+includes a positive and a negative code example.
+
+**Guardrails.**
+
+- The eight rules are non-negotiable for production services. Dev /
+  preview workloads MAY waive B-1 (digest pin) with a documented
+  expiration date in the PR body.
+- The doc cites Trivy / Scout / ECR Enhanced / Inspector / distroless /
+  AL2023-minimal sources.
+
+---
+
+## 13. `generate-dependabot-container`
+
+**When to use.** When adding container scanning to a repo that does not yet
+have Dependabot configured for the `docker` ecosystem. Emits a YAML snippet
+that MERGES into `.github/dependabot.yml`.
+
+**Inputs.**
+
+- `service_dir` — directory under `services/` containing the Dockerfile.
+
+**Output shape.** Three update blocks:
+
+1. Repo-root Dockerfile (if any).
+2. Per-service Dockerfile (the `service_dir` input).
+3. GitHub Actions ecosystem (keeps third-party Actions pinned-by-SHA fresh).
+
+**Guardrails.**
+
+- Major version bumps are ignored — they land via human-driven `type/kaizen`
+  PRs so the change is reviewed deliberately.
+- PRs are labelled with the construct anchors so they flow through the
+  state machine (`type/kaizen`, `tenant/catalyst`, `app/<>`,
+  `severity/medium`).
+- Weekly cadence; Monday morning America/New_York.
+
+---
+
 ## How an agent invokes a capability
 
 Three equivalent paths:
@@ -389,6 +574,11 @@ MCP tool:
 | #6 `generate-bedrock-service-skeleton` | `aws_pe_bedrock_skeleton` |
 | #7 `generate-static-egress-vpc` | `aws_pe_static_egress_vpc` |
 | #8 `generate-golden-path-doc` | `aws_pe_golden_path` |
+| #9 `generate-container-scan-workflow` (Trivy) | `aws_pe_container_scan_trivy` |
+| #10 `generate-container-scan-scout-workflow` (Scout) | `aws_pe_container_scan_scout` |
+| #11 `generate-ecr-scan-on-push` | `aws_pe_ecr_scan_on_push` |
+| #12 `generate-base-image-policy` | `aws_pe_base_image_policy` |
+| #13 `generate-dependabot-container` | `aws_pe_dependabot_container` |
 
 Each tool returns the rendered text + the suggested target path; the agent
 writes the file using its native Write tool.
