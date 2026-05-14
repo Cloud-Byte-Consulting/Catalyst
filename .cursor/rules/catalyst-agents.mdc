@@ -20,8 +20,9 @@ Catalyst's `.cursor/agents/` directory holds a small set of specialised personas
 | GitHub Actions OIDC, policy-as-code gates, blue/green ECS deploys, Lambda canary, CloudWatch alarms, SLO burn-rate, Andon dashboard, runbook procedures | `.cursor/agents/cicd-operator.md` |
 | Bedrock Claude multi-agent PR reviewer pipeline, Converse API integration, prompt engineering for code review, pydantic output validation, EMF metrics for AI calls, AI threat-modelling | `.cursor/agents/ai-reviewer-architect.md` |
 | Score (score.dev) workload specs, `score.yaml` validation against pinned `../spec/`, translating Score + construct address into Terraform variable maps, portability boundary statements | `.cursor/agents/score-expert.md` |
+| IDP / operating-model strategy, golden paths, service catalog governance, paved-road decisions, cross-cutting platform-as-product framing — plus the merged docs-communicator scope: README clarity, MADR ADRs, draw.io diagrams, RUNBOOK procedures, Kaizen Issues, interview-ready trade-off narratives. Complements `aws-platform-engineer` (AWS implementation detail) and `security-hardener` (security posture) per decision #2's three-persona AWS split. | `.cursor/agents/platform-engineering-architect.md` |
 
-> Future personas land here as later import phases merge: `platform-engineering-architect`. Keep this table additive — never remove a row, only add.
+> All four planned import-phase personas have now landed (`terraform-engineer`, `checkov-expert`, `opa-expert`, `aws-platform-engineer`, `security-hardener`, `automation-architect`, `cicd-operator`, `ai-reviewer-architect`, `score-expert`, `platform-engineering-architect`). Keep this table additive — never remove a row, only add.
 
 ## Routing protocol
 
