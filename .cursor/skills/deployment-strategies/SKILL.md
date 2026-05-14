@@ -46,7 +46,7 @@ Every deployment group configures `auto_rollback_configuration`:
 - `events = ["DEPLOYMENT_FAILURE", "DEPLOYMENT_STOP_ON_ALARM"]`
 
 Alarm-based triggers (in `alarm_configuration`):
-- ECS: `catalyst-api-error-rate`, `catalyst-api-p99-latency`
+- ECS: `catalyst-api-error-rate`, `catalyst-api-latency`
 - Lambda: per-function `Errors` metric alarm
 
 If any alarm enters ALARM state during traffic shifting, CodeDeploy
@@ -85,7 +85,7 @@ Deployments are tracked as GitHub Issues with labels:
 - `state/pending` — deployment requested, awaiting approval
 - `state/agent-working` — deploy-orchestrator actively shifting traffic
 - `state/done` — deployment complete, bake passed
-- `state/failed` — rollback executed, requires human review
+- `state/rolled-back` — rollback executed, requires follow-up review
 
 Transitions are managed by the deploy-orchestrator Lambda calling the GitHub
 API (via OIDC-authenticated `catalyst-api`). Each transition adds a timeline
@@ -101,10 +101,10 @@ reference from the CI output, ensuring provenance.
 
 ## Output
 
-- Terraform modules under `infrastructure/modules/leaf/codedeploy-*`
-- Step Functions ASL definition in `services/deploy-orchestrator/statemachine.asl.json`
-- Appspec templates in `services/catalyst-api/deploy/appspec.yml`
-- Hook Lambda source in `services/deploy-orchestrator/hooks/`
+- Terraform deployment modules under the repository's active IaC path
+- Step Functions ASL definition under the repository's deploy-orchestrator path
+- Appspec templates under the service deploy path
+- Hook Lambda source under the deploy-orchestrator hooks path
 
 ## Guardrails
 

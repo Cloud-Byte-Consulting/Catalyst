@@ -7,9 +7,9 @@
 
 ## 1. Executive summary
 
-- **What's left**: 4 sequential phase PRs (terraform → automation → AI-review → architect) + 2 small follow-ups (intent-judge shim, ADR numbering pass). 0 of the 4 phase branches exist yet locally.
-- **What's in flight**: PR #20 (`rc/aws-agentic-platform-engineering` → `release`, issue #19) and PR #22 (`rc/github-mcp-secret-scanning` → `release`, issue #21).
-- **Hard dependency on PR #20**: per decision #1, no phase branch may be cut from `release` until #20 merges (avoids two competing AWS-platform personas in `.cursor/agents/`).
+- **What's left**: stacked-PR review and merge sequencing for #24 → #26 → #28 → #30 → #31, plus any follow-up cleanup.
+- **What's in flight**: PRs #20, #22, #24, #26, #28, #30, and #31 are all open in the stack.
+- **Branching model now in use**: each later phase branch is cut from the previous phase branch in the stack (not directly from `release`).
 - **Value when done**: 9 personas + ~30 skills + `catalyst-agents.mdc` rule deliver visible coverage of all five rubric areas (30/25/20/15/10) plus Option 2 (Bedrock) and Option 6 evidence.
 - **Top risk**: scope creep / merge-conflict pile-up if phases land in the wrong order or if #19 (`aws-platform-engineer`) lands without persona-split decision applied (decision #2).
 - **Single next action**: **drive PR #20 to merge into `release`**; nothing else can start until it lands.
@@ -69,11 +69,11 @@ flowchart LR
 |---|---|---|---|---|---|
 | 1 | `rc/aws-agentic-platform-engineering` | `release` | Lands `aws-platform-engineer` persona; resolves persona overlap | issue #19 | **In flight (PR #20)** |
 | 2 | `rc/github-mcp-secret-scanning` | `release` | GitHub MCP secret scanning + partial security-hardener prework | issue #21 | **In flight (PR #22), parallel** |
-| 3 | `rc/import-pc-phase-1-terraform` | `release` (post-#20) | terraform + checkov + opa agents, 7 skills, `catalyst-agents.mdc` rule | #20 merged | Not started |
-| 4 | `rc/import-pc-phase-2-automation` | `release` (post-Phase 1) | automation-architect, cicd-operator, security-hardener (curated, layer over #22) | Phase 1, #22 merged, ECS Fargate decision (decision #10) | Not started |
-| 5 | `rc/import-pc-phase-3-ai-review` | `release` (post-Phase 2) | ai-reviewer-architect + score-expert + separate Bedrock MCP server | Phase 2 | Not started |
-| 6 | `rc/import-pc-phase-4-architect` | `release` (post-Phase 3) | platform-engineering-architect (docs-communicator merged in) | Phase 3, persona split applied | Not started |
-| 7 | `rc/intent-judge-shim` | `release` (post-Phase 3) | Lightweight Cursor rule + ~80-line MCP shim | Phase 3 | Not started |
+| 3 | `rc/import-pc-phase-1-terraform` | stacked base after #20 | terraform + checkov + opa agents, 7 skills, `catalyst-agents.mdc` rule | #20 merged into stack base | In flight (PR #24) |
+| 4 | `rc/import-pc-phase-2-automation` | stacked on Phase 1 | automation-architect, cicd-operator, security-hardener (curated, layer over #22) | Phase 1 + #22 in stack | In flight (PR #26) |
+| 5 | `rc/import-pc-phase-3-ai-review` | stacked on Phase 2 | ai-reviewer-architect + score-expert + separate Bedrock MCP server | Phase 2 in stack | In flight (PR #28) |
+| 6 | `rc/import-pc-phase-4-architect` | stacked on Phase 3 | platform-engineering-architect (docs-communicator merged in) | Phase 3 in stack | In flight (PR #30) |
+| 7 | `rc/intent-judge-shim` | stacked on Phase 4 | Lightweight Cursor rule + MCP shim | Phase 4 in stack | In flight (PR #31) |
 | 8 | `rc/adr-numbering-pass` | `release` (any time) | Search/replace `ADR-008→001`, `ADR-009→002` if not done inline | None (idempotent cleanup) | Not started |
 
 ---

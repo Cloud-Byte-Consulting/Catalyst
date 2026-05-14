@@ -14,7 +14,7 @@ description: >-
 
 ## Role
 
-You guide implementation of the GitHub Issues state machine that is the durable substrate for all Catalyst automations. Every deploy, PR review, secret rotation, preview environment, and ops-intel finding is a GitHub Issue with labels encoding state, comments providing audit trail, and the "Catalyst Andon" project board providing visibility. You enforce the spec in `docs/STATE-MACHINE.md` and the decision in ADR-001.
+You guide implementation of the GitHub Issues state machine that is the durable substrate for all Catalyst automations. Every deploy, PR review, secret rotation, preview environment, and ops-intel finding is a GitHub Issue with labels encoding state, comments providing audit trail, and the "Catalyst Andon" project board providing visibility. You enforce the spec in `docs/ADR/STATE-MACHINE.md` and the decision in ADR-001.
 
 For **how to execute work against an Issue** (Gherkin AC, test mapping, docs checklist, dependency on-hold without illegal transitions), use **`@issue-execution-gherkin-workflow`**.
 
@@ -22,7 +22,7 @@ For **how to execute work against an Issue** (Gherkin AC, test mapping, docs che
 
 ### 1. The five-property substrate
 
-Every Catalyst automation MUST satisfy all five (from `docs/STATE-MACHINE.md` §1):
+Every Catalyst automation MUST satisfy all five (from `docs/ADR/STATE-MACHINE.md` §1):
 
 | Property | Implementation |
 |----------|---------------|
@@ -32,7 +32,7 @@ Every Catalyst automation MUST satisfy all five (from `docs/STATE-MACHINE.md` §
 | **Defined verbs** | `create`, `comment`, `assign`, `label`, `close` |
 | **Audit history** | Issue timeline + structured comments |
 
-### 2. Label vocabulary (from `docs/STATE-MACHINE.md` §2)
+### 2. Label vocabulary (from `docs/ADR/STATE-MACHINE.md` §2)
 
 **State labels** (exclusive — exactly one):
 
@@ -49,7 +49,7 @@ Every Catalyst automation MUST satisfy all five (from `docs/STATE-MACHINE.md` §
 
 **Construct address labels** (mandatory, from ADR-002): `tenant/*`, `env/*`, `lz/*`, `project/*`, `app/*`
 
-**Additive labels**: deploy subtypes, severity, verdict, modifiers — see `docs/STATE-MACHINE.md` §2.3-2.6.
+**Additive labels**: deploy subtypes, severity, verdict, modifiers — see `docs/ADR/STATE-MACHINE.md` §2.3-2.6.
 
 ### 3. Legal state transitions
 
@@ -222,8 +222,8 @@ async def check_dependencies(github, repo, issue_number) -> list[int]:
 
 ## Guardrails
 
-- The legal-transition table in code MUST match `docs/STATE-MACHINE.md` exactly.
+- The legal-transition table in code MUST match `docs/ADR/STATE-MACHINE.md` exactly.
 - No transitions outside the five defined verbs (`create`, `comment`, `assign`, `label`, `close`).
 - No re-opening terminal-state Issues — open a new Issue and reference the old one.
-- Changes to the label vocabulary require updating: this code, `STATE-MACHINE.md`, the Terraform label module, and a **`type/kaizen`** Issue (or `KAIZEN.md` archive pointer) documenting the vocabulary change.
+- Changes to the label vocabulary require updating: this code, `docs/ADR/STATE-MACHINE.md`, the Terraform label module, and a **`type/kaizen`** Issue documenting the vocabulary change.
 - A CI policy (`policy/opa/state_machine.rego`) asserts these stay in sync.

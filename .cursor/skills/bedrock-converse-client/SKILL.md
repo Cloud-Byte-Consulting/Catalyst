@@ -41,14 +41,22 @@ class BedrockClient:
             await self._client.__aexit__(*exc)
 ```
 
-### 2. Model IDs (pinned from AGENTS.md)
+### 2. Model IDs (runtime configuration)
 
 ```python
-from enum import StrEnum
+from dataclasses import dataclass
+import os
 
-class BedrockModel(StrEnum):
-    SONNET = "anthropic.claude-sonnet-4-5-20250929-v1:0"  # correctness + security
-    HAIKU = "anthropic.claude-3-5-haiku-20241022-v1:0"    # style + synthesis + ops-intel
+@dataclass(frozen=True)
+class BedrockModels:
+    reviewer: str
+    summarizer: str
+
+def load_models() -> BedrockModels:
+    return BedrockModels(
+        reviewer=os.environ["CATALYST_BEDROCK_MODEL_REVIEWER"],
+        summarizer=os.environ["CATALYST_BEDROCK_MODEL_SUMMARIZER"],
+    )
 ```
 
 ### 3. Converse API call
@@ -64,7 +72,7 @@ from botocore.exceptions import ClientError
 )
 async def converse(
     self,
-    model: BedrockModel,
+    model_id: str,
     system_prompt: str,
     user_message: str,
     max_tokens: int = 4096,
@@ -72,7 +80,7 @@ async def converse(
 ) -> dict:
     """Call Bedrock Converse API with retry on transient errors."""
     response = await self._client.converse(
-        modelId=model,
+        modelId=model_id,
         messages=[
             {
                 "role": "user",
@@ -113,14 +121,14 @@ def extract_usage(response: dict) -> dict:
 ```python
 async def converse_stream(
     self,
-    model: BedrockModel,
+    model_id: str,
     system_prompt: str,
     user_message: str,
     max_tokens: int = 4096,
 ) -> AsyncIterator[str]:
     """Stream responses from Bedrock ConverseStream API."""
     response = await self._client.converse_stream(
-        modelId=model,
+        modelId=model_id,
         messages=[{"role": "user", "content": [{"text": user_message}]}],
         system=[{"text": system_prompt}],
         inferenceConfig={"maxTokens": max_tokens, "temperature": 0.0},
@@ -154,7 +162,7 @@ Per `AGENTS.md` and the Bedrock binding MCP (`.cursor/skills/bedrock-binding/`):
 ## Guardrails
 
 - Always Converse API, never InvokeModel.
-- Model IDs are string constants, never user input.
+- Model IDs come from deployment/runtime config, never interactive user input.
 - Temperature 0.0 for deterministic review output.
 - Max 2 retries on transient errors, 0 on permanent.
 - Never log the full diff content — it may contain secrets. Log metadata only (file count, line count).

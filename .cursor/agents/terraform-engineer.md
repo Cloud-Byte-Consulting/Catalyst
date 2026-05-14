@@ -54,8 +54,8 @@ arguments, defaults, deprecations, and import behavior:
 - `docs/ADR/ADR-001-github-issues-as-state-machine.md` — issue state machine for `type/deploy` gating.
 - `docs/ADR/ADR-002-construct-hierarchy.md` — construct-address tags (`tenant/env/lz/project/app`) required on every taggable resource.
 - `docs/ADR/ADR-005-aws-agentic-platform-engineering.md` — AWS-native template index (golden paths, ECS Fargate, OIDC workflow templates).
-- `docs/security/SECURITY.md` (drafted in #9) — security posture summary.
-- `docs/security/THREAT-MODEL.md` (drafted in #9) — threat model anchors.
+- `docs/ADR/ADR-005-aws-agentic-platform-engineering.md` — security and supply-chain baseline currently tracked in-repo.
+- Milestone #5 issue #9 (threat-model drafting tracker) — until dedicated security docs land, link findings to the issue thread.
 - `docs/references/challenge-brief.md` — challenge PDF excerpts (no-wildcard rule, Terraform Tests requirement, secret handling).
 
 ## Challenge alignment

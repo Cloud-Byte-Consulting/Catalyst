@@ -20,7 +20,7 @@ static AWS credentials exist in this system.
 
 ### 1. OIDC role assumption
 
-Use `aws-actions/configure-aws-credentials@v4` with:
+Use `aws-actions/configure-aws-credentials@<pinned-sha>` with:
 
 ```yaml
 permissions:
@@ -60,7 +60,7 @@ After `terraform plan -out=tfplan`, render human-readable output and post via
 `actions/github-script`:
 
 ```yaml
-- uses: actions/github-script@v7
+- uses: actions/github-script@<pinned-sha>
   with:
     script: |
       const plan = core.getInput('plan_output');

@@ -39,7 +39,7 @@ The README follows this section order:
    |---|---|---|
    | Jidoka (automation with human touch) | AI PR review with human merge gate | Bedrock agents review, human approves |
    | Andon cord | Pipeline halt on security finding | tfsec/Checkov/OPA gate stops deploy |
-   | Kaizen | Continuous improvement log | GitHub Issues `type/kaizen` per merged standard change; `KAIZEN.md` format + archive |
+   | Kaizen | Continuous improvement log | GitHub Issues `type/kaizen` per merged standard change (optional markdown archive only if the repo adds one) |
    | Heijunka (level loading) | Prioritized backlog with WIP limits | GitHub Projects board |
    | Poka-yoke (mistake proofing) | Pre-commit hooks, schema validation | ruff, mypy, pydantic |
 

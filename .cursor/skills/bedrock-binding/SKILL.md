@@ -43,7 +43,7 @@ Wraps `boto3.client("bedrock-runtime").converse()`.
 | `messages` | array (REQUIRED) | Converse messages array. Each entry: `{role: 'user'|'assistant', content: [{text: '...'}]}`. |
 | `system` | array (optional) | Optional system prompt blocks (`[{text: '...'}]`). |
 | `inference_config` | object (optional) | Converse `inferenceConfig` — `maxTokens`, `temperature`, `topP`, `stopSequences`. |
-| `region` | string (optional) | AWS region for the runtime client. **No default.** Supply explicitly per construct address. |
+| `region` | string (optional) | AWS region for the runtime client. If omitted, boto3 default region resolution applies. Prefer supplying explicitly per construct address. |
 
 Returns the raw Converse response (JSON-coerced) or `{"error": {"type": "...", "message": "..."}}` if `boto3` is missing or AWS raises `BotoCoreError` / `ClientError`.
 
@@ -53,7 +53,7 @@ Wraps `boto3.client("bedrock").list_foundation_models()`.
 
 | Input | Type | Notes |
 |-------|------|-------|
-| `region` | string (optional) | AWS region for the control-plane client. **No default.** |
+| `region` | string (optional) | AWS region for the control-plane client. If omitted, boto3 default region resolution applies. |
 
 Returns the raw `list_foundation_models` response or a structured error.
 
@@ -87,4 +87,4 @@ Expected: a single JSON line containing both `bedrock_invoke_converse` and `bedr
 
 - No secrets, account ids, or regions baked in.
 - No `print()` from the server (would corrupt stdio framing) — log via stderr only if extending the code.
-- Keep the implementation small (~100–150 LOC); do not grow it into a full Bedrock SDK wrapper.
+- Keep the implementation minimal and focused on two MCP tools; do not grow it into a full Bedrock SDK wrapper.

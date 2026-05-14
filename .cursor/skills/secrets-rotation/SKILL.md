@@ -23,7 +23,7 @@ Every Secrets Manager rotation Lambda must implement the four-stage contract:
 
 1. **createSecret** — Generate a new secret version with `AWSPENDING` staging
    label. Use `get_random_password` for database credentials. Store the new
-   version via `put_secret_value` with `VersionId` and `VersionStages`.
+   version via `put_secret_value` with `ClientRequestToken` and `VersionStages`.
 2. **setSecret** — Apply the pending secret to the target resource. For Aurora,
    execute `ALTER USER` with the new password using a connection authenticated
    by the `AWSCURRENT` version.
@@ -100,8 +100,8 @@ resource "aws_secretsmanager_secret_rotation" "example" {
 ## Guardrails
 
 - Never log, print, or emit a secret value in any context.
-- Never store secrets in environment files, Terraform state (use `sensitive = true`),
-  or commit messages.
+- Never store secrets in environment files, Terraform state, or commit messages.
+  (`sensitive = true` only redacts CLI output; it does not prevent state storage.)
 - Never use the default AWS-managed KMS key for secrets; always use a
   customer-managed CMK.
 - Never grant `secretsmanager:GetSecretValue` with `Resource: "*"` — scope to

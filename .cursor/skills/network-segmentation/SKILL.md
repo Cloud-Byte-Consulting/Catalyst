@@ -20,8 +20,9 @@ principles of landing zone design and network isolation.
 
 ### VPC layout
 
-Per AGENTS.md section 5.1, the Catalyst VPC uses `10.40.0.0/16` with three
-subnet tiers across two availability zones:
+Use a three-tier VPC pattern (public, private-app, private-data) across at
+least two availability zones. The CIDRs below are an example baseline and
+must be parameterized per environment:
 
 | Tier | Purpose | Subnet CIDR (AZ-a) | Subnet CIDR (AZ-b) | Internet access |
 |---|---|---|---|---|

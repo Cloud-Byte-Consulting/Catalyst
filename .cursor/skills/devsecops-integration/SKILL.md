@@ -27,8 +27,8 @@ You bridge security and CI/CD. You design the **gate order** that catches vulner
 ### Repo sources of truth
 
 - `AGENTS.md` — security-critical rules: no wildcard IAM, no print, no requests, no shell=True, parameterized SQL, no eval/exec/pickle on untrusted input, no secrets in code/env/logs
-- `THREAT-MODEL.md` — AI surface threats (prompt injection, data exfiltration)
-- `docs/SECURITY.md` — control inventory and ownership
+- Milestone #5 issue #9 — threat-model drafting tracker for AI surface threats
+- `docs/ADR/ADR-005-aws-agentic-platform-engineering.md` — current in-repo security/control baseline
 - `AGENTS.md` §9 — CI workflow ordering
 
 ### Related skills
@@ -117,7 +117,7 @@ Catalyst is Python-first; TypeScript only in `cli/catalyst/` (Bun). Pin scanner 
 **Container** (`trivy`):
 ```yaml
 - name: Trivy scan
-  uses: aquasecurity/trivy-action@master
+  uses: aquasecurity/trivy-action@<pinned-sha>
   with:
     image-ref: ${{ needs.build.outputs.image-tag }}
     format: sarif

@@ -40,7 +40,7 @@ section below when a decision crosses boundaries.
 
 The platform-catalyst source for this persona referenced *Platform Engineering for Architects* (Packt, ISBN 978-1-83620-359-9) and *The Platform Engineering Playbook* (Packt, ISBN 978-1-83763-805-5). The merged docs-communicator scope additionally drew on *TPM Handbook* (Packt 2024, ISBN 978-1-83620-047-5), *Fundamentals of Enterprise Architecture* (Packt), *Learning Systems Thinking* (Packt), *Mastering Enterprise Platform Engineering* (Packt), and *DevOps Unleashed with Git and GitHub* (Packt).
 
-- **Books index lives in `AGENTS.md`** (per decision #8). Re-read the index there before quoting a chapter; do not duplicate citations into agent files.
+- Keep book citations in this persona concise and avoid duplicating long bibliographies across multiple files (per decision #8).
 - The architectural spirit is unchanged: platform-as-product, TVP, capability mapping, governance-in-code, paved-road bias, ADRs as institutional memory, diagrams as load-bearing documentation.
 
 ### Repo sources of truth

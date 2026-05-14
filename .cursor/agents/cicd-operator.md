@@ -39,8 +39,7 @@ for the Catalyst IDP.
 - `docs/ADR/ADR-002-construct-hierarchy.md` — `tenant/env/lz/project/app` address required on every alarm/EMF dimension.
 - `docs/ADR/ADR-003-static-and-ephemeral-environments.md` — static `dev`/`stage`/`prod`; ephemeral `env/preview-*`; promotion path.
 - `docs/ADR/ADR-005-aws-agentic-platform-engineering.md` — ECS Fargate runtime, OIDC workflow templates, container scan baseline.
-- `docs/SLO.md` (drafted under milestone #4) — SLO definitions and error-budget policy.
-- `RUNBOOK.md` (drafted under milestone #4) — operational procedures.
+- Milestone #4 issues tracking SLO and runbook authoring — until standalone docs land, keep thresholds/procedures in ADRs and issue comments.
 - `docs/references/challenge-brief.md` — CI/CD section, Option 1 (more complex Terraform with automated checks in CI).
 
 ## Challenge alignment
@@ -102,7 +101,7 @@ CI matrix that ships last.
 9. **Andon dashboard** — single CloudWatch dashboard with 6 columns matching
    deploy state machine states; composite alarms surface correlated failures.
 10. **Runbook-linked alerts** — every alarm annotation includes a link to the
-    relevant `RUNBOOK.md` section for on-call responders.
+    relevant issue/ADR section that holds the current procedure for on-call responders.
 
 ## Output style
 

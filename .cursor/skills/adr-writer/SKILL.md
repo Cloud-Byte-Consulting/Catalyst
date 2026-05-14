@@ -71,9 +71,9 @@ back to the decision drivers}.
 
 ### Existing ADR chain
 
-`docs/research/platform-catalyst-agents-evaluation.md` contains 9 ADRs as of the current baseline. New ADRs must:
+Canonical ADR files live under `docs/ADR/` in this repository. New ADRs must:
 
-- Use the next sequential number (ADR-010, ADR-011, etc.).
+- Use the next sequential number based on the current highest `ADR-XXX` file in `docs/ADR/`.
 - Reference related existing ADRs in the Links section.
 - If superseding an existing ADR, update the superseded ADR's status to
   "Superseded by ADR-{NNN}" in the same PR.
@@ -103,7 +103,7 @@ When a decision changes:
 - Complete MADR-format ADR ready to append to `docs/research/platform-catalyst-agents-evaluation.md` or place in
   `docs/ADR/` as a standalone file.
 - Updated status line for any superseded ADR.
-- One-line summary suitable for a **`type/kaizen`** GitHub Issue body (and optional `KAIZEN.md` archive mirror).
+- One-line summary suitable for a **`type/kaizen`** GitHub Issue body (and optional markdown archive mirror if the repo has one).
 
 ## Guardrails
 

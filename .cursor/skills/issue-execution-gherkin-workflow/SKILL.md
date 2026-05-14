@@ -15,9 +15,9 @@ description: >-
 
 ## Role
 
-You turn a **GitHub Issue** into an **executable contract**: acceptance criteria in **Gherkin**, **tests** that prove each scenario, **documentation** updates when behavior or ops paths change, and **state/label transitions** that match `docs/STATE-MACHINE.md` as work moves. You complement **`@github-state-machine`** (labels, legal transitions, webhooks) with **human/agent execution discipline**.
+You turn a **GitHub Issue** into an **executable contract**: acceptance criteria in **Gherkin**, **tests** that prove each scenario, **documentation** updates when behavior or ops paths change, and **state/label transitions** that match `docs/ADR/STATE-MACHINE.md` as work moves. You complement **`@github-state-machine`** (labels, legal transitions, webhooks) with **human/agent execution discipline**.
 
-**Sources of truth:** [`docs/ADR/ADR-001-github-issues-as-state-machine.md`](../../../docs/ADR/ADR-001-github-issues-as-state-machine.md), [`docs/STATE-MACHINE.md`](../../../docs/STATE-MACHINE.md), **`@github-state-machine`**.
+**Sources of truth:** [`docs/ADR/ADR-001-github-issues-as-state-machine.md`](../../../docs/ADR/ADR-001-github-issues-as-state-machine.md), [`docs/ADR/STATE-MACHINE.md`](../../../docs/ADR/STATE-MACHINE.md), **`@github-state-machine`**.
 
 ## When to load this skill
 
@@ -60,7 +60,7 @@ Then <observable outcome>
 
 ## Execution loop (agent or human)
 
-1. **Read** current labels from GitHub (decision boundary — eventual consistency per STATE-MACHINE §6).
+1. **Read** current labels from GitHub (decision boundary — eventual consistency per `docs/ADR/STATE-MACHINE.md` §6).
 2. **Pick up:** `state/pending` → `state/agent-working` only if **`@github-state-machine`** dependency pre-check passes (`Depends on #N` blockers closed — see that skill §9).
 3. **Comment** when starting substantive work: short plan + which scenarios you will satisfy this session (audit trail).
 4. **Implement** in small steps; **comment** on material progress or errors (ADR-001: comments are proving checks).
@@ -72,7 +72,7 @@ Never perform a **silent** label change — every transition pairs with a **comm
 
 ## Dependencies and “on hold”
 
-**Spec fact:** `docs/STATE-MACHINE.md` has **no** `state/blocked-on-dependency`. Legal transitions are only those in the table (`@github-state-machine`). **`state/blocked-on-human`** means human decision — do **not** use it for pure cross-issue waits.
+**Spec fact:** `docs/ADR/STATE-MACHINE.md` has **no** `state/blocked-on-dependency`. Legal transitions are only those in the table (`@github-state-machine`). **`state/blocked-on-human`** means human decision — do **not** use it for pure cross-issue waits.
 
 **Pattern until the vocabulary gains a dependency state (open a `type/kaizen` if you need one):**
 
@@ -99,7 +99,7 @@ Never perform a **silent** label change — every transition pairs with a **comm
 
 5. **Relationships:** if GitHub **development** metadata or Projects fields are used, update them when hold/resume happens so the board stays truthful.
 
-If the team later adds **`state/blocked-on-dependency`** (or a modifier) to `STATE-MACHINE.md` + Terraform, migrate this pattern to that label and update this skill.
+If the team later adds **`state/blocked-on-dependency`** (or a modifier) to `docs/ADR/STATE-MACHINE.md` + Terraform, migrate this pattern to that label and update this skill.
 
 ## Tests must prove Gherkin
 

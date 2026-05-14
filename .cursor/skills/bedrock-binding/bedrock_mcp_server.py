@@ -71,7 +71,7 @@ TOOLS = [
                     "type": "string",
                     "description": (
                         "Optional AWS region for the bedrock-runtime client. "
-                        "No default — supply explicitly."
+                        "If omitted, boto3 default region resolution applies."
                     ),
                 },
             },
@@ -83,7 +83,8 @@ TOOLS = [
         "description": (
             "List Bedrock foundation models available to the caller via "
             "bedrock.list_foundation_models. Returns the raw response shape or "
-            "a structured error. Region is caller-supplied with no default."
+            "a structured error. Region is caller-supplied; if omitted, boto3 "
+            "default region resolution applies."
         ),
         "inputSchema": {
             "type": "object",
@@ -92,7 +93,8 @@ TOOLS = [
                     "type": "string",
                     "description": (
                         "Optional AWS region for the bedrock control-plane "
-                        "client. No default — supply explicitly."
+                        "client. If omitted, boto3 default region resolution "
+                        "applies."
                     ),
                 },
             },
@@ -203,6 +205,8 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any] | None:
     method = request.get("method", "")
     id_ = request.get("id")
     params = request.get("params", {}) or {}
+    if not isinstance(params, dict):
+        return _error(id_, -32602, "Invalid params: expected object")
 
     if method == "initialize":
         return _response(id_, {
@@ -220,6 +224,8 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any] | None:
     if method == "tools/call":
         tool_name = params.get("name", "")
         tool_args = params.get("arguments", {}) or {}
+        if not isinstance(tool_args, dict):
+            return _error(id_, -32602, "Invalid arguments: expected object")
         handler = TOOL_HANDLERS.get(tool_name)
         if handler is None:
             return _error(id_, -32602, f"Unknown tool: {tool_name}")

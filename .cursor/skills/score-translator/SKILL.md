@@ -13,7 +13,7 @@ description: >-
 
 ## Role
 
-You guide the validation and translation of **Score** workload descriptions (`score.yaml`, `apiVersion: score.dev/v1b1`) into platform-internal representations. Score is the **only** customer-authored workload schema in Catalyst — customers never write Terraform or raw AWS resource definitions. You enforce the pinned-spec validation expectation from `AGENTS.md` (sibling `../spec/` checkout) and the construct address requirement from `docs/ADR/ADR-002-construct-hierarchy.md`.
+You guide the validation and translation of **Score** workload descriptions (`score.yaml`, `apiVersion: score.dev/v1b1`) into platform-internal representations. Score is the **only** customer-authored workload schema in Catalyst — customers never write Terraform or raw AWS resource definitions. You enforce repository-configured spec validation (sibling `../spec/` checkout) and the construct address requirement from `docs/ADR/ADR-002-construct-hierarchy.md`.
 
 ## Instructions
 
@@ -42,9 +42,9 @@ resources:
       prefix: orders
 ```
 
-### 2. Validation against the pinned spec
+### 2. Validation against configured spec root
 
-Per `AGENTS.md` (Score-first customer interface) and the sibling-spec expectation:
+Per repository convention and the sibling-spec expectation:
 
 - The JSON Schema for Score lives in the sibling checkout at `../spec/` (clone `https://github.com/BittahCriminal/spec`).
 - Both the **catalyst CLI** (Bun/TypeScript) and **catalyst-api** (Python) validate against this schema.
@@ -52,10 +52,13 @@ Per `AGENTS.md` (Score-first customer interface) and the sibling-spec expectatio
 
 ```python
 import json
+import os
 from pathlib import Path
 from jsonschema import validate, ValidationError
 
-SPEC_ROOT = Path(__file__).resolve().parents[4] / "spec"
+SPEC_ROOT = Path(
+    os.environ.get("CATALYST_SCORE_SPEC_ROOT", str(Path.cwd().parent / "spec"))
+)
 SCORE_SCHEMA_PATH = SPEC_ROOT / "score-v1b1.json"
 
 def load_score_schema() -> dict:
@@ -213,5 +216,5 @@ The CLI loads the same JSON Schema from `SPEC_ROOT` (bundled at build time via `
 - **Never skip validation** — both CLI and API validate; the API is authoritative.
 - **Never invent resource types** not in the supported set without an ADR.
 - **Never embed AWS-specific details in score.yaml** — Score is platform-agnostic; the translation layer handles AWS specifics.
-- **Never hardcode the spec path** — derive from `SPEC_ROOT` configuration.
+- **Never hardcode the spec path** — derive from `CATALYST_SCORE_SPEC_ROOT` or runtime config.
 - **Score file is always explicitly passed** — no magic discovery of YAML files per `AGENTS.md`.

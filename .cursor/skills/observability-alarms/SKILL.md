@@ -2,8 +2,8 @@
 name: observability-alarms
 description: >
   CloudWatch alarms, EMF structured metrics, composite alarms, SLO burn-rate
-  math, the Andon dashboard, SNS routing (page vs ticket), and the 8 named
-  alarms from AGENTS.md. Use when designing monitoring, alerting, or the
+  math, the Andon dashboard, SNS routing (page vs ticket), and the standard
+  Catalyst alarm set tracked in this skill. Use when designing monitoring, alerting, or the
   operational dashboard.
 ---
 <!-- Vendored from: platform-catalyst/.cursor/skills/observability-alarms/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
@@ -157,9 +157,9 @@ distributed call path for failing requests.
 
 ## Output
 
-- Terraform alarm resources in `infrastructure/modules/leaf/cloudwatch-alarms/`
-- Dashboard JSON in `infrastructure/modules/leaf/cloudwatch-dashboard/`
-- EMF helper module in `services/shared/metrics.py`
+- Terraform alarm resources under the repository's active IaC path (or planned path documented in ADR/issue comments)
+- Dashboard JSON under the repository's active observability module path
+- EMF helper module under the repository's shared service/telemetry module path
 - SLO burn-rate Metric Math expressions in alarm Terraform
 
 ## Guardrails

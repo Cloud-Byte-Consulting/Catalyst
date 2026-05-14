@@ -12,7 +12,7 @@
 
 `platform-catalyst` is a **sibling fork** authored by the same engineer (BSD-3-Clause, copyright `BittahCriminal`, `https://github.com/BittahCriminal/platform-catalyst`) that targets the **same Senior Platform Engineer challenge** with the **same Honda Construct framing** and the **same five-level construct hierarchy** that Catalyst encodes in ADR-002. It is functionally a **superset** of the current Catalyst repo: 12 agent personas, 48 skills, a `catalyst-judge` MCP server, and a deeper docs scaffold (`PLAN.md`, `CLAUDE.md`, `DECISIONS.md`, `RUNBOOK.md`, `THREAT-MODEL.md`, `KAIZEN.md`).
 
-Catalyst (`Cloud-Byte-Consulting/Catalyst`) is the **leaner, in-flight rewrite** on the same ideas: ADR-001 (GitHub Issues state machine), ADR-002 (construct hierarchy), ADR-003 (static + ephemeral envs), ADR-004 (RLM). Its `.cursor/agents/` directory is **empty** — there is **no naming or content conflict** with importing the platform-catalyst set wholesale. Catalyst's `.cursor/prompts/` already contains identical `advocate.md` / `architect.md` / `skeptic.md` files (already adopted from the same source), and `.cursor/skills/` only carries the RLM skill.
+Catalyst (`Cloud-Byte-Consulting/Catalyst`) is the **leaner, in-flight rewrite** on the same ideas: ADR-001 (GitHub Issues state machine), ADR-002 (construct hierarchy), ADR-003 (static + ephemeral envs), ADR-004 (RLM). This report was written as a pre-import snapshot; several statements below are historical and have since been superseded by the stacked PR chain (#24/#26/#28/#30/#31).
 
 **Headline recommendations**:
 
@@ -28,7 +28,7 @@ Catalyst (`Cloud-Byte-Consulting/Catalyst`) is the **leaner, in-flight rewrite**
 
 The following questions from § 7 have been resolved. Each answer is binding for the implementation work.
 
-1. **Branch coordination** — Option (a) chosen: pause the platform-catalyst agent import until PR #20 (`rc/aws-agentic-platform-engineering` → `release`) is merged. The import will proceed on a new branch (`rc/import-pc-agents`) cut from `release` after #20 lands.
+1. **Branch coordination** — Option (a) chosen: pause the platform-catalyst agent import until PR #20 (`rc/aws-agentic-platform-engineering` → `release`) is merged. The work then proceeded as a stacked branch chain rather than a single `rc/import-pc-agents` branch.
 2. **AWS-platform persona split** — Two personas chosen for the AWS-platform space:
   - `platform-engineering-architect` — strategy-level, cross-cutting IDP / org / landing-zone decisions.
   - `aws-platform-engineer` — AWS implementation detail (already being added by `rc/aws-agentic-platform-engineering` / PR #20).
@@ -47,7 +47,7 @@ The following questions from § 7 have been resolved. Each answer is binding for
 10. **Agent phase groupings (`cicd-operator` fork target; `automation-architect` ECS vs Lambda scope)** — Curate before importing. Do **not** import either agent until their scope is confirmed against Catalyst's chosen runtime. The ECS Fargate decision is expected from the completion plan; import of these two agents is blocked on that outcome.
 11. `**ai-reviewer-architect` Bedrock model binding** — Implement the model-binding as a **separate MCP server** (not inline in the agent file). The agent file itself should not pin Bedrock model IDs; the MCP server is the canonical binding point.
 12. **ADR numbering drift (ADR-001 / ADR-002 canonical lock)** — Lock confirmed: ADR-001 and ADR-002 are the canonical identifiers in Catalyst. A search/replace pass on any imported agent files that reference ADR-008 / ADR-009 will be performed at import time.
-13. **4-phase agent landing sequence** — The import proceeds in four phases, each as its own PR cut from `release` (after PR #20 merges per decision #1):
+13. **4-phase agent landing sequence** — The import proceeds in four phases as stacked PRs (#24 -> #26 -> #28 -> #30), with `rc/intent-judge-shim` as the final stacked branch (#31).
   - **Phase 1** — `terraform-engineer`, `checkov-expert`, `opa-expert` (IaC + policy foundation; all import-as-is; lowest coordination risk).
     - **Phase 2** — `automation-architect`, `cicd-operator`, `security-hardener` (Automation Service + CI/CD + Security rubric areas).
     - **Phase 3** — `ai-reviewer-architect`, `score-expert` (AI-native + Score portability tier).
@@ -134,7 +134,7 @@ Cells: **Direct fit** (use as-is), **Adapt-and-keep** (import after editing), **
 | `.cursor/rules/rlm-workflow.mdc`                  | Exists; `alwaysApply: false`; `description` activates on RLM-relevant tasks.               | **No conflict.** None of the 12 agents include a Cursor rule. They will need a new `.mdc` rule file (or set) to activate automatically.                                                                                                          |
 | `.cursor/skills/rlm/`                             | Exists; `rlm_mcp_server.py` registered in `.cursor/mcp.json`.                              | **No conflict.** None of the 12 agents reference an RLM skill — they were authored before the RLM workflow existed in this lineage.                                                                                                              |
 | `.cursor/prompts/{advocate,architect,skeptic}.md` | Already present and **byte-identical** to the source.                                      | **No conflict.** `ai-reviewer-architect` agent directly references these three prompts; perfect alignment.                                                                                                                                       |
-| `.cursor/mcp.json`                                | Registers only `rlm-repl`.                                                                 | **Soft conflict** if `intent-judge` is imported: that agent registers a `catalyst-judge` MCP server pointing at `plugins/catalyst-judge/scripts/run_mcp.py`. Would require importing the entire `plugins/catalyst-judge/` plugin source as well. |
+| `.cursor/mcp.json`                                | Historical snapshot in this report said `rlm-repl` only; current branch includes additional servers. | **Soft conflict** if `intent-judge` is imported: that agent registers a `catalyst-judge` MCP server pointing at `plugins/catalyst-judge/scripts/run_mcp.py`. Would require importing the entire `plugins/catalyst-judge/` plugin source as well. |
 | `.cursor/hooks/state/`                            | Does not exist; only the platform-catalyst sibling has it (continual-learning hook state). | **No conflict** — out of scope.                                                                                                                                                                                                                  |
 
 
