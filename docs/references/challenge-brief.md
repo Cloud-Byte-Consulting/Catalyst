@@ -1,9 +1,4 @@
-# Senior Platform Engineer — code challenge (reference extract)
-
-This file is a **structured text extract** of the employer challenge PDF committed
-alongside Catalyst. It exists so requirements can cite stable sections without
-parsing binary PDF in tooling. If the canonical PDF is updated, refresh this
-extract to match.
+# Senior Platform Engineer Mission statement (reference extract)
 
 **Canonical binary:** [Senior-Platform-Engineer-Project.pdf](./Senior-Platform-Engineer-Project.pdf)
 
