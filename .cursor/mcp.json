@@ -4,6 +4,21 @@
       "command": "python",
       "args": [".cursor/skills/rlm/rlm_mcp_server.py"],
       "env": {}
+    },
+    "aws-pe": {
+      "command": "python",
+      "args": [".cursor/skills/aws-platform-engineering/aws_pe_mcp_server.py"],
+      "env": {}
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ghp_XXXXXXXXXXXXXXXXXXXX",
+        "X-MCP-Toolsets": "secret_protection",
+        "X-MCP-Tools": "run_secret_scanning"
+      }
     }
   }
 }
+
