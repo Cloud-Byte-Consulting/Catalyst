@@ -276,12 +276,8 @@ The deliberate choices in the decision are:
   toolset and `run_secret_scanning` tool registered in `.cursor/mcp.json`.
   Agents (specifically the `security-hardener` persona at
   `.cursor/agents/security-hardener.md`) invoke secret scanning as a
-  **pre-merge gate** on any PR that adds new files or credential-adjacent
-  content, running alongside the Trivy image scan. Findings are ephemeral
-  (session-only, not persisted to the GitHub Security tab); persisted alerts
-  are managed via `list_secret_scanning_alerts` / `get_secret_scanning_alert`.
-  Escalation path and triage rules are in
-  `.cursor/rules/github-secret-scanning.mdc`.
+  **pre-merge gate** on PRs that add new files or credential-adjacent
+  content, alongside the Trivy image scan.
   _Sources_: [Changelog GA 2026-05-05](https://github.blog/changelog/2026-05-05-secret-scanning-with-github-mcp-server-is-now-generally-available/),
   [GHAS + AI coding agents guide](https://docs.github.com/en/code-security/how-tos/use-ghas-with-ai-coding-agents/scan-for-secrets-with-github-mcp-server).
 

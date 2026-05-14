@@ -9,6 +9,7 @@
       "command": "python",
       "args": [".cursor/skills/aws-platform-engineering/aws_pe_mcp_server.py"],
       "env": {}
+<<<<<<< HEAD
     },
     "github": {
       "type": "http",
@@ -18,6 +19,8 @@
         "X-MCP-Toolsets": "secret_protection",
         "X-MCP-Tools": "run_secret_scanning"
       }
+=======
+>>>>>>> origin/release
     }
   }
 }
