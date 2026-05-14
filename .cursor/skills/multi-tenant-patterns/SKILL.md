@@ -26,7 +26,7 @@ You guide tenant-aware design across Catalyst's stack. The `Tenant` level of the
 ### Repo sources of truth
 
 - `docs/ADR/ADR-002-construct-hierarchy.md` — five-level hierarchy and construct-address rationale
-- `docs/research/platform-catalyst-agents-evaluation.md` — 16 binding decisions for the import (replaces upstream `DECISIONS.md`)
+- `docs/research/platform-catalyst-agents-evaluation.md` — 16 binding decisions for the import
 - `AGENTS.md` — async-first, zero-wildcard IAM (critical for tenant isolation), service-inventory and tenant-onboarding pointers
 
 ## Challenge alignment
