@@ -24,3 +24,31 @@ encodes those principles into specific files and features:
 | **Genchi Genbutsu** (go and see) | Structured JSON logs capture real request shape; `ops-intel` queries real AWS APIs (Cost Explorer, Trusted Advisor) | Decisions made from primary sources. |
 | **Hansei** (honest reflection) | [`docs/POST-MORTEM-TEMPLATE.md`](./docs/POST-MORTEM-TEMPLATE.md); the open PR `#42 — self-correction` | Reflection is shipped, not hidden. |
 
+## EA CLI MCP server
+
+This repo includes a lightweight MCP server at
+`tools/ea_cli_mcp/server.py` for driving the issue state-machine workflow
+described in ADR-001 and `docs/ADR/STATE-MACHINE.md`.
+
+- Usage and environment setup: `tools/ea_cli_mcp/README.md`
+- Supports issue verbs (`create`, `comment`, `assign`, `label`, `close`)
+- Enforces legal `state/*` transitions with audit comments
+- Enforces issue body shape (`Context`, `Scope`, `Acceptance Criteria` in Gherkin)
+- Attempts automatic project-board assignment on issue creation (best-effort with warnings)
+
+## AWS Agentic Platform Engineering (Cursor plugin)
+
+Catalyst ships a Cursor plugin that adapts Microsoft's "Agentic Platform
+Engineering" pattern to AWS-native primitives — landing zones, OIDC
+federation, ECS Fargate / Lambda services, Bedrock-backed GenAI services,
+SRA-aligned multi-account topology, container supply-chain scanning, and
+standardised Python tooling.
+
+- ADR: [`docs/ADR/ADR-005-aws-agentic-platform-engineering.md`](./docs/ADR/ADR-005-aws-agentic-platform-engineering.md)
+- Plan: [`docs/plans/aws-agentic-platform-engineering-plan.md`](./docs/plans/aws-agentic-platform-engineering-plan.md)
+- Research: [`docs/research/aws-agentic-platform-engineering.md`](./docs/research/aws-agentic-platform-engineering.md)
+- Persona + rule: [`.cursor/agents/aws-platform-engineer.md`](./.cursor/agents/aws-platform-engineer.md), [`.cursor/rules/aws-platform-engineering.mdc`](./.cursor/rules/aws-platform-engineering.mdc)
+- Skills: [`.cursor/skills/aws-platform-engineering/SKILL.md`](./.cursor/skills/aws-platform-engineering/SKILL.md) (13 capabilities — landing zone, IaC, OIDC, ADR, ECS, Bedrock, static-egress, golden-path, Trivy/Scout/SBOM, ECR scan-on-push, base-image policy, Dependabot) and [`.cursor/skills/python-cli-and-testing/SKILL.md`](./.cursor/skills/python-cli-and-testing/SKILL.md) (knack CLI scaffold, pytest config + 85% coverage gate, pytest CI workflow)
+- Prompts: `.cursor/prompts/aws-{architect,cost-engineer,security-engineer,sre,idp-product-owner}.md`
+- Optional MCP wrapper: [`.cursor/skills/aws-platform-engineering/aws_pe_mcp_server.py`](./.cursor/skills/aws-platform-engineering/aws_pe_mcp_server.py) (registered in [`.cursor/mcp.json`](./.cursor/mcp.json))
+
