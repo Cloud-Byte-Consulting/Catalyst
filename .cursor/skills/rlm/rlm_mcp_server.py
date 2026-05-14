@@ -207,7 +207,7 @@ def _state(args: dict[str, Any]) -> str:
     return args.get("state_path", DEFAULT_STATE)
 
 
-def _capture(func, argv: list[str]) -> str:
+def _capture(argv: list[str]) -> str:
     """Run an rlm_repl command and capture stdout."""
     import io
     from contextlib import redirect_stdout, redirect_stderr
@@ -236,14 +236,14 @@ def handle_rlm_init(args: dict[str, Any]) -> str:
     argv = ["--state", _state(args), "init", args["context_path"]]
     if "max_bytes" in args and args["max_bytes"] is not None:
         argv.extend(["--max-bytes", str(args["max_bytes"])])
-    return _capture(rlm_repl.cmd_init, argv)
+    return _capture(argv)
 
 
 def handle_rlm_status(args: dict[str, Any]) -> str:
     argv = ["--state", _state(args), "status"]
     if args.get("show_vars"):
         argv.append("--show-vars")
-    return _capture(rlm_repl.cmd_status, argv)
+    return _capture(argv)
 
 
 def handle_rlm_peek(args: dict[str, Any]) -> str:
@@ -251,16 +251,16 @@ def handle_rlm_peek(args: dict[str, Any]) -> str:
     end = args.get("end", 3000)
     code = f"print(peek({start}, {end}))"
     argv = ["--state", _state(args), "exec", "-c", code]
-    return _capture(rlm_repl.cmd_exec, argv)
+    return _capture(argv)
 
 
 def handle_rlm_grep(args: dict[str, Any]) -> str:
-    pattern = args["pattern"].replace("'", "\\'")
+    pattern = args["pattern"]
     max_matches = args.get("max_matches", 20)
     window = args.get("window", 120)
-    code = f"import json; print(json.dumps(grep('{pattern}', max_matches={max_matches}, window={window}), indent=2))"
+    code = f"import json; print(json.dumps(grep({repr(pattern)}, max_matches={max_matches}, window={window}), indent=2))"
     argv = ["--state", _state(args), "exec", "-c", code]
-    return _capture(rlm_repl.cmd_exec, argv)
+    return _capture(argv)
 
 
 def handle_rlm_chunk(args: dict[str, Any]) -> str:
@@ -268,26 +268,26 @@ def handle_rlm_chunk(args: dict[str, Any]) -> str:
     size = args.get("size", 200000)
     overlap = args.get("overlap", 0)
     code = (
-        f"import json; paths = write_chunks('{out_dir}', size={size}, overlap={overlap}); "
+        f"import json; paths = write_chunks({repr(out_dir)}, size={size}, overlap={overlap}); "
         f"print(json.dumps({{'chunk_count': len(paths), 'paths': paths}}, indent=2))"
     )
     argv = ["--state", _state(args), "exec", "-c", code]
-    return _capture(rlm_repl.cmd_exec, argv)
+    return _capture(argv)
 
 
 def handle_rlm_exec(args: dict[str, Any]) -> str:
     argv = ["--state", _state(args), "exec", "-c", args["code"]]
-    return _capture(rlm_repl.cmd_exec, argv)
+    return _capture(argv)
 
 
 def handle_rlm_reset(args: dict[str, Any]) -> str:
     argv = ["--state", _state(args), "reset"]
-    return _capture(rlm_repl.cmd_reset, argv)
+    return _capture(argv)
 
 
 def handle_rlm_export_buffers(args: dict[str, Any]) -> str:
     argv = ["--state", _state(args), "export-buffers", args["out_path"]]
-    return _capture(rlm_repl.cmd_export_buffers, argv)
+    return _capture(argv)
 
 
 TOOL_HANDLERS = {
@@ -373,6 +373,7 @@ def main() -> None:
             sys.stdout.flush()
 
 
+os.chdir(str(REPO_ROOT))
+
 if __name__ == "__main__":
-    os.chdir(str(REPO_ROOT))
     main()
