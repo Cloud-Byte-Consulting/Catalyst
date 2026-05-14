@@ -16,8 +16,12 @@ Catalyst's `.cursor/agents/` directory holds a small set of specialised personas
 | OPA / Rego, Conftest in CI, `state_machine.rego` for ADR-001 transitions, bundle/discovery troubleshooting, `opa eval --explain` | `.cursor/agents/opa-expert.md` |
 | AWS-native code generation (templates for ECS Fargate, OIDC workflows, container scanning, static-egress VPC, golden-path docs) and the `aws-platform-engineering` MCP wrapper | `.cursor/agents/aws-platform-engineer.md` |
 | Secret scanning, secrets rotation contracts, container hardening, network segmentation, AI threat modelling, GitHub MCP `secret_protection` toolset | `.cursor/agents/security-hardener.md` |
+| FastAPI control plane, Lambda handlers, async orchestration (SQS/EventBridge/Step Functions), multi-tenant patterns, GitHub Issues state machine enforcement | `.cursor/agents/automation-architect.md` |
+| GitHub Actions OIDC, policy-as-code gates, blue/green ECS deploys, Lambda canary, CloudWatch alarms, SLO burn-rate, Andon dashboard, runbook procedures | `.cursor/agents/cicd-operator.md` |
+| Bedrock Claude multi-agent PR reviewer pipeline, Converse API integration, prompt engineering for code review, pydantic output validation, EMF metrics for AI calls, AI threat-modelling | `.cursor/agents/ai-reviewer-architect.md` |
+| Score (score.dev) workload specs, `score.yaml` validation against pinned `../spec/`, translating Score + construct address into Terraform variable maps, portability boundary statements | `.cursor/agents/score-expert.md` |
 
-> Future personas land here as later import phases merge: `automation-architect`, `cicd-operator`, `ai-reviewer-architect`, `score-expert`, `platform-engineering-architect`. Keep this table additive — never remove a row, only add.
+> Future personas land here as later import phases merge: `platform-engineering-architect`. Keep this table additive — never remove a row, only add.
 
 ## Routing protocol
 
