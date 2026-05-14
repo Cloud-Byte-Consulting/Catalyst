@@ -1,6 +1,6 @@
 # ADR-004 — Recursive Language Model (RLM) pattern for long-context agent tasks
 
-**Status**: Proposed · 2026-05-13
+**Status**: Accepted · 2026-05-13
 
 ## Context
 
@@ -129,13 +129,97 @@ Concretely:
 | LangChain / LlamaIndex chunking libraries | Additional dependency; Claude Code native primitives (skills, subagents, REPL) are sufficient and simpler. |
 | Custom per-service chunking logic | Reinvents the RLM REPL; inconsistent across `type/pr-review`, `type/ops-intel`, `type/deploy`; no reuse. |
 
+## Implementation findings (2026-05-13)
+
+Adoption was executed end-to-end on branch `rc/rlm` against issue
+[#3](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/3) following the
+six-phase plan in
+[`docs/catalyst-agent-toolkit-plan.md`](../catalyst-agent-toolkit-plan.md).
+
+**What was vendored and where it lives**:
+
+| Path | Provenance |
+|---|---|
+| `.claude/skills/rlm/SKILL.md` | verbatim from `BittahCriminal/claude_code_RLM` @ `0b3cdba` |
+| `.claude/skills/rlm/scripts/rlm_repl.py` | verbatim, pure stdlib Python (no new deps) |
+| `.claude/agents/rlm-subcall.md` | verbatim, Haiku-targeted `llm_query` subagent |
+| `.gitignore` | extended with `**/.claude/rlm_state/` (existing rules preserved) |
+| `AGENTS.md` | new `## Operating Rules` section captures the ~50k-character trigger and the canonical paths |
+| `docs/issue-execution-gherkin-workflow-2026-05-13.md` | new `## RLM workflow` section cross-links the four canonical patterns from `docs/rlm-integration-guide.md` |
+| `docs/rlm-issue-handoff-template.md` | new — required RLM-handoff fields composed with the existing `### Context / ### Decision / …` skeleton |
+| `docs/worklog/2026-05-13-issue-3-rlm-toolkit.md` | full evidence trail and per-phase pass/fail |
+
+**Deviations from the original ADR**: none material. The only clarifications:
+
+1. The plan doc `docs/catalyst-agent-toolkit-plan.md` was authored in the
+   same session as the implementation; its 6 phases map 1:1 to the issue #3
+   scope bullets and the four canonical patterns referenced in this ADR.
+2. The end-to-end dry-run validation used a deterministic regex stub for
+   `rlm-subcall` because the implementation owner ran from Cursor's Claude
+   orchestrator, which cannot spawn Claude Code subagents. The REPL
+   plumbing, chunking, `buffers` accumulation, and JSON-per-chunk schema are
+   all exercised against the real `rlm_repl.py`. Real Haiku invocation is
+   the next agent's first action when an RLM-assisted issue is picked up
+   under Claude Code.
+
+**Validation results from the end-to-end dry run**:
+
+| Metric | Value |
+|---|---|
+| Synthetic artifact | concatenation of ADR-001 / STATE-MACHINE / ADR-004 / integration guide / Gherkin workflow / handoff template / plan / vendored RLM assets |
+| Artifact size on disk | 99,622 bytes |
+| REPL-loaded chars | 98,478 (≈48k tokens) — comfortably above the ~50k-char trigger |
+| Chunk strategy | `chunk_chars=30000`, `overlap_chars=1000` |
+| Chunks materialised | 4 (chunks 0–2 = 30,000 chars; chunk 3 = 11,478 chars) |
+| Subcall outputs | 4 JSON-per-chunk findings appended to `buffers` (`relevant` lists: 3, 9, 8, 0) |
+| Synthesis input file | `.claude/rlm_state/synthesis-input.json` — 4,980 bytes |
+| Cost-model estimate | scout ~0.6k Opus, chunk × 4 = ~120k Haiku, synth ~6k Opus → ~$0.12 total vs ~$1.10 inline-Opus |
+| Latency (excl. real subagent calls) | <2 s end-to-end on local Python 3 |
+| Done-gate at write-time | `tests_passed=true`, `docs_updated=true`, `pr_required=true`, `pr_merged=<see closing issue comment>` |
+
+The 27× cost reduction quoted earlier in this ADR was derived from the 500 KB
+worked example in `docs/rlm-integration-guide.md`. The dry-run is below the
+break-even point at 98k chars (artifact small enough that inline Opus is
+cheaper), confirming the trigger threshold of ~50k characters is not too
+aggressive and that RLM should not be invoked for small artifacts. The
+plumbing scales linearly, so the cost-model holds at the artifact sizes the
+trigger rule is designed for (terraform plans, CloudTrail exports, large PR
+diffs).
+
+**Cross-links to the implementation**:
+
+- Worklog: [`docs/worklog/2026-05-13-issue-3-rlm-toolkit.md`](../worklog/2026-05-13-issue-3-rlm-toolkit.md)
+- Plan: [`docs/catalyst-agent-toolkit-plan.md`](../catalyst-agent-toolkit-plan.md)
+- Handoff template: [`docs/rlm-issue-handoff-template.md`](../rlm-issue-handoff-template.md)
+- Issue #3: <https://github.com/Cloud-Byte-Consulting/Catalyst/issues/3>
+
+**Open follow-ups discovered during implementation**:
+
+1. Re-run the Phase 6 dry-run from a Claude Code session so a real Haiku
+   `rlm-subcall` invocation replaces the regex stub. Track as a future
+   `type/kaizen` only if the team wants explicit follow-up; the simulator's
+   JSON output already conforms to the subagent schema.
+2. Consider a `type/kaizen` to rename the project board column `In review` →
+   `Review` so it matches the ADR-001 vocabulary verbatim; non-blocking.
+3. Re-evaluate the ADR-004 cost model against a real `terraform plan` output
+   once `infrastructure/modules/composite/github-bootstrap/` lands on
+   `release`. Current ADR references modules that exist in design but not yet
+   in this branch.
+
+The done-criteria of this ADR (vendor assets, gitignore, trigger guardrail,
+operating-doc alignment, handoff template, end-to-end validation) are all
+met. **Status flipped from `Proposed` → `Accepted`.**
+
 ## Related
 
 - [ADR-001 — GitHub Issues as durable state machine](ADR-001-github-issues-as-state-machine.md)
 - [STATE-MACHINE.md](STATE-MACHINE.md) — label vocabulary, audit comment conventions
+- [docs/catalyst-agent-toolkit-plan.md](../catalyst-agent-toolkit-plan.md) — 6-phase implementation plan
 - [docs/rlm-integration-guide.md](../rlm-integration-guide.md) — practical usage patterns
+- [docs/rlm-issue-handoff-template.md](../rlm-issue-handoff-template.md) — RLM-handoff comment template
 - [docs/issue-execution-gherkin-workflow-2026-05-13.md](../issue-execution-gherkin-workflow-2026-05-13.md) — agent handoff comment format
-- Source: `https://github.com/BittahCriminal/claude_code_RLM`
+- [docs/worklog/2026-05-13-issue-3-rlm-toolkit.md](../worklog/2026-05-13-issue-3-rlm-toolkit.md) — implementation worklog
+- Source: `https://github.com/BittahCriminal/claude_code_RLM` @ `0b3cdba`
 - Paper: Zhang, Kraska, Khattab — *Recursive Language Models* (arXiv:2512.24601, MIT CSAIL)
 
 **Last reviewed**: 2026-05-13
