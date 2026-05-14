@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "rlm-repl": {
+      "command": "python",
+      "args": [".cursor/skills/rlm/rlm_mcp_server.py"],
+      "env": {}
+    }
+  }
+}

@@ -275,11 +275,114 @@ latency reduction.
 
 ---
 
+## Cursor agent usage
+
+The RLM workflow is platform-agnostic. The `rlm_repl.py` script is shared between
+Claude Code and Cursor — the only difference is how the root agent orchestrates
+chunk-level analysis. In Cursor, use the **Shell tool** for REPL commands and the
+**Task tool** (`subagent_type="generalPurpose"`) for parallel chunk analysis.
+
+### Quick-start (Cursor)
+
+```powershell
+# 1. Initialise — same command, any shell
+python .claude/skills/rlm/scripts/rlm_repl.py init <artifact_path>
+python .claude/skills/rlm/scripts/rlm_repl.py status
+
+# 2. Scout
+python .claude/skills/rlm/scripts/rlm_repl.py exec -c "print(peek(0, 3000))"
+
+# 3. Chunk
+python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
+
+# 4. Analyse — launch Task subagents (see below)
+# 5. Synthesise — collect subagent JSON, compose in root context
+# 6. Clean up
+python .claude/skills/rlm/scripts/rlm_repl.py reset
+```
+
+### MCP tool alternative
+
+If `.cursor/mcp.json` is configured with the `rlm-repl` server, Cursor agents can
+call RLM operations as MCP tools instead of Shell commands:
+
+| MCP tool | Equivalent Shell command |
+|---|---|
+| `rlm_init` | `python rlm_repl.py init <path>` |
+| `rlm_status` | `python rlm_repl.py status` |
+| `rlm_peek` | `python rlm_repl.py exec -c "print(peek(start, end))"` |
+| `rlm_grep` | `python rlm_repl.py exec -c "print(grep(pattern))"` |
+| `rlm_chunk` | `python rlm_repl.py exec -c "write_chunks(...)"` |
+| `rlm_exec` | `python rlm_repl.py exec -c "<code>"` |
+| `rlm_reset` | `python rlm_repl.py reset` |
+| `rlm_export_buffers` | `python rlm_repl.py export-buffers <path>` |
+
+The MCP server is at `.cursor/skills/rlm/rlm_mcp_server.py` and delegates to the
+same `rlm_repl.py` without forking it.
+
+### Cursor subagent mapping
+
+| Claude Code primitive | Cursor equivalent |
+|---|---|
+| Main Claude Code session (root LM) | Root Cursor agent |
+| `rlm-subcall` subagent (Haiku) | `Task` tool with `subagent_type="generalPurpose"` |
+| `/rlm` skill invocation | `.cursor/rules/rlm-workflow.mdc` rule (auto-activates) |
+| Bash tool | Shell tool |
+| Subagent results in chat | Task subagent return values |
+
+### Pattern equivalents for Cursor
+
+Each of the four patterns above works identically in Cursor with these substitutions:
+
+**Pattern 1 — PR Review (Cursor)**:
+```
+# Shell tool:
+gh pr diff 42 > /tmp/pr-42.diff
+python .claude/skills/rlm/scripts/rlm_repl.py init /tmp/pr-42.diff
+python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
+
+# For each chunk — Task tool (generalPurpose, run_in_background=true):
+# Prompt: "Read .claude/rlm_state/chunks/chunk_0000.txt and extract bugs,
+# security issues, API contract violations. Return JSON per RLM schema."
+```
+
+**Pattern 2 — Ops-Intel (Cursor)**: same REPL commands via Shell tool; Task subagents
+replace `rlm-subcall` for chunk-level CloudTrail/CloudWatch analysis.
+
+**Pattern 3 — Terraform plan (Cursor)**: same REPL commands via Shell tool; use
+`size=150000, overlap=2000` for structured plan output; Task subagents flag drift,
+cost, and policy violations per chunk.
+
+**Pattern 4 — Feature implementation (Cursor)**:
+```powershell
+# PowerShell variant for concatenating source files:
+Get-ChildItem -Recurse -Include *.py,*.tf,*.md | Get-Content | Out-File /tmp/codebase-context.txt
+
+# Then standard REPL init/chunk/subagent flow via Shell + Task tools.
+```
+
+### Cursor orchestration checklist
+
+1. **Init**: Shell → `rlm_repl.py init <artifact>` (or MCP `rlm_init`)
+2. **Scout**: Shell → `peek()` + `grep()` (or MCP `rlm_peek` / `rlm_grep`)
+3. **Chunk**: Shell → `write_chunks()` (or MCP `rlm_chunk`)
+4. **Analyse**: Task subagents (one per chunk, `run_in_background: true`, parallel)
+5. **Collect**: Shell → `add_buffer()` per subagent result (or MCP `rlm_exec`)
+6. **Export**: Shell → `export-buffers` (or MCP `rlm_export_buffers`)
+7. **Synthesise**: Root agent reads synthesis file, composes structured comment
+8. **Post**: Root agent posts to GitHub Issue per handoff template
+9. **Clean up**: Shell → `rlm_repl.py reset` (or MCP `rlm_reset`)
+
+---
+
 ## References
 
 - [ADR-004 — RLM for long-context agent tasks](ADR/ADR-004-rlm-for-long-context-agent-tasks.md)
 - [ADR-001 — GitHub Issues as durable state machine](ADR/ADR-001-github-issues-as-state-machine.md)
 - [STATE-MACHINE.md](ADR/STATE-MACHINE.md)
 - [issue-execution-gherkin-workflow-2026-05-13.md](issue-execution-gherkin-workflow-2026-05-13.md)
+- Cursor rule: `.cursor/rules/rlm-workflow.mdc`
+- MCP server: `.cursor/skills/rlm/rlm_mcp_server.py`
+- MCP config: `.cursor/mcp.json`
 - Source repo: `https://github.com/BittahCriminal/claude_code_RLM`
 - Paper: Zhang, Kraska, Khattab — *Recursive Language Models* (arXiv:2512.24601)
