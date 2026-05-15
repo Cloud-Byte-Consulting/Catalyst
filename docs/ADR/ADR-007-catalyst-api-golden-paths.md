@@ -138,7 +138,7 @@ The application reads config from SSM at runtime. No secrets are passed through 
 
 ## API contract conventions
 
-- All endpoints require a bearer token in `Authorization: Bearer <token>`. For internal callers (GitHub Action, CLI) the token is an OIDC-derived credential exchanged for a short-lived API token. No long-lived API keys.
+- All endpoints require SigV4 request signing (`Authorization: AWS4-HMAC-SHA256 ...`). Callers sign requests with their IAM credentials — the CLI uses `aws-requests-auth`, GitHub Actions uses credentials from the OIDC-assumed role. The API verifies identity server-side via `sts:GetCallerIdentity` and resolves IAM group membership to determine role (ADR-008). No long-lived API keys; no bearer tokens.
 - All write endpoints accept an `idempotency_key` field. Replays within 24 hours return the original response with `X-Idempotent-Replay: true`.
 - All responses include `correlation_id` for log tracing.
 - Error shape: `{ "error": "...", "correlation_id": "...", "docs_url": "..." }` — consistent across all 4xx/5xx.

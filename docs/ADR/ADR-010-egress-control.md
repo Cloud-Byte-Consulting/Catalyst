@@ -102,14 +102,18 @@ flowchart TD
 
 AWS Network Firewall is inserted between the private subnet route table and the NAT Gateway. All internet-bound traffic passes through the firewall before egress.
 
-### FQDN allowlist (stateful rule group)
+### FQDN stateful rule group
 
-| Rule | Action | Rationale |
-|---|---|---|
-| `api.github.com` | Allow | Issues state machine |
-| `*.github.com` | Deny | Prevent code exfiltration via git push |
-| `*.amazonaws.com` | Deny | All AWS traffic must use VPC Endpoints — not internet |
-| `0.0.0.0/0` (default) | Deny + Alert | Block and log all unlisted destinations |
+The rule group uses `STRICT_ORDER` (`stateful_rule_options.rule_order = STRICT_ORDER`). Rules are evaluated in ascending priority order; the first match wins. Without `STRICT_ORDER`, AWS Network Firewall uses `DEFAULT_ACTION_ORDER` where action type (pass > drop > alert) overrides rule position — which would cause the deny rules to shadow the allow rule for `api.github.com`. `STRICT_ORDER` makes the intent unambiguous.
+
+| Priority | Rule | Protocol | Action | Rationale |
+|---|---|---|---|---|
+| 100 | `api.github.com` | TCP :443 | Pass | Issues state machine — only allowed subdomain |
+| 200 | `*.github.com` | TCP :443 | Drop + Alert | Block all other GitHub subdomains (prevent git push exfiltration) |
+| 300 | `*.amazonaws.com` | TCP :443 | Drop + Alert | All AWS traffic must use VPC Endpoints — not internet |
+| 65535 | `0.0.0.0/0` | TCP :443 | Drop + Alert | Deny-all default — block and log every unlisted destination |
+
+Priority 100 (allow `api.github.com`) is evaluated before priority 200 (deny `*.github.com`), so `api.github.com` traffic is explicitly passed before the wildcard deny can match it.
 
 The deny-all default means **new internet destinations require an explicit ADR or runbook change** — accidental outbound calls to unexpected hosts are blocked and alerted, not silently permitted.
 

@@ -75,7 +75,7 @@ Phase 2 **must not run on a fresh account** before Phase 1 has completed. `servi
 |---|---|---|
 | `catalyst-github-plan` | `terraform plan` only — read permissions on all managed resources | `repo:Cloud-Byte-Consulting/Catalyst:pull_request` |
 | `catalyst-github-apply` | Full write on managed resources | `repo:Cloud-Byte-Consulting/Catalyst:ref:refs/heads/release` |
-| `catalyst-github-deploy` | ECR push + ECS `register-task-definition` + `update-service` + SSM `GetParameter` | `repo:Cloud-Byte-Consulting/Catalyst:ref:refs/heads/release` |
+| `catalyst-github-deploy` | ECR push + Lambda `update-function-code` (Lambda path) + ECS `register-task-definition` + `update-service` (ECS path) + SSM `GetParameter` | `repo:Cloud-Byte-Consulting/Catalyst:ref:refs/heads/release` |
 
 All three roles share the same OIDC identity provider (`token.actions.githubusercontent.com`), provisioned by `CICD-1` using the `modules/iam/` module from #7.
 
@@ -102,7 +102,7 @@ These are all delivered by Phase 1 Terraform modules (sub-issues of #7). Lambda-
 | ALB listener ARN | `modules/alb/` (TF-4) | `/catalyst/shared/alb/listener/arn` | Both |
 | Lambda function ARN | `modules/lambda-service/` | `/catalyst/shared/lambda/catalyst-api/arn` | Lambda |
 | Lambda execution role ARN | `modules/iam/` (TF-7) | `/catalyst/shared/iam/lambda-execution-role/arn` | Lambda |
-| ECS cluster ARN | `modules/ecs-service/` (TF-4) | `/catalyst/shared/ecs/cluster/arn` | ECS |
+| ECS cluster ARN | `modules/ecs-cluster/` (TF-4) | `/catalyst/shared/ecs/cluster/arn` | ECS |
 | ECS task execution role ARN | `modules/iam/` (TF-7) | `/catalyst/shared/iam/ecs-execution-role/arn` | ECS |
 | ECS task role ARN | `modules/iam/` (TF-7) | `/catalyst/shared/iam/catalyst-api-task-role/arn` | ECS |
 | DynamoDB table name | `modules/dynamodb/` (TF-5) | `/catalyst/shared/dynamodb/platform-state/table-name` | Both |
