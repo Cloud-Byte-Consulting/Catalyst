@@ -1,0 +1,31 @@
+---
+description: Log model selection details in GitHub issue decision comments
+alwaysApply: true
+---
+
+# Model Decision Logging
+
+When working from a GitHub issue, agents should let Cursor choose the model by default unless the user explicitly requests a model.
+
+Before implementation, and whenever making a material architecture, security, deployment, or scope decision, post an issue comment using this shape:
+
+```md
+### Agent Decision Log
+
+**Agent/task:** <task name>
+**Model selection mode:** Cursor automatic / inherit parent model / explicit
+**Requested model:** inherit / auto / <requested model>
+**Observed model:** <model shown in Cursor UI, if visible; otherwise "not available to agent">
+**Fallback known?:** unknown / no / yes: <reason>
+
+### Decision
+<what was decided>
+
+### Rationale
+<why this path was chosen>
+
+### Next
+<next action>
+```
+
+If the user specifies a model, record it as `Requested model`. If Cursor falls back or the actual model is not visible to the agent, say so rather than guessing.
