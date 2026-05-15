@@ -1,0 +1,25 @@
+name: Task
+about: Platform task with executable acceptance criteria
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+    validations:
+      required: true
+  - type: textarea
+    id: gherkin
+    attributes:
+      label: Gherkin Acceptance Criteria
+      value: |
+        Given ...
+        When ...
+        Then ...
+    validations:
+      required: true

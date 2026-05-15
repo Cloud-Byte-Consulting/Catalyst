@@ -1,0 +1,32 @@
+name: Feature
+about: Track a feature with Context/Scope/Gherkin contract
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why this is needed.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Explicit in/out boundaries.
+    validations:
+      required: true
+  - type: textarea
+    id: gherkin
+    attributes:
+      label: Gherkin Acceptance Criteria
+      description: Use Given/When/Then scenarios.
+      value: |
+        ```gherkin
+        Feature: <name>
+          Scenario: <scenario name>
+            Given ...
+            When ...
+            Then ...
+        ```
+    validations:
+      required: true
