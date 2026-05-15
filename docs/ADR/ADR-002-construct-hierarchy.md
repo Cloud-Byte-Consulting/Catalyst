@@ -59,9 +59,14 @@ is the unique key for routing, RBAC, observability, and audit.
 
 ### Construct address — the canonical identifier
 
-```
-pharmacy/prod/clinical/rx-fulfillment/order-service
-└─tenant─┘└env─┘└──lz──┘└──project───┘└──app──────┘
+```mermaid
+flowchart LR
+    T["**pharmacy**\ntenant"]
+    E["**prod**\nenv"]
+    L["**clinical**\nlz"]
+    P["**rx-fulfillment**\nproject"]
+    A["**order-service**\napp"]
+    T --> E --> L --> P --> A
 ```
 
 This address is:

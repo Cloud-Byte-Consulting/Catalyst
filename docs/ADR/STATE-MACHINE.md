@@ -119,40 +119,31 @@ For `type/preview-env`:
 
 ## 3. Legal state transitions
 
-```
-            (issue created)
-                  │
-                  ▼
-          ┌──────────────┐
-          │state/pending │
-          └──────┬───────┘
-                 │ agent picks up the work
-                 ▼
-       ┌────────────────────┐
-       │state/agent-working │◄──────┐
-       └────┬───────────────┘       │
-            │                       │ human resolves block
-            │  agent succeeds       │
-            ├──────────►            │
-            │                       │
-            │  agent refuses        │
-            ├──────────►            │
-            │                       │
-            │  unrecoverable        │
-            └──────────►            │
-                                    │
-       ┌──────────────┐              │
-       │state/done    │ (terminal)   │
-       └──────────────┘              │
-       ┌──────────────────────┐      │
-       │state/blocked-on-human│──────┘
-       └──────────────────────┘
-       ┌──────────────────┐
-       │state/rolled-back │ (terminal)
-       └──────────────────┘
-       ┌─────────────────┐
-       │state/cancelled  │ (terminal)
-       └─────────────────┘
+```mermaid
+stateDiagram-v2
+    direction TB
+    [*] --> pending : issue created
+
+    pending --> agent_working : agent picks up work
+    pending --> cancelled : user cancels
+
+    agent_working --> done : agent succeeds
+    agent_working --> blocked_on_human : agent refuses / needs decision
+    agent_working --> rolled_back : unrecoverable failure
+
+    blocked_on_human --> agent_working : human resolves block
+    blocked_on_human --> cancelled : human cancels
+
+    done --> [*]
+    rolled_back --> [*]
+    cancelled --> [*]
+
+    state "state/pending" as pending
+    state "state/agent-working" as agent_working
+    state "state/blocked-on-human" as blocked_on_human
+    state "state/done (terminal)" as done
+    state "state/rolled-back (terminal)" as rolled_back
+    state "state/cancelled (terminal)" as cancelled
 ```
 
 Legal-transition table (machine-readable equivalent):
