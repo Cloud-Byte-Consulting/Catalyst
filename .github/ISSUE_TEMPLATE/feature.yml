@@ -1,11 +1,15 @@
 name: Feature
-about: Track a feature with Context/Scope/Gherkin contract
+description: Track a feature with Context/Scope/Gherkin contract
+title: "[feature] "
+labels:
+  - type/feature
+  - state/pending
 body:
   - type: textarea
     id: context
     attributes:
       label: Context
-      description: Why this is needed.
+      description: Why this is needed and what problem it solves.
     validations:
       required: true
   - type: textarea

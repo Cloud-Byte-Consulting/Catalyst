@@ -1,25 +1,36 @@
 name: Task
-about: Platform task with executable acceptance criteria
+description: Platform task with executable acceptance criteria
+title: "[task] "
+labels:
+  - type/task
+  - state/pending
 body:
   - type: textarea
     id: context
     attributes:
       label: Context
+      description: Reference parent issues and prior decisions.
     validations:
       required: true
   - type: textarea
     id: scope
     attributes:
       label: Scope
+      description: Explicit in/out boundaries.
     validations:
       required: true
   - type: textarea
     id: gherkin
     attributes:
       label: Gherkin Acceptance Criteria
+      description: Use Given/When/Then scenarios so the implementer can write tests directly from this block.
       value: |
-        Given ...
-        When ...
-        Then ...
+        ```gherkin
+        Feature: <name>
+          Scenario: <scenario name>
+            Given ...
+            When ...
+            Then ...
+        ```
     validations:
       required: true

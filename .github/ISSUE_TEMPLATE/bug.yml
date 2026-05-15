@@ -1,0 +1,38 @@
+name: Bug
+description: Report a defect in Catalyst infra, services, CLI, or workflows
+title: "[bug] "
+labels:
+  - type/bug
+  - state/pending
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What were you trying to do and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Exact commands, payload, or workflow inputs.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, terraform output, screenshots. Redact secrets.
+    validations:
+      required: false

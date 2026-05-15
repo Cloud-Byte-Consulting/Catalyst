@@ -45,8 +45,19 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install deps
-        run: |
-          pip install -r services/catalyst-api/requirements.txt
-          pip install pytest pytest-cov
+        run: pip install -r services/catalyst-api/requirements-dev.txt
       - name: Run pytest
         run: pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-branch --cov-fail-under=85
+  cli-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CLI + dev deps
+        run: |
+          pip install -r clients/catalyst-cli/requirements.txt
+          pip install -r clients/catalyst-cli/requirements-dev.txt
+      - name: Run CLI tests
+        run: pytest clients/catalyst-cli/tests -v
