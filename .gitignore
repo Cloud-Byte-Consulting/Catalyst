@@ -1,6 +1,17 @@
 .claude/worktrees/
 __pycache__/
 *.pyc
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
 
 # RLM REPL persistent state (per ADR-004; never commit pickled context)
 **/.claude/rlm_state/
+
+# Local terraform working state
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan

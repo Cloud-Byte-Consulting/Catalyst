@@ -1,0 +1,53 @@
+name: ci-smoke
+on:
+  pull_request:
+    branches: [release]
+    paths:
+      - .github/workflows/**
+      - .github/scripts/**
+      - .github/actions/**
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run actionlint
+        uses: raven-actions/actionlint@v2
+        with:
+          fail-on-error: true
+  workflow-structure:
+    name: workflow-structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: pip install pyyaml pytest
+      - name: Run structural validator
+        run: python .github/scripts/validate_workflows.py
+      - name: Run pytest harness
+        run: pytest .github/scripts/test_workflow_structure.py -v
+  oidc-dispatch-smoke:
+    name: oidc-dispatch-smoke
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS credentials (read-only smoke)
+        if: ${{ secrets.AWS_ROLE_PLAN_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_PLAN_ARN }}
+          aws-region: us-west-2
+      - name: STS GetCallerIdentity
+        if: ${{ secrets.AWS_ROLE_PLAN_ARN != '' }}
+        run: aws sts get-caller-identity

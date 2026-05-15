@@ -29,6 +29,11 @@ jobs:
         run: aws sns publish --topic-arn ${{ secrets.DRIFT_SNS_TOPIC_ARN }} --message "Terraform drift detected in Catalyst"
       - name: Open issue on drift
         if: steps.drift.outputs.exit_code == '2'
-        run: gh issue create --title "Drift detected: ${GITHUB_SHA}" --body "Automated drift detection found divergence." --label type/kaizen --label state/pending
+        run: |
+          gh issue create \
+            --title "Drift detected: ${GITHUB_SHA}" \
+            --body "Automated drift detection found divergence." \
+            --label type/kaizen \
+            --label state/pending
         env:
           GH_TOKEN: ${{ github.token }}
