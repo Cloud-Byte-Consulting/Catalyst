@@ -7,8 +7,6 @@ either module surfaces here.
 
 from __future__ import annotations
 
-import os
-
 import boto3
 import pytest
 from moto import mock_aws
