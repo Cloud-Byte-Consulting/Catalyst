@@ -135,7 +135,6 @@ async def access_dependency(request: Request) -> AccessContext:
     error is distinguishable from authorisation failures (HTTP 403).
     """
 
-    auth_mode = "headers"
     try:
         from .settings import get_settings
 

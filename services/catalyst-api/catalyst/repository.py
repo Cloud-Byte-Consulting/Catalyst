@@ -45,46 +45,60 @@ class Repository(ABC):
         return _now()
 
     @abstractmethod
-    def get_idempotent(self, key: str | None) -> dict | None: ...
+    def get_idempotent(self, key: str | None) -> dict | None:
+        pass
 
     @abstractmethod
-    def put_idempotent(self, key: str, payload: dict) -> None: ...
+    def put_idempotent(self, key: str, payload: dict) -> None:
+        pass
 
     @abstractmethod
-    def append_org_record(self, tenant: str, kind: str, name: str) -> None: ...
+    def append_org_record(self, tenant: str, kind: str, name: str) -> None:
+        pass
 
     @abstractmethod
-    def get_organization(self, tenant: str) -> dict: ...
+    def get_organization(self, tenant: str) -> dict:
+        pass
 
     @abstractmethod
-    def init_service(self, construct: str) -> None: ...
+    def init_service(self, construct: str) -> None:
+        pass
 
     @abstractmethod
-    def get_service(self, construct: str) -> dict | None: ...
+    def get_service(self, construct: str) -> dict | None:
+        pass
 
     @abstractmethod
-    def append_service_deployment(self, construct: str, deployment: dict) -> None: ...
+    def append_service_deployment(self, construct: str, deployment: dict) -> None:
+        pass
 
     @abstractmethod
-    def update_service_config(self, construct: str, params: dict[str, str]) -> None: ...
+    def update_service_config(self, construct: str, params: dict[str, str]) -> None:
+        pass
 
     @abstractmethod
-    def record_group_action(self, group: str, action: str, user_arn: str) -> None: ...
+    def record_group_action(self, group: str, action: str, user_arn: str) -> None:
+        pass
 
     @abstractmethod
-    def list_group_actions(self, group: str) -> list[str]: ...
+    def list_group_actions(self, group: str) -> list[str]:
+        pass
 
     @abstractmethod
-    def put_product(self, key: str, record: dict) -> None: ...
+    def put_product(self, key: str, record: dict) -> None:
+        pass
 
     @abstractmethod
-    def get_product(self, key: str) -> dict | None: ...
+    def get_product(self, key: str) -> dict | None:
+        pass
 
     @abstractmethod
-    def list_products(self) -> list[dict]: ...
+    def list_products(self) -> list[dict]:
+        pass
 
     @abstractmethod
-    def clear(self) -> None: ...
+    def clear(self) -> None:
+        pass
 
 
 _ORG_KINDS = {"ous", "landing_zones", "environments", "applications"}
