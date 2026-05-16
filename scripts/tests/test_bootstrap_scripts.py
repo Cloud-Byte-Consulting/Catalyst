@@ -296,7 +296,7 @@ def test_powershell_rejects_example_bootstrap_principal_for_wrong_account(tmp_pa
     )
     assert proc.returncode != 0
     combined = _strip_ansi(proc.stderr + proc.stdout)
-    normalized = " ".join(combined.split())
+    normalized = " ".join(combined.replace("|", " ").split())
     assert "example account 123456789012" in normalized
 
 
