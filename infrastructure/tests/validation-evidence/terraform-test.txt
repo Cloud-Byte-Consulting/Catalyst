@@ -1,0 +1,51 @@
+tests\composite_product.tftest.hcl... in progress
+  run "composite_product_plans_with_firewall_off"... pass
+  run "composite_product_plans_with_firewall_on"... pass
+tests\composite_product.tftest.hcl... tearing down
+tests\composite_product.tftest.hcl... pass
+tests\dynamodb.tftest.hcl... in progress
+  run "dynamodb_module_plans"... pass
+tests\dynamodb.tftest.hcl... tearing down
+tests\dynamodb.tftest.hcl... pass
+tests\ecr.tftest.hcl... in progress
+  run "scan_on_push_is_enabled_by_default"... pass
+  run "lifecycle_policy_expires_untagged_images"... pass
+  run "ssm_parameter_publishes_repository_uri"... pass
+tests\ecr.tftest.hcl... tearing down
+tests\ecr.tftest.hcl... pass
+tests\ecs_alb.tftest.hcl... in progress
+  run "ecs_alb_module_plans"... pass
+tests\ecs_alb.tftest.hcl... tearing down
+tests\ecs_alb.tftest.hcl... pass
+tests\iam.tftest.hcl... in progress
+  run "iam_module_provisions_documented_groups"... pass
+  run "iam_module_creates_scoped_groups_with_delimiter"... pass
+tests\iam.tftest.hcl... tearing down
+tests\iam.tftest.hcl... pass
+tests\lambda_service.tftest.hcl... in progress
+  run "lambda_image_package"... pass
+tests\lambda_service.tftest.hcl... tearing down
+tests\lambda_service.tftest.hcl... pass
+tests\network.tftest.hcl... in progress
+  run "network_module_plans"... pass
+tests\network.tftest.hcl... tearing down
+tests\network.tftest.hcl... pass
+tests\network_firewall.tftest.hcl... in progress
+  run "disabled_firewall_creates_no_resources"... pass
+  run "enabled_firewall_provisions_resources"... pass
+tests\network_firewall.tftest.hcl... tearing down
+tests\network_firewall.tftest.hcl... pass
+tests\security_groups.tftest.hcl... in progress
+  run "private_mode_does_not_create_public_ingress"... pass
+  run "public_mode_creates_public_ingress"... pass
+  run "rejects_invalid_exposure_mode"... pass
+  run "data_tier_ingress_uses_provided_security_groups"... pass
+tests\security_groups.tftest.hcl... tearing down
+tests\security_groups.tftest.hcl... pass
+tests\terraform_backend.tftest.hcl... in progress
+  run "backend_module_plans"... pass
+tests\terraform_backend.tftest.hcl... tearing down
+tests\terraform_backend.tftest.hcl... pass
+
+Success! 18 passed, 0 failed.
+

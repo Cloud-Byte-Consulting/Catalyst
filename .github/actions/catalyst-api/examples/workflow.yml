@@ -1,0 +1,48 @@
+name: catalyst-api-example
+on:
+  workflow_dispatch:
+    inputs:
+      construct:
+        description: tenant/landing-zone/environment/project/app
+        required: true
+        default: cloud-byte/dev/shared/platform/app1
+      operation:
+        description: API operation path (e.g. services/onboard, services/<construct>)
+        required: true
+        default: services/onboard
+      method:
+        description: HTTP method
+        required: false
+        default: POST
+permissions:
+  id-token: write
+  contents: read
+env:
+  AWS_REGION: us-west-2
+  CATALYST_ACTION_ROLE_ARN: ${{ secrets.AWS_ROLE_DEPLOY_ARN }}
+jobs:
+  call-catalyst:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve API endpoint from SSM
+        id: endpoint
+        run: |
+          ENDPOINT=$(aws ssm get-parameter \
+            --name /catalyst/shared/api/endpoint \
+            --query Parameter.Value --output text 2>/dev/null || echo "")
+          if [ -z "$ENDPOINT" ]; then
+            ENDPOINT="https://catalyst.example.com"
+          fi
+          echo "endpoint=$ENDPOINT" >> "$GITHUB_OUTPUT"
+      - name: Call Catalyst
+        uses: ./.github/actions/catalyst-api
+        with:
+          endpoint: ${{ steps.endpoint.outputs.endpoint }}
+          operation: ${{ inputs.operation }}
+          method: ${{ inputs.method }}
+          payload: |
+            {
+              "construct_address": "${{ inputs.construct }}",
+              "idempotency_key": "${{ github.run_id }}-${{ github.run_attempt }}"
+            }
