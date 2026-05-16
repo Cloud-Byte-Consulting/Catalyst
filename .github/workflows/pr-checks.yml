@@ -19,7 +19,9 @@ jobs:
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
       - name: Run TFLint
-        run: tflint --chdir infrastructure
+        run: |
+          tflint --init --chdir infrastructure
+          tflint --chdir infrastructure
       - name: tfsec
         uses: aquasecurity/tfsec-action@v1.0.3
         with:
@@ -45,9 +47,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install deps
-        run: |
-          pip install -r services/catalyst-api/requirements.txt
-          pip install pytest pytest-cov
+        run: pip install -r services/catalyst-api/requirements-dev.txt
       - name: Run pytest
         run: pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-branch --cov-fail-under=85
   cli-tests:
