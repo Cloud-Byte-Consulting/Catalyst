@@ -6,7 +6,7 @@ run "disabled_noop" {
     subnet_id = "subnet-1234"
   }
   assert {
-    condition     = true
+    condition     = var.enabled == false
     error_message = "disabled firewall should be no-op"
   }
 }
