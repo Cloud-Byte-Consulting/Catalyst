@@ -1,6 +1,6 @@
 resource "aws_security_group" "alb" {
   name_prefix = "${var.name_prefix}-alb-"
-  description = "Catalyst API public ALB — ingress is allowlisted by CIDR (var.alb_ingress_allowlist); egress is scoped to the VPC CIDR so the ALB can only reach in-VPC targets."
+  description = "Catalyst API public ALB - ingress is allowlisted by CIDR (var.alb_ingress_allowlist); egress is scoped to the VPC CIDR so the ALB can only reach in-VPC targets."
   vpc_id      = var.vpc_id
 
   # The ALB only forwards to in-VPC targets (Lambda VPC config or ECS tasks),

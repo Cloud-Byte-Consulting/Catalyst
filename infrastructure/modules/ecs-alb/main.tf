@@ -59,8 +59,16 @@ resource "aws_lb_target_group" "api" {
   port     = var.target_group_type == "lambda" ? null : 443
   protocol = var.target_group_type == "lambda" ? null : "HTTP"
 
+  # Lambda target groups require interval > timeout. The Terraform AWS
+  # provider does not adjust default timeout/interval for target_type=lambda,
+  # so an unconfigured `health_check { path = ... }` resolves to interval=30
+  # / timeout=30 which AWS rejects ("Health check interval must be greater
+  # than the timeout"). Set explicit values that are valid for both lambda
+  # (timeout 1-120, interval 5-300) and ip target types.
   health_check {
-    path = "/health"
+    path     = "/health"
+    interval = 35
+    timeout  = 30
   }
 }
 
