@@ -60,6 +60,14 @@ resource "aws_lambda_function" "api" {
     subnet_ids         = var.private_subnet_ids
     security_group_ids = [var.runtime_security_group_id]
   }
+
+  # service-cd updates image_uri directly via `aws lambda update-function-code`
+  # with the per-commit SHA tag (ECR is IMMUTABLE so each SHA is unique).
+  # Terraform must not revert that on the next plan; the seeded `:latest`
+  # value is only a bootstrap pointer.
+  lifecycle {
+    ignore_changes = [image_uri]
+  }
 }
 
 resource "aws_lambda_permission" "alb" {

@@ -21,16 +21,17 @@ table.
 | Tier | Owns | How |
 |---|---|---|
 | Bootstrap (one-time) | IAM bootstrap-admin role, GitHub OIDC provider, `catalyst-github-{plan,apply,deploy}` roles, RBAC IAM groups, Terraform state S3 bucket, Terraform DynamoDB lock table, Catalyst API data S3 bucket | `scripts/bootstrap-aws-account.sh` |
-| Pipeline (ongoing) | VPC + subnets + NAT + endpoints, security groups (incl. ALB allowlist), ECR, ECS cluster + ALB + target group, Lambda runtime, DynamoDB platform-state table, optional Network Firewall | `tf-plan.yml` (PRs) → `tf-apply.yml` (merge to `release`) → `tf-drift.yml` (daily) |
+| Pipeline (ongoing) | VPC + subnets + NAT + endpoints, security groups (incl. ALB allowlist), ECR, ECS cluster + ALB + target group, Lambda runtime, DynamoDB platform-state table, optional Network Firewall | `terraform.yml` (PR plan + release apply, single consolidated workflow) → `tf-drift.yml` (daily) |
 | Service deploy | Catalyst API container image build/push + runtime update | `service-cd.yml` |
 
 1. Once per account, run the bootstrap script (or trigger
    `bootstrap-smoke.yml` with `run_aws_validation: true, allow_live_changes: true`).
 2. Configure the `Catalyst` GitHub Actions environment with the variables and
    secrets listed in `.github/workflows/README.md`.
-3. Open a PR touching `infrastructure/**`; `tf-plan` will run automatically and
-   sticky-comment the plan.
-4. Merge to `release`; `tf-apply` provisions the diff. `tf-drift` runs nightly.
+3. Open a PR touching `infrastructure/**`; the `Terraform` job in `terraform.yml`
+   runs `plan` automatically and sticky-comments the rendered plan.
+4. Merge to `release`; the same `terraform.yml` workflow runs `apply` against
+   the bootstrap-managed apply role. `tf-drift.yml` runs nightly.
 
 For local sanity checks (no AWS calls):
 

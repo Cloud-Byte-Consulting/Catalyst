@@ -43,6 +43,14 @@ permissions:
 env:
   TF_IN_AUTOMATION: 'true'
   CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22/32"]' }}
+  # `lambda_image_seeded` gates the Lambda runtime on whether service-cd has
+  # ever pushed `:latest` to ECR. First apply leaves it false (provisions
+  # everything except the Lambda); operators flip the
+  # `CATALYST_LAMBDA_IMAGE_SEEDED` repo variable to "true" after service-cd
+  # seeds the image, and the next apply brings the Lambda online. Without a
+  # wired CI variable the default never moves off `false`, so service-cd has
+  # no chain forward.
+  TF_VAR_lambda_image_seeded: ${{ vars.CATALYST_LAMBDA_IMAGE_SEEDED || 'false' }}
 
 jobs:
   terraform:

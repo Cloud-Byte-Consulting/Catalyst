@@ -15,6 +15,17 @@ variable "alb_security_group_id" {
   type = string
 }
 
+variable "target_group_type" {
+  type        = string
+  default     = "lambda"
+  description = "ALB target group target_type. `lambda` matches modules/lambda-service (the default Catalyst runtime); switch to `ip` for Fargate task ENIs."
+
+  validation {
+    condition     = contains(["lambda", "ip"], var.target_group_type)
+    error_message = "target_group_type must be one of: lambda, ip."
+  }
+}
+
 resource "aws_ecs_cluster" "this" {
   name = "${var.name_prefix}-cluster"
 
@@ -40,10 +51,13 @@ resource "aws_lb" "this" {
 
 resource "aws_lb_target_group" "api" {
   name        = "${var.name_prefix}-api"
-  port        = 443
-  protocol    = "HTTP"
-  target_type = "ip"
+  target_type = var.target_group_type
   vpc_id      = var.vpc_id
+  # When target_type=lambda, port + protocol are unused on the target group
+  # itself (the listener forwards directly to the Lambda integration). When
+  # target_type=ip (the ECS rollout) the listener routes 443/HTTP to ENIs.
+  port     = var.target_group_type == "lambda" ? null : 443
+  protocol = var.target_group_type == "lambda" ? null : "HTTP"
 
   health_check {
     path = "/health"

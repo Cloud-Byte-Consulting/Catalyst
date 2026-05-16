@@ -12,10 +12,12 @@ permissions:
 env:
   TF_IN_AUTOMATION: 'true'
   CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22/32"]' }}
+  # Mirror terraform.yml so drift plan matches what apply produced.
+  TF_VAR_lambda_image_seeded: ${{ vars.CATALYST_LAMBDA_IMAGE_SEEDED || 'false' }}
 jobs:
   drift:
     runs-on: ubuntu-latest
-    # No `environment:` binding: see tf-plan.yml for the OIDC trust constraint.
+    # No `environment:` binding: see terraform.yml for the OIDC trust constraint.
     env:
       AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
       AWS_ACCOUNT_ID: ${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}

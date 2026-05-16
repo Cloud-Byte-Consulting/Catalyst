@@ -21,14 +21,22 @@ GitHub Actions with OIDC token exchange is the chosen substrate (established by 
 
 ## Decision
 
-### Four GitHub Actions workflows
+### Three GitHub Actions workflows (consolidated as of PR #115)
 
 | Workflow file | Trigger | Purpose |
 |---|---|---|
-| `tf-plan.yml` | PR opened / synchronized against `release` | Run `terraform plan`, post sticky comment with plan output |
-| `tf-apply.yml` | Push to `release` (merge) | Run `terraform apply` with manual approval gate via GitHub Environment |
-| `service-cd.yml` | Push to `release` after `tf-apply.yml` succeeds, or manual dispatch | Build image → push ECR → deploy to Lambda or ECS (runtime-selectable via `RUNTIME` env var) |
-| `tf-drift.yml` | Schedule: daily at 06:00 UTC | Run `terraform plan` in read-only mode; publish drift summary to SNS if non-empty plan |
+| `terraform.yml` | PR opened / synchronized against `release`, AND push to `release` | Single HashiCorp-style consolidated pipeline. On PRs assumes the plan role and runs `init` + `fmt -check` + `plan` (sticky comment). On `push -> release` assumes the apply role and runs `apply -auto-approve`. `role-to-assume` selects between `AWS_ROLE_PLAN_ARN` and `AWS_ROLE_APPLY_ARN` based on `github.event_name` + `github.ref`. |
+| `service-cd.yml` | Push to `release` after `terraform.yml` apply succeeds, or manual dispatch | Build image → push ECR (`:${SHA}` always; `:latest` only when absent) → update Lambda (`update-function-code`) or ECS service (`update-service`) based on `RUNTIME` env var |
+| `tf-drift.yml` | Schedule: daily at 06:00 UTC | Run `terraform plan` in read-only mode (`-lock=false`, plan role); publish drift summary to SNS + open `state/pending` issue on exit code 2 |
+
+> Earlier revisions of this ADR described `tf-plan.yml` + `tf-apply.yml` as a
+> two-workflow split with a GitHub Environment approval on apply. PR #115
+> collapsed them into the single `terraform.yml` above to match the
+> `hashicorp/setup-terraform` starter template and to remove the
+> environment-bound JWT subject (the bootstrap-managed apply role trusts the
+> `ref:refs/heads/release` sub directly, not `environment:production`). The
+> approval gate can be re-introduced later by extending the role trust to
+> accept an environment-scoped sub; this ADR will be amended at that time.
 
 ### Runtime selection — Lambda vs ECS
 
@@ -56,9 +64,9 @@ See [ADR-009](ADR-009-runtime-strategy.md) for the full Lambda vs ECS trade-off 
 
 ```mermaid
 flowchart TD
-    P1["**Phase 1 — Infrastructure**\n`tf-plan.yml` · `tf-apply.yml`\n─────────────────────────\nProduces: VPC · ECR · ECS cluster · ALB\nIAM roles · DynamoDB · KMS CMK · CW log groups"]
+    P1["**Phase 1 — Infrastructure**\n`terraform.yml` (consolidated)\n─────────────────────────\nProduces: VPC · ECR · ECS cluster · ALB\nIAM roles · DynamoDB · KMS CMK · CW log groups"]
     SSM[("SSM Parameter Store\nECR URI · ECS cluster ARN\nALB listener ARN · IAM role ARNs")]
-    P2["**Phase 2 — Service deploy**\n`service-cd.yml`\n─────────────────────────\nBuild image → Push ECR\nRegister task def → Update ECS service"]
+    P2["**Phase 2 — Service deploy**\n`service-cd.yml`\n─────────────────────────\nBuild image → Push ECR\nUpdate Lambda or ECS service"]
     P3["**Phase 3 — Drift detection**\n`tf-drift.yml` · daily 06:00 UTC\n─────────────────────────\nNon-empty plan → SNS alert + kaizen issue"]
 
     P1 -->|"writes Terraform outputs"| SSM
@@ -79,9 +87,9 @@ Phase 2 **must not run on a fresh account** before Phase 1 has completed. `servi
 
 All three roles share the same OIDC identity provider (`token.actions.githubusercontent.com`), provisioned by `CICD-1` using the `modules/iam/` module from #7.
 
-### Manual approval gate
+### Manual approval gate (deferred)
 
-`tf-apply.yml` targets the GitHub Environment named `production`. The environment requires at least one reviewer approval before the apply step runs. The plan output from `tf-plan.yml` is linked in the approval request so reviewers see exactly what will change before approving.
+The previous design called for `tf-apply.yml` to target a GitHub `production` Environment with required reviewer approval. PR #115 deferred this gate: binding the consolidated `terraform.yml` to an environment would mutate the OIDC JWT `sub` claim and break the bootstrap-managed `catalyst-github-apply` trust policy (which trusts the bare `ref:refs/heads/release` subject). Re-enabling the gate requires first extending the apply role's trust policy to accept the env-scoped sub. Until then, the safety perimeter is enforced via branch protection on `release` plus the strict OIDC trust subject.
 
 ### Drift detection
 
