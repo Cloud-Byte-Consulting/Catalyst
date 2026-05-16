@@ -1,0 +1,65 @@
+name: pr-checks
+on:
+  pull_request:
+    branches: [release]
+permissions:
+  contents: read
+jobs:
+  terraform-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform fmt
+        run: terraform -chdir=infrastructure fmt -recursive -check
+      - name: Terraform init
+        run: terraform -chdir=infrastructure init -backend=false
+      - name: Terraform validate
+        run: terraform -chdir=infrastructure validate
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+      - name: Run TFLint
+        run: |
+          tflint --init --chdir infrastructure
+          tflint --chdir infrastructure
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: infrastructure
+      - name: Checkov
+        run: |
+          pip install checkov
+          checkov -d infrastructure --quiet --soft-fail
+      - name: Trivy IaC
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: infrastructure
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+      # - name: gitleaks
+      #   uses: gitleaks/gitleaks-action@v2
+  python-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: pip install -r services/catalyst-api/requirements-dev.txt
+      - name: Run pytest
+        run: pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-branch --cov-fail-under=85
+  cli-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CLI + dev deps
+        run: |
+          pip install -r clients/catalyst-cli/requirements.txt
+          pip install -r clients/catalyst-cli/requirements-dev.txt
+      - name: Run CLI tests
+        run: pytest clients/catalyst-cli/tests -v

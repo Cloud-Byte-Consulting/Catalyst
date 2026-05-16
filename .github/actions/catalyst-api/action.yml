@@ -1,0 +1,31 @@
+name: "Catalyst API"
+description: "Invoke Catalyst API operations from workflows"
+inputs:
+  endpoint:
+    description: "Catalyst API endpoint"
+    required: true
+  operation:
+    description: "Operation path"
+    required: true
+  method:
+    description: "HTTP method"
+    required: false
+    default: "POST"
+  payload:
+    description: "JSON payload"
+    required: false
+    default: "{}"
+runs:
+  using: composite
+  steps:
+    - uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ env.CATALYST_ACTION_ROLE_ARN }}
+        aws-region: ${{ env.AWS_REGION || 'us-west-2' }}
+    - shell: bash
+      run: |
+        if [ -z "${{ inputs.endpoint }}" ] || [ -z "${{ inputs.operation }}" ]; then
+          echo "endpoint and operation are required"
+          exit 1
+        fi
+        curl -sS -X "${{ inputs.method }}" "${{ inputs.endpoint }}/${{ inputs.operation }}"           -H "Content-Type: application/json"           -d '${{ inputs.payload }}'

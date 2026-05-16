@@ -1,0 +1,34 @@
+name: tf-drift
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_PLAN_ARN }}
+          aws-region: us-west-2
+      - name: Terraform init
+        run: terraform -chdir=infrastructure init
+      - name: Drift plan
+        id: drift
+        run: |
+          set +e
+          terraform -chdir=infrastructure plan -detailed-exitcode -no-color > drift.txt
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+      - name: Publish SNS on drift
+        if: steps.drift.outputs.exit_code == '2'
+        run: aws sns publish --topic-arn ${{ secrets.DRIFT_SNS_TOPIC_ARN }} --message "Terraform drift detected in Catalyst"
+      - name: Open issue on drift
+        if: steps.drift.outputs.exit_code == '2'
+        run: gh issue create --title "Drift detected: ${GITHUB_SHA}" --body "Automated drift detection found divergence." --label type/kaizen --label state/pending
+        env:
+          GH_TOKEN: ${{ github.token }}
