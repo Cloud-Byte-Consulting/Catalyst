@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -86,6 +87,10 @@ def _read_log(tmp_path: Path) -> str:
     if not log_path.exists():
         return ""
     return log_path.read_text(encoding="utf-8")
+
+
+def _strip_ansi(text: str) -> str:
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
@@ -190,6 +195,8 @@ def test_bash_print_github_actions_runner_policy_is_valid_json(tmp_path: Path) -
     actions = json.dumps(policy["Statement"])
     assert "PutBucketPublicAccessBlock" in actions
     assert "catalyst-tf-state-111111111111-us-west-2" in actions
+    assert "catalyst-api-data-111111111111-us-west-2" in actions
+    assert "S3CatalystApiDataBucket" in actions
 
 
 @pytest.mark.skipif(
@@ -222,6 +229,7 @@ def test_bash_constructs_expected_commands(tmp_path: Path) -> None:
     assert "iam create-role --role-name catalyst-bootstrap-admin" in log
     assert "--path /catalyst/bootstrap/" in log
     assert "s3api create-bucket --bucket catalyst-tf-state-123456789012-us-west-2" in log
+    assert "s3api create-bucket --bucket catalyst-api-data-123456789012-us-west-2" in log
     assert "dynamodb create-table --table-name catalyst-terraform-locks" in log
     assert "iam create-open-id-connect-provider" in log
     assert "iam create-role --role-name catalyst-github-plan" in log
@@ -287,8 +295,9 @@ def test_powershell_rejects_example_bootstrap_principal_for_wrong_account(tmp_pa
         check=False,
     )
     assert proc.returncode != 0
-    combined = proc.stderr + proc.stdout
-    assert "example account 123456789012" in combined
+    combined = _strip_ansi(proc.stderr + proc.stdout)
+    normalized = " ".join(combined.split())
+    assert "example account 123456789012" in normalized
 
 
 @pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not available")
@@ -322,6 +331,8 @@ def test_powershell_print_github_actions_runner_policy_is_valid_json(tmp_path: P
     assert policy["Version"] == "2012-10-17"
     dumped = json.dumps(policy["Statement"])
     assert "PutBucketPublicAccessBlock" in dumped
+    assert "catalyst-api-data-111111111111-us-west-2" in dumped
+    assert "S3CatalystApiDataBucket" in dumped
 
 
 @pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not available")
@@ -340,6 +351,7 @@ def test_powershell_constructs_expected_commands(tmp_path: Path) -> None:
     assert "iam create-role --role-name catalyst-bootstrap-admin" in log
     assert "--path /catalyst/bootstrap/" in log
     assert "s3api create-bucket --bucket catalyst-tf-state-123456789012-us-west-2" in log
+    assert "s3api create-bucket --bucket catalyst-api-data-123456789012-us-west-2" in log
     assert "dynamodb create-table --table-name catalyst-terraform-locks" in log
     assert "iam create-open-id-connect-provider" in log
     assert "iam create-role --role-name catalyst-github-plan" in log

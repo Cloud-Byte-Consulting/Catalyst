@@ -1,4 +1,7 @@
 #!/usr/bin/env pwsh
+# TF-0 bootstrap: creates the S3 bucket used as the Terraform remote state backend before any
+# terraform init that references that backend. It also provisions a separate S3 bucket for Catalyst
+# API runtime storage; do not use the state bucket for API data.
 [CmdletBinding()]
 param(
     [switch]$DryRun,
@@ -202,6 +205,45 @@ function Ensure-BackendResources {
     }
 }
 
+function Ensure-CatalystApiBucket {
+    $apiBucketName = "$Prefix-api-data-$AccountId-$Region"
+
+    if ($DryRun) {
+        Write-Info "Ensuring Catalyst API data bucket (dry-run)"
+        Invoke-BootstrapAws -Arguments @("s3api", "create-bucket", "--bucket", $apiBucketName, "--region", $Region) | Out-Null
+    }
+    else {
+        $exists = Invoke-BootstrapAws -Arguments @("s3api", "head-bucket", "--bucket", $apiBucketName)
+        if ($exists.Success) {
+            Write-Info "S3 Catalyst API data bucket exists: $apiBucketName"
+        }
+        else {
+            Write-Info "Creating S3 Catalyst API data bucket: $apiBucketName"
+            if ($Region -eq "us-east-1") {
+                $createBucket = Invoke-BootstrapAws -Arguments @("s3api", "create-bucket", "--bucket", $apiBucketName, "--region", $Region)
+            }
+            else {
+                $createBucket = Invoke-BootstrapAws -Arguments @("s3api", "create-bucket", "--bucket", $apiBucketName, "--region", $Region, "--create-bucket-configuration", "LocationConstraint=$Region")
+            }
+
+            if (-not $createBucket.Success) {
+                Fail "Failed creating Catalyst API data bucket ${apiBucketName}: $($createBucket.StdOut)"
+            }
+        }
+    }
+
+    foreach ($args in @(
+        @("s3api", "put-bucket-versioning", "--bucket", $apiBucketName, "--versioning-configuration", "Status=Enabled"),
+        @("s3api", "put-public-access-block", "--bucket", $apiBucketName, "--public-access-block-configuration", "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"),
+        @("s3api", "put-bucket-encryption", "--bucket", $apiBucketName, "--server-side-encryption-configuration", '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}')
+    )) {
+        $result = Invoke-BootstrapAws -Arguments $args
+        if (-not $result.Success) {
+            Fail "Failed Catalyst API bucket command: aws $($args -join ' ') -> $($result.StdOut)"
+        }
+    }
+}
+
 function Ensure-GitHubOidcProvider {
     if ($DryRun) {
         Write-Info "Ensuring GitHub OIDC provider (dry-run)"
@@ -276,6 +318,7 @@ function Emit-GitHubActionsRunnerPolicy {
 
     $trim = ($BootstrapPath.Trim("/"))
     $bucketName = "$Prefix-tf-state-$AccountId-$RegionName"
+    $apiBucketName = "$Prefix-api-data-$AccountId-$RegionName"
     $tableName = "$Prefix-terraform-locks"
     $planRole = "$Prefix-github-plan"
     $applyRole = "$Prefix-github-apply"
@@ -350,6 +393,19 @@ function Emit-GitHubActionsRunnerPolicy {
                 Resource = @(
                     "arn:aws:s3:::${bucketName}",
                     "arn:aws:s3:::${bucketName}/*"
+                )
+            },
+            @{
+                Sid      = "S3CatalystApiDataBucket"
+                Effect   = "Allow"
+                Action   = @(
+                    "s3:CreateBucket", "s3:HeadBucket", "s3:PutBucketVersioning", "s3:PutBucketPublicAccessBlock",
+                    "s3:PutEncryptionConfiguration", "s3:GetBucketEncryption", "s3:GetBucketVersioning",
+                    "s3:GetBucketPublicAccessBlock", "s3:ListBucket"
+                )
+                Resource = @(
+                    "arn:aws:s3:::${apiBucketName}",
+                    "arn:aws:s3:::${apiBucketName}/*"
                 )
             },
             @{
@@ -464,6 +520,7 @@ try {
     Ensure-RolePolicyAttachment -RoleName $bootstrapRoleName -PolicyArn "arn:aws:iam::aws:policy/AdministratorAccess"
 
     Ensure-BackendResources
+    Ensure-CatalystApiBucket
     Ensure-GitHubOidcProvider
 
     Ensure-Role -RoleName $planRoleName -Path "/" -TrustFilePath $planTrustPath

@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+#
+# TF-0 bootstrap: creates the S3 bucket used as the Terraform remote state backend before any
+# terraform init that references that backend ("chicken and egg"). It also provisions a separate
+# S3 bucket for Catalyst API runtime storage (uploads/artifacts); do not use the state bucket for that.
 
 set -euo pipefail
 
@@ -18,6 +22,9 @@ usage() {
 Usage: $SCRIPT_NAME [options]
 
 Bootstrap Catalyst TF-0 resources in an AWS account.
+
+Provisioning includes: S3 for Terraform state (backend), S3 for Catalyst API data ({prefix}-api-data-...),
+and DynamoDB for state locking. Per-tenant/project buckets are out of scope here.
 
 Options:
   --dry-run                         Print intended actions without calling AWS.
@@ -173,6 +180,43 @@ ensure_backend_resources() {
   fi
 }
 
+ensure_catalyst_api_bucket() {
+  local bucket_name="${CATALYST_PREFIX}-api-data-${AWS_ACCOUNT_ID}-${AWS_REGION}"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "Ensuring Catalyst API data bucket (dry-run)"
+    run_cmd aws s3api create-bucket --bucket "$bucket_name" --region "$AWS_REGION"
+  else
+    if aws s3api head-bucket --bucket "$bucket_name" >/dev/null 2>&1; then
+      log "S3 Catalyst API data bucket exists: $bucket_name"
+    else
+      log "Creating S3 Catalyst API data bucket: $bucket_name"
+      if [[ "$AWS_REGION" == "us-east-1" ]]; then
+        run_cmd aws s3api create-bucket --bucket "$bucket_name" --region "$AWS_REGION"
+      else
+        run_cmd aws s3api create-bucket \
+          --bucket "$bucket_name" \
+          --region "$AWS_REGION" \
+          --create-bucket-configuration "LocationConstraint=$AWS_REGION"
+      fi
+    fi
+  fi
+
+  run_cmd aws s3api put-bucket-versioning \
+    --bucket "$bucket_name" \
+    --versioning-configuration "Status=Enabled"
+
+  run_cmd aws s3api put-public-access-block \
+    --bucket "$bucket_name" \
+    --public-access-block-configuration \
+    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+
+  run_cmd aws s3api put-bucket-encryption \
+    --bucket "$bucket_name" \
+    --server-side-encryption-configuration \
+    '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+}
+
 ensure_github_oidc_provider() {
   local existing
   if [[ "$DRY_RUN" == "true" ]]; then
@@ -297,6 +341,7 @@ validate_bootstrap_admin_principal() {
 
 emit_github_actions_runner_policy() {
   local bucket_name="${CATALYST_PREFIX}-tf-state-${AWS_ACCOUNT_ID}-${AWS_REGION}"
+  local api_bucket_name="${CATALYST_PREFIX}-api-data-${AWS_ACCOUNT_ID}-${AWS_REGION}"
   local table_name="${CATALYST_PREFIX}-terraform-locks"
   local plan_role="${CATALYST_PREFIX}-github-plan"
   local apply_role="${CATALYST_PREFIX}-github-apply"
@@ -394,6 +439,25 @@ emit_github_actions_runner_policy() {
       "Resource": [
         "arn:aws:s3:::${bucket_name}",
         "arn:aws:s3:::${bucket_name}/*"
+      ]
+    },
+    {
+      "Sid": "S3CatalystApiDataBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:HeadBucket",
+        "s3:PutBucketVersioning",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutEncryptionConfiguration",
+        "s3:GetBucketEncryption",
+        "s3:GetBucketVersioning",
+        "s3:GetBucketPublicAccessBlock",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${api_bucket_name}",
+        "arn:aws:s3:::${api_bucket_name}/*"
       ]
     },
     {
@@ -521,6 +585,7 @@ JSON
   ensure_role_policy_attachment "$bootstrap_role_name" "arn:aws:iam::aws:policy/AdministratorAccess"
 
   ensure_backend_resources
+  ensure_catalyst_api_bucket
   ensure_github_oidc_provider
 
   ensure_role_with_trust "$plan_role_name" "/" "$plan_trust_file"
