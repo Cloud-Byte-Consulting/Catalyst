@@ -13,7 +13,7 @@ tier MUST be managed by Terraform through the GitHub Actions pipeline.
 | Tier | What it owns | How it is provisioned |
 |---|---|---|
 | Bootstrap (one-time) | IAM bootstrap-admin role, GitHub OIDC provider, `catalyst-github-{plan,apply,deploy}` roles, RBAC IAM groups, Terraform state S3 bucket, Terraform DynamoDB lock table, Catalyst API data S3 bucket | `scripts/bootstrap-aws-account.sh` (or `.ps1`), validated by `bootstrap-smoke.yml`. Runs once per account. |
-| Terraform pipeline (ongoing) | VPC + subnets + NAT + gateway endpoints, security groups (incl. ALB ingress allowlist), ECR, ECS cluster + ALB + target group, Lambda runtime, DynamoDB platform-state table, optional Network Firewall | `tf-plan.yml` on PRs, `tf-apply.yml` on `release`, `tf-drift.yml` nightly. Root config at `infrastructure/`. |
+| Terraform pipeline (ongoing) | VPC + subnets + NAT + gateway endpoints, security groups (incl. ALB ingress allowlist), ECR, ECS cluster + ALB + target group, Lambda runtime, DynamoDB platform-state table, optional Network Firewall | `terraform.yml` (consolidated PR plan + release apply), `tf-drift.yml` nightly. Root config at `infrastructure/`. |
 | Service deploy | Container image build, push to ECR, point Lambda image / ECS service at the new tag | `service-cd.yml` on `release` (`services/catalyst-api/**`). |
 
 Adding net-new AWS resources for the Catalyst platform means a Terraform PR
@@ -24,8 +24,7 @@ that the pipeline plans and applies — never a one-off script or console click.
 | Workflow | Trigger | Purpose | OIDC role secret |
 |---|---|---|---|
 | `pr-checks.yml` | `pull_request -> release` | Terraform fmt/validate, TFLint, tfsec, Checkov, Trivy, gitleaks, pytest with `--cov-fail-under=85` | none (read-only) |
-| `tf-plan.yml` | `pull_request -> release` (paths `infrastructure/**`) + dispatch | `terraform init`, `fmt -check`, `validate`, `plan -lock=false`, sticky PR comment | `AWS_ROLE_PLAN_ARN` |
-| `tf-apply.yml` | `push -> release` (paths `infrastructure/**`) + dispatch | `terraform apply -auto-approve` (no env binding, see note below) | `AWS_ROLE_APPLY_ARN` |
+| `terraform.yml` | `pull_request -> release` and `push -> release` (paths `infrastructure/**`) + dispatch | Consolidated HashiCorp-style pipeline: `terraform init` (S3 backend + DynamoDB lock), `fmt -check`, `plan -lock=false` (sticky PR comment) on PRs, `apply -auto-approve` on release push | `AWS_ROLE_PLAN_ARN` for PR runs, `AWS_ROLE_APPLY_ARN` for release push (selected via `role-to-assume` expression on `github.event_name`) |
 | `tf-drift.yml` | cron `0 6 * * *` + dispatch | `plan -detailed-exitcode -lock=false`, SNS publish + auto-issue on exit code 2 | `AWS_ROLE_PLAN_ARN` |
 | `service-cd.yml` | `push -> release` (paths `services/catalyst-api/**`) + dispatch | Builds API image, pushes to ECR, deploys to **lambda** or **ecs** based on `RUNTIME` | `AWS_ROLE_DEPLOY_ARN` |
 | `bootstrap-smoke.yml` | `pull_request -> release` (paths `scripts/bootstrap-aws-account.*`) + dispatch | Bash/PowerShell syntax + pytest smoke; optional live AWS validation | `BOOTSTRAP_AWS_VALIDATION_ROLE_ARN` |
@@ -37,7 +36,7 @@ that the pipeline plans and applies — never a one-off script or console click.
 Roles are provisioned by `scripts/bootstrap-aws-account.sh`:
 
 * `catalyst-github-plan` → `AWS_ROLE_PLAN_ARN` (subject `pull_request`, `ReadOnlyAccess`)
-* `catalyst-github-apply` → `AWS_ROLE_APPLY_ARN` (subject `ref:refs/heads/release`, `PowerUserAccess`)
+* `catalyst-github-apply` → `AWS_ROLE_APPLY_ARN` (subject `ref:refs/heads/release`, `PowerUserAccess` + scoped inline `CatalystApplyIAMScoped` for `iam:*` against `catalyst-*` roles/policies, see ADR-008)
 * `catalyst-github-deploy` → `AWS_ROLE_DEPLOY_ARN` (subject `ref:refs/heads/release`, `PowerUserAccess`)
 
 Every AWS-touching workflow declares `permissions.id-token: write`, uses
@@ -46,9 +45,10 @@ secret. The structural validator at `.github/scripts/validate_workflows.py`
 enforces this so a regression fails CI before reaching AWS.
 
 > Note on plan role and state locking: the plan role's `ReadOnlyAccess` policy
-> cannot write to the DynamoDB lock table. `tf-plan.yml` and `tf-drift.yml`
-> therefore pass `-lock=false`, which is safe because both commands are
-> read-only. `tf-apply.yml` holds the lock normally with the apply role.
+> cannot write to the DynamoDB lock table. `terraform.yml` (PR runs) and
+> `tf-drift.yml` therefore pass `-lock=false`, which is safe because both
+> commands are read-only. `terraform.yml` on `push -> release` (apply path)
+> holds the lock normally with the apply role.
 
 ## Environment + variables
 
@@ -71,7 +71,7 @@ trust policies are extended, on the bound environment):
 | `BOOTSTRAP_GITHUB_REPOSITORY` | Repo allowed to assume the OIDC roles. |
 | `BOOTSTRAP_ADMIN_PRINCIPAL_ARN` | IAM principal allowed to assume the bootstrap admin role. |
 | `BOOTSTRAP_CATALYST_PREFIX` | Optional. Defaults to `catalyst`. Resource prefix used by bootstrap + Terraform. |
-| `CATALYST_API_INGRESS_ALLOWLIST` | JSON array of IPv4 CIDRs (or bare IPs) allowed to reach the public ALB on 443. Flows into `TF_VAR_alb_ingress_allowlist` in `tf-plan`, `tf-apply`, and `tf-drift`. |
+| `CATALYST_API_INGRESS_ALLOWLIST` | JSON array of IPv4 CIDRs (or bare IPs) allowed to reach the public ALB on 443. Flows into `TF_VAR_alb_ingress_allowlist` in `terraform.yml` and `tf-drift.yml`. |
 
 The following secrets MUST be set at repository scope:
 
@@ -97,7 +97,7 @@ exists, so a misconfigured target fails fast instead of producing a half-deploy.
 
 ## API ingress allowlist variable
 
-`tf-plan.yml`, `tf-apply.yml`, and `tf-drift.yml` read the environment variable
+`terraform.yml` and `tf-drift.yml` read the environment variable
 `CATALYST_API_INGRESS_ALLOWLIST` and normalize it into
 `TF_VAR_alb_ingress_allowlist` before running Terraform. The root config in
 `infrastructure/main.tf` passes the value to `modules/security-groups` which

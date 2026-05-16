@@ -1,42 +1,74 @@
-name: tf-plan
-# Single source of truth for Catalyst platform Terraform changes on PRs.
-# Bootstrap-only resources (see scripts/bootstrap-aws-account.sh) are NOT
-# planned here; everything else under infrastructure/ is. See
-# .github/workflows/README.md for the full division of responsibility.
+name: Terraform
+# Single consolidated Terraform pipeline (modeled on the HashiCorp setup-terraform
+# starter template) that handles both PR plans and release applies.
+#
+# - On `pull_request` against `release`: assumes the bootstrap-managed plan role
+#   (`catalyst-github-plan`, ReadOnlyAccess) and runs init + fmt -check + plan,
+#   leaving a sticky comment on the PR with the rendered plan.
+# - On `push` to `release`: assumes the apply role (`catalyst-github-apply`,
+#   PowerUserAccess + scoped iam:* for `catalyst-*` resources) and runs
+#   init + apply -auto-approve.
+#
+# Quality gates (`terraform-quality` in `pr-checks.yml`: fmt, validate, tflint,
+# tfsec, Checkov, Trivy) remain a sibling workflow so the same PR gets both the
+# operational plan AND the static security scan. Drift detection runs on its own
+# schedule via `tf-drift.yml`.
+#
+# OIDC trust note: we intentionally do NOT bind to a GitHub Actions environment.
+# The bootstrap-provisioned `catalyst-github-{plan,apply}` roles trust the JWT
+# subjects `repo:OWNER/REPO:pull_request` and
+# `repo:OWNER/REPO:ref:refs/heads/release`. Adding `environment:` mutates the
+# JWT `sub` to include `:environment:<name>` and breaks AssumeRoleWithWebIdentity.
+# To gate apply behind a manual environment approval, first update the
+# bootstrap-managed role trust policies to accept the env-scoped subject.
+
 on:
+  push:
+    branches: [release]
+    paths:
+      - infrastructure/**
+      - .github/workflows/terraform.yml
   pull_request:
     branches: [release]
     paths:
       - infrastructure/**
-      - .github/workflows/tf-plan.yml
+      - .github/workflows/terraform.yml
   workflow_dispatch:
+
 permissions:
-  id-token: write
   contents: read
+  id-token: write
   pull-requests: write
+
 env:
   TF_IN_AUTOMATION: 'true'
   CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22/32"]' }}
+
 jobs:
-  plan:
+  terraform:
+    name: Terraform
     runs-on: ubuntu-latest
-    # No `environment:` binding: the catalyst-github-plan OIDC role only trusts
-    # the subject `repo:OWNER/REPO:pull_request` (see scripts/bootstrap-aws-account.sh).
-    # Adding an environment would mutate the JWT `sub` claim to include
-    # `:environment:<name>` and break AssumeRoleWithWebIdentity. To gate
-    # tf-apply behind a manual environment approval, first update the
-    # bootstrap-managed IAM role trust policies to accept the env-scoped sub.
+    defaults:
+      run:
+        shell: bash
     env:
       AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
       AWS_ACCOUNT_ID: ${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}
       CATALYST_PREFIX: ${{ vars.BOOTSTRAP_CATALYST_PREFIX || 'catalyst' }}
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_PLAN_ARN }}
+          role-to-assume: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/release') && secrets.AWS_ROLE_APPLY_ARN || secrets.AWS_ROLE_PLAN_ARN }}
           aws-region: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+
       - name: Resolve backend bucket name
         id: backend
         run: |
@@ -46,6 +78,7 @@ jobs:
           BUCKET="${CATALYST_PREFIX}-tf-state-${AWS_ACCOUNT_ID}-${AWS_REGION}"
           echo "bucket=${BUCKET}" >> "$GITHUB_OUTPUT"
           echo "Resolved backend bucket: ${BUCKET}"
+
       - name: Normalize API ingress allowlist
         run: |
           python - <<'PY'
@@ -85,21 +118,29 @@ jobs:
 
           print(f"Normalized API ingress allowlist: {normalized}")
           PY
-      - name: Terraform init
+
+      - name: Terraform Init
         run: |
           terraform -chdir=infrastructure init \
             -backend-config="bucket=${{ steps.backend.outputs.bucket }}" \
             -backend-config="region=${AWS_REGION}"
-      - name: Terraform fmt check
+
+      - name: Terraform Format
         run: terraform -chdir=infrastructure fmt -recursive -check
-      - name: Terraform validate
-        run: terraform -chdir=infrastructure validate
-      - name: Terraform plan
+
+      - name: Terraform Plan
+        if: github.event_name != 'push' || github.ref != 'refs/heads/release'
         # -lock=false because the plan OIDC role (ReadOnlyAccess) cannot
-        # acquire the DynamoDB state lock. Apply uses the lock normally.
+        # acquire the DynamoDB state lock. Apply (release push path) uses the
+        # lock normally.
         run: terraform -chdir=infrastructure plan -no-color -lock=false -input=false | tee plan.txt
-      - name: Sticky comment
+
+      - name: Sticky plan comment
         if: github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           path: plan.txt
+
+      - name: Terraform Apply
+        if: github.event_name == 'push' && github.ref == 'refs/heads/release'
+        run: terraform -chdir=infrastructure apply -auto-approve -input=false
