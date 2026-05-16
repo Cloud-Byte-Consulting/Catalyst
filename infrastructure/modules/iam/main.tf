@@ -84,8 +84,8 @@ resource "aws_iam_user_group_membership" "bootstrap_owner" {
 }
 
 resource "aws_iam_openid_connect_provider" "github_actions" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
   thumbprint_list = [
     "6938fd4d98bab03faadb97b34396831e3780aea1",
     "22ff89586561fc2d52f77491e9f1eff1b80be33e",

@@ -9,7 +9,7 @@ resource "aws_internet_gateway" "this" { vpc_id = aws_vpc.this.id }
 data "aws_region" "current" {}
 
 resource "aws_subnet" "public" {
-  for_each = { for idx, az in var.availability_zones : az => var.public_subnet_cidrs[idx] }
+  for_each                = { for idx, az in var.availability_zones : az => var.public_subnet_cidrs[idx] }
   vpc_id                  = aws_vpc.this.id
   cidr_block              = each.value
   availability_zone       = each.key
@@ -17,13 +17,16 @@ resource "aws_subnet" "public" {
 }
 
 resource "aws_subnet" "private" {
-  for_each = { for idx, az in var.availability_zones : az => var.private_subnet_cidrs[idx] }
+  for_each          = { for idx, az in var.availability_zones : az => var.private_subnet_cidrs[idx] }
   vpc_id            = aws_vpc.this.id
   cidr_block        = each.value
   availability_zone = each.key
 }
 
-resource "aws_eip" "nat" { for_each = aws_subnet.public domain = "vpc" }
+resource "aws_eip" "nat" {
+  for_each = aws_subnet.public
+  domain   = "vpc"
+}
 
 resource "aws_nat_gateway" "this" {
   for_each      = aws_subnet.public

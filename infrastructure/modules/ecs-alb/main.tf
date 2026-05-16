@@ -1,9 +1,23 @@
-variable "name_prefix" { type = string default = "catalyst" }
-variable "vpc_id" { type = string }
-variable "public_subnet_ids" { type = list(string) }
-variable "alb_security_group_id" { type = string }
+variable "name_prefix" {
+  type    = string
+  default = "catalyst"
+}
 
-resource "aws_ecs_cluster" "this" { name = "${var.name_prefix}-cluster" }
+variable "vpc_id" {
+  type = string
+}
+
+variable "public_subnet_ids" {
+  type = list(string)
+}
+
+variable "alb_security_group_id" {
+  type = string
+}
+
+resource "aws_ecs_cluster" "this" {
+  name = "${var.name_prefix}-cluster"
+}
 
 resource "aws_lb" "this" {
   name               = "${var.name_prefix}-alb"
@@ -19,14 +33,21 @@ resource "aws_lb_target_group" "api" {
   protocol    = "HTTP"
   target_type = "ip"
   vpc_id      = var.vpc_id
-  health_check { path = "/health" }
+
+  health_check {
+    path = "/health"
+  }
 }
 
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.this.arn
   port              = 443
   protocol          = "HTTP"
-  default_action { type = "forward" target_group_arn = aws_lb_target_group.api.arn }
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.api.arn
+  }
 }
 
 resource "aws_ssm_parameter" "ecs_cluster" {
@@ -35,7 +56,18 @@ resource "aws_ssm_parameter" "ecs_cluster" {
   value = aws_ecs_cluster.this.arn
 }
 
-output "cluster_arn" { value = aws_ecs_cluster.this.arn }
-output "target_group_arn" { value = aws_lb_target_group.api.arn }
-output "alb_listener_arn" { value = aws_lb_listener.https.arn }
-output "alb_dns_name" { value = aws_lb.this.dns_name }
+output "cluster_arn" {
+  value = aws_ecs_cluster.this.arn
+}
+
+output "target_group_arn" {
+  value = aws_lb_target_group.api.arn
+}
+
+output "alb_listener_arn" {
+  value = aws_lb_listener.https.arn
+}
+
+output "alb_dns_name" {
+  value = aws_lb.this.dns_name
+}

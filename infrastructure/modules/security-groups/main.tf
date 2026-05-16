@@ -43,7 +43,7 @@ resource "aws_security_group" "data" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "data_from_runtime" {
-  for_each = toset(var.allowed_runtime_ingress_security_group_ids)
+  for_each                     = toset(var.allowed_runtime_ingress_security_group_ids)
   security_group_id            = aws_security_group.data.id
   referenced_security_group_id = each.value
   from_port                    = 443
