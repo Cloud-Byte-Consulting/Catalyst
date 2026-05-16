@@ -1,7 +1,6 @@
 package catalyst.terraform
 
 deny[msg] {
-  some rc
   rc := input.resource_changes[_]
   rc.type == "aws_iam_policy"
   contains(lower(json.marshal(rc.change.after.policy)), "\"action\":\"*\"")
@@ -9,7 +8,6 @@ deny[msg] {
 }
 
 deny[msg] {
-  some rc
   rc := input.resource_changes[_]
   rc.type == "aws_iam_policy"
   contains(lower(json.marshal(rc.change.after.policy)), "\"resource\":\"*\"")
