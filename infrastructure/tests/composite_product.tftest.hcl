@@ -18,6 +18,7 @@ run "composite_product_plans_with_firewall_off" {
     public_subnet_cidrs      = ["10.50.0.0/24", "10.50.1.0/24"]
     private_subnet_cidrs     = ["10.50.10.0/24", "10.50.11.0/24"]
     bootstrap_owner_iam_user = "arn:aws:iam::123456789012:user/bootstrap"
+    alb_ingress_allowlist    = ["73.239.59.22", "198.51.100.0/24"]
     enable_network_firewall  = false
   }
 
@@ -40,6 +41,7 @@ run "composite_product_plans_with_firewall_on" {
     public_subnet_cidrs      = ["10.50.0.0/24", "10.50.1.0/24"]
     private_subnet_cidrs     = ["10.50.10.0/24", "10.50.11.0/24"]
     bootstrap_owner_iam_user = "arn:aws:iam::123456789012:user/bootstrap"
+    alb_ingress_allowlist    = ["73.239.59.22", "198.51.100.0/24"]
     enable_network_firewall  = true
   }
 

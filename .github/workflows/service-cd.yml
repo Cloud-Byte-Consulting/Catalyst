@@ -1,4 +1,10 @@
 name: service-cd
+# Catalyst API image build + runtime update.
+# This workflow does NOT provision infrastructure. The ECR repository, ECS
+# cluster/ALB, Lambda function, security groups, SSM parameters, etc. are all
+# created by tf-apply (root config in infrastructure/). This workflow only
+# builds the container image, pushes to ECR, and points the runtime (Lambda or
+# ECS service) at the new tag.
 on:
   push:
     branches: [release]
@@ -14,7 +20,10 @@ permissions:
   id-token: write
   contents: read
 env:
-  AWS_REGION: us-west-2
+  # Source of truth lives on the BOOTSTRAP_AWS_REGION repo variable so
+  # service-cd cannot drift away from where terraform.yml + tf-drift.yml are
+  # provisioning resources. Falls back to us-east-1 (the documented default).
+  AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
   RUNTIME: ${{ inputs.runtime || vars.RUNTIME || 'lambda' }}
 jobs:
   deploy:
@@ -24,7 +33,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_DEPLOY_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
       - name: Validate runtime prerequisites
         run: |
           if [ "${RUNTIME}" = "lambda" ]; then
@@ -35,14 +44,39 @@ jobs:
       - name: Login ECR
         uses: aws-actions/amazon-ecr-login@v2
       - name: Build and push
+        # ECR is IMMUTABLE, so `:${GITHUB_SHA}` is always a unique manifest.
+        # We additionally push `:latest` the FIRST time only — the Lambda
+        # module bootstraps with `image_uri = ${ECR}:latest`, so the tag has
+        # to exist before `lambda_image_seeded=true` apply runs. After that
+        # `:latest` is frozen by IMMUTABLE; subsequent rolls update Lambda
+        # in place via `aws lambda update-function-code --image-uri ${ECR}:${SHA}`.
         run: |
+          set -euo pipefail
           ECR_URI=$(aws ssm get-parameter --name /catalyst/shared/ecr/catalyst-api/uri --query Parameter.Value --output text)
+          REPO_NAME=$(basename "${ECR_URI}")
           docker build -t ${ECR_URI}:${GITHUB_SHA} services/catalyst-api
           docker push ${ECR_URI}:${GITHUB_SHA}
+          if ! aws ecr describe-images --repository-name "${REPO_NAME}" --image-ids imageTag=latest >/dev/null 2>&1; then
+            echo "Seeding ${ECR_URI}:latest (one-time bootstrap)"
+            docker tag ${ECR_URI}:${GITHUB_SHA} ${ECR_URI}:latest
+            docker push ${ECR_URI}:latest
+          else
+            echo "${ECR_URI}:latest already exists; skipping bootstrap re-tag (ECR IMMUTABLE)"
+          fi
           echo "ECR_URI=${ECR_URI}:${GITHUB_SHA}" >> $GITHUB_ENV
       - name: Deploy lambda
         if: env.RUNTIME == 'lambda'
-        run: aws lambda update-function-code --function-name catalyst-api --image-uri ${ECR_URI}
+        # Only updates if the Lambda already exists (lambda_image_seeded=true
+        # apply has run). On the very first service-cd run after the
+        # initial first-apply, the Lambda may not exist yet; the operator
+        # flips CATALYST_LAMBDA_IMAGE_SEEDED to "true", re-runs terraform.yml,
+        # and a subsequent service-cd push will then update the Lambda.
+        run: |
+          if aws lambda get-function --function-name catalyst-api >/dev/null 2>&1; then
+            aws lambda update-function-code --function-name catalyst-api --image-uri ${ECR_URI}
+          else
+            echo "Lambda catalyst-api not yet created; image is now seeded in ECR. Flip CATALYST_LAMBDA_IMAGE_SEEDED=true and re-run terraform.yml to provision the function."
+          fi
       - name: Deploy ecs
         if: env.RUNTIME == 'ecs'
         run: |

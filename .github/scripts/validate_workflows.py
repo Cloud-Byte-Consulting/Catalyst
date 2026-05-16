@@ -31,16 +31,19 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 
 OIDC_ROLE_SECRETS = {
-    "tf-plan.yml": "AWS_ROLE_PLAN_ARN",
-    "tf-apply.yml": "AWS_ROLE_APPLY_ARN",
+    "terraform.yml": "AWS_ROLE_PLAN_ARN",
     "tf-drift.yml": "AWS_ROLE_PLAN_ARN",
     "service-cd.yml": "AWS_ROLE_DEPLOY_ARN",
 }
 
+# The consolidated terraform.yml must also reference the apply-role secret
+# (used on push -> release). The OIDC validator checks role-to-assume against
+# the matching plan/apply secrets via this extra rule below.
+TERRAFORM_APPLY_SECRET = "AWS_ROLE_APPLY_ARN"
+
 REQUIRED_FILES = [
     "pr-checks.yml",
-    "tf-plan.yml",
-    "tf-apply.yml",
+    "terraform.yml",
     "tf-drift.yml",
     "service-cd.yml",
     "validate-policies.yml",
@@ -145,6 +148,17 @@ def validate(workflows_dir: Path = WORKFLOWS) -> Report:
                     f"role-to-assume references secrets.{expected_secret}",
                     ok,
                     detail,
+                )
+
+        if required == "terraform.yml":
+            uses_creds, role_expr = _uses_configure_aws_credentials(wf)
+            if uses_creds:
+                ok_apply = bool(role_expr) and TERRAFORM_APPLY_SECRET in (role_expr or "")
+                report.add(
+                    required,
+                    f"role-to-assume also references secrets.{TERRAFORM_APPLY_SECRET}",
+                    ok_apply,
+                    role_expr or "",
                 )
 
         if required == "service-cd.yml":
