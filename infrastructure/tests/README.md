@@ -9,7 +9,7 @@ Each `.tftest.hcl` file targets one module (or the composite product graph) and 
 | File | Module under test | Coverage |
 |---|---|---|
 | `network.tftest.hcl` | `modules/network` | VPC + public/private subnets + NAT/IGW/route tables |
-| `security_groups.tftest.hcl` | `modules/security-groups` | private vs public-alb mode, validation rejection, data-tier ingress |
+| `security_groups.tftest.hcl` | `modules/security-groups` | public-alb allowlist behavior, allowlist validation rejection, data-tier ingress |
 | `ecr.tftest.hcl` | `modules/ecr` | scan-on-push, lifecycle policy, SSM publishing |
 | `ecs_alb.tftest.hcl` | `modules/ecs-alb` | ALB shape, target group health check, SSM publishing |
 | `dynamodb.tftest.hcl` | `modules/dynamodb` | PK/SK schema, PITR, TTL, SSM publishing |

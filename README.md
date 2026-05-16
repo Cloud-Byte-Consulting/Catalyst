@@ -53,6 +53,7 @@ Resolution order per setting: explicit env var → SSM parameter (`CATALYST_*_PA
 | Auth mode | `CATALYST_AUTH_MODE` | `headers` | `sigv4` enforces presigned-STS verification + `iam:ListGroupsForUser`. |
 | Group cache TTL | `CATALYST_GROUP_CACHE_TTL` | `300` (seconds) | Per-process IAM group cache. |
 | Runtime secrets | `CATALYST_RUNTIME_SECRET_<KEY>_SECRET` | unset | Names a Secrets Manager secret for `<KEY>`. |
+| API ingress allowlist (pipeline var) | `CATALYST_API_INGRESS_ALLOWLIST` | `["73.239.59.22"]` | JSON array; plain IPv4 entries are normalized to `/32` and passed to Terraform as `TF_VAR_alb_ingress_allowlist`. |
 
 ## Runtime strategy
 

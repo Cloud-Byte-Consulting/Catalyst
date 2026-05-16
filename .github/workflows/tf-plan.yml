@@ -8,19 +8,60 @@ permissions:
   id-token: write
   contents: read
   pull-requests: write
+env:
+  CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22"]' }}
 jobs:
   plan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_PLAN_ARN }}
+          aws-region: us-west-2
+      - name: Normalize API ingress allowlist
+        run: |
+          python - <<'PY'
+          import ipaddress
+          import json
+          import os
+
+          raw = (os.environ.get("CATALYST_API_INGRESS_ALLOWLIST") or "").strip()
+          if not raw:
+              entries = []
+          else:
+              try:
+                  parsed = json.loads(raw)
+                  if not isinstance(parsed, list):
+                      raise ValueError("CATALYST_API_INGRESS_ALLOWLIST JSON must be an array")
+                  entries = [str(item).strip() for item in parsed]
+              except json.JSONDecodeError:
+                  entries = [part.strip() for part in raw.replace("\n", ",").split(",")]
+
+          normalized: list[str] = []
+          for entry in entries:
+              if not entry:
+                  continue
+              candidate = entry if "/" in entry else f"{entry}/32"
+              network = ipaddress.ip_network(candidate, strict=False)
+              if network.version != 4:
+                  raise ValueError(f"Only IPv4 entries are supported: {entry}")
+              normalized.append(str(network))
+
+          normalized = list(dict.fromkeys(normalized))
+          if not normalized:
+              raise ValueError("CATALYST_API_INGRESS_ALLOWLIST must include at least one IPv4 CIDR or IP")
+
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as fh:
+              fh.write(f"TF_VAR_alb_ingress_allowlist={json.dumps(normalized)}\n")
+              fh.write(f"NORMALIZED_API_INGRESS_ALLOWLIST={','.join(normalized)}\n")
+
+          print(f"Normalized API ingress allowlist: {normalized}")
+          PY
       - name: Terraform init
         run: terraform -chdir=infrastructure init
       - name: Terraform plan
-        env:
-          AWS_ACCESS_KEY_ID: dummy
-          AWS_SECRET_ACCESS_KEY: dummy
-          AWS_DEFAULT_REGION: us-west-2
         run: terraform -chdir=infrastructure plan -no-color | tee plan.txt
       - name: Sticky comment
         uses: marocchino/sticky-pull-request-comment@v2

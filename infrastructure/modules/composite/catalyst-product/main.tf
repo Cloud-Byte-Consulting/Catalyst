@@ -24,6 +24,11 @@ variable "enable_network_firewall" {
   default = false
 }
 
+variable "alb_ingress_allowlist" {
+  type    = list(string)
+  default = ["73.239.59.22"]
+}
+
 module "backend" {
   source      = "../../terraform-backend"
   name_prefix = var.name_prefix
@@ -38,10 +43,11 @@ module "network" {
 }
 
 module "security_groups" {
-  source        = "../../security-groups"
-  name_prefix   = var.name_prefix
-  vpc_id        = module.network.vpc_id
-  exposure_mode = "public-alb"
+  source                = "../../security-groups"
+  name_prefix           = var.name_prefix
+  vpc_id                = module.network.vpc_id
+  exposure_mode         = "public-alb"
+  alb_ingress_allowlist = var.alb_ingress_allowlist
 }
 
 module "iam" {

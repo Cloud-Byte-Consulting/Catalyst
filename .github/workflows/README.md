@@ -43,6 +43,20 @@ matching deploy step (`if: env.RUNTIME == 'lambda'` or `'ecs'`). The
 prerequisite step also asserts that the SSM parameter for the chosen runtime
 exists, so a misconfigured target fails fast instead of producing a half-deploy.
 
+## API ingress allowlist variable
+
+`tf-plan.yml`, `tf-apply.yml`, and `tf-drift.yml` read the repository/environment
+variable `CATALYST_API_INGRESS_ALLOWLIST` and normalize it into
+`TF_VAR_alb_ingress_allowlist` before running Terraform.
+
+Expected format is a JSON array (preferred), for example:
+
+```json
+["73.239.59.22", "198.51.100.0/24"]
+```
+
+Plain IPv4 entries are normalized to `/32`; CIDRs are kept as-is.
+
 ## Local reproducer
 
 ```bash
