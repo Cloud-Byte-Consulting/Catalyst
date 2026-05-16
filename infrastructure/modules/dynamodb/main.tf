@@ -10,6 +10,11 @@ variable "ssm_parameter_name" {
   description = "SSM parameter the runtime reads to discover the table"
 }
 
+# DynamoDB SSE uses the AWS-owned KMS key today. Migrating to a customer-
+# managed CMK is tracked separately (KMS rollout coordinates with the future
+# `modules/kms/` referenced in ADR-006 §"Resources..."). Until the CMK exists
+# the AWS-owned key satisfies our encryption-at-rest requirement.
+# tfsec:ignore:aws-dynamodb-table-customer-key
 resource "aws_dynamodb_table" "platform_state" {
   name         = var.name
   billing_mode = "PAY_PER_REQUEST"

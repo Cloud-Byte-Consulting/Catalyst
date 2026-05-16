@@ -5,7 +5,11 @@ variable "name" {
 
 # IMMUTABLE tags satisfy tfsec aws-ecr-enforce-immutable-repository and ADR-005
 # supply-chain controls: a pushed image:tag pair cannot be overwritten, so a
-# rollback always refers to the exact same image digest.
+# rollback always refers to the exact same image digest. The `:latest` tag is
+# bootstrap-seeded once by service-cd and intentionally never re-pointed.
+# Encryption uses AES256 (AWS-managed key); the same CMK migration tracked
+# for the DynamoDB table also covers the ECR encryption upgrade.
+# tfsec:ignore:aws-ecr-repository-customer-key
 resource "aws_ecr_repository" "this" {
   name                 = var.name
   image_tag_mutability = "IMMUTABLE"
