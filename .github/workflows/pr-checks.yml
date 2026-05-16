@@ -29,7 +29,7 @@ jobs:
           pip install checkov
           checkov -d infrastructure --quiet
       - name: Trivy IaC
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@master
         with:
           scan-type: config
           scan-ref: infrastructure
