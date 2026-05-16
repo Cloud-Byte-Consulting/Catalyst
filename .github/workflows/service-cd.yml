@@ -1,4 +1,10 @@
 name: service-cd
+# Catalyst API image build + runtime update.
+# This workflow does NOT provision infrastructure. The ECR repository, ECS
+# cluster/ALB, Lambda function, security groups, SSM parameters, etc. are all
+# created by tf-apply (root config in infrastructure/). This workflow only
+# builds the container image, pushes to ECR, and points the runtime (Lambda or
+# ECS service) at the new tag.
 on:
   push:
     branches: [release]

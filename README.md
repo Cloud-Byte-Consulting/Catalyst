@@ -13,19 +13,32 @@ Catalyst is an Internal Developer Platform control plane for AWS. This repositor
 
 ## Deploy
 
-1. Configure AWS auth through GitHub OIDC roles (`catalyst-github-plan`, `catalyst-github-apply`, `catalyst-github-deploy`).
-2. Bootstrap backend and validate Terraform:
+Catalyst splits provisioning into two tiers; the GitHub Actions pipeline is the
+single source of truth for everything outside the one-time bootstrap. See
+[`.github/workflows/README.md`](./.github/workflows/README.md) for the full
+table.
+
+| Tier | Owns | How |
+|---|---|---|
+| Bootstrap (one-time) | IAM bootstrap-admin role, GitHub OIDC provider, `catalyst-github-{plan,apply,deploy}` roles, RBAC IAM groups, Terraform state S3 bucket, Terraform DynamoDB lock table, Catalyst API data S3 bucket | `scripts/bootstrap-aws-account.sh` |
+| Pipeline (ongoing) | VPC + subnets + NAT + endpoints, security groups (incl. ALB allowlist), ECR, ECS cluster + ALB + target group, Lambda runtime, DynamoDB platform-state table, optional Network Firewall | `tf-plan.yml` (PRs) → `tf-apply.yml` (merge to `release`) → `tf-drift.yml` (daily) |
+| Service deploy | Catalyst API container image build/push + runtime update | `service-cd.yml` |
+
+1. Once per account, run the bootstrap script (or trigger
+   `bootstrap-smoke.yml` with `run_aws_validation: true, allow_live_changes: true`).
+2. Configure the `Catalyst` GitHub Actions environment with the variables and
+   secrets listed in `.github/workflows/README.md`.
+3. Open a PR touching `infrastructure/**`; `tf-plan` will run automatically and
+   sticky-comment the plan.
+4. Merge to `release`; `tf-apply` provisions the diff. `tf-drift` runs nightly.
+
+For local sanity checks (no AWS calls):
 
 ```bash
 terraform -chdir=infrastructure init -backend=false
-terraform -chdir=infrastructure fmt -recursive
+terraform -chdir=infrastructure fmt -recursive -check
 terraform -chdir=infrastructure validate
-```
-
-3. Apply the stack:
-
-```bash
-terraform -chdir=infrastructure apply
+terraform -chdir=infrastructure test
 ```
 
 4. Run API locally:

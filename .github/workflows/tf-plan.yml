@@ -1,26 +1,46 @@
 name: tf-plan
+# Single source of truth for Catalyst platform Terraform changes on PRs.
+# Bootstrap-only resources (see scripts/bootstrap-aws-account.sh) are NOT
+# planned here; everything else under infrastructure/ is. See
+# .github/workflows/README.md for the full division of responsibility.
 on:
   pull_request:
     branches: [release]
     paths:
       - infrastructure/**
+      - .github/workflows/tf-plan.yml
+  workflow_dispatch:
 permissions:
   id-token: write
   contents: read
   pull-requests: write
 env:
-  CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22"]' }}
+  TF_IN_AUTOMATION: 'true'
+  CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22/32"]' }}
 jobs:
   plan:
     runs-on: ubuntu-latest
-    environment: production
+    environment: Catalyst
+    env:
+      AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+      AWS_ACCOUNT_ID: ${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}
+      CATALYST_PREFIX: ${{ vars.BOOTSTRAP_CATALYST_PREFIX || 'catalyst' }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_PLAN_ARN }}
-          aws-region: us-west-2
+          aws-region: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+      - name: Resolve backend bucket name
+        id: backend
+        run: |
+          if [ -z "${AWS_ACCOUNT_ID}" ]; then
+            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          fi
+          BUCKET="${CATALYST_PREFIX}-tf-state-${AWS_ACCOUNT_ID}-${AWS_REGION}"
+          echo "bucket=${BUCKET}" >> "$GITHUB_OUTPUT"
+          echo "Resolved backend bucket: ${BUCKET}"
       - name: Normalize API ingress allowlist
         run: |
           python - <<'PY'
@@ -61,10 +81,20 @@ jobs:
           print(f"Normalized API ingress allowlist: {normalized}")
           PY
       - name: Terraform init
-        run: terraform -chdir=infrastructure init
+        run: |
+          terraform -chdir=infrastructure init \
+            -backend-config="bucket=${{ steps.backend.outputs.bucket }}" \
+            -backend-config="region=${AWS_REGION}"
+      - name: Terraform fmt check
+        run: terraform -chdir=infrastructure fmt -recursive -check
+      - name: Terraform validate
+        run: terraform -chdir=infrastructure validate
       - name: Terraform plan
-        run: terraform -chdir=infrastructure plan -no-color | tee plan.txt
+        # -lock=false because the plan OIDC role (ReadOnlyAccess) cannot
+        # acquire the DynamoDB state lock. Apply uses the lock normally.
+        run: terraform -chdir=infrastructure plan -no-color -lock=false -input=false | tee plan.txt
       - name: Sticky comment
+        if: github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           path: plan.txt

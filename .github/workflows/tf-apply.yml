@@ -1,26 +1,44 @@
 name: tf-apply
+# Single source of truth for Catalyst platform Terraform applies on the
+# release branch. Bootstrap-only resources (see scripts/bootstrap-aws-account.sh)
+# are NOT applied here.
 on:
   push:
     branches: [release]
     paths:
       - infrastructure/**
+      - .github/workflows/tf-apply.yml
+  workflow_dispatch:
 permissions:
   id-token: write
   contents: read
 env:
-  TF_IN_AUTOMATION: true
-  CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22"]' }}
+  TF_IN_AUTOMATION: 'true'
+  CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22/32"]' }}
 jobs:
   apply:
     runs-on: ubuntu-latest
-    environment: production
+    environment: Catalyst
+    env:
+      AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+      AWS_ACCOUNT_ID: ${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}
+      CATALYST_PREFIX: ${{ vars.BOOTSTRAP_CATALYST_PREFIX || 'catalyst' }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_APPLY_ARN }}
-          aws-region: us-west-2
+          aws-region: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+      - name: Resolve backend bucket name
+        id: backend
+        run: |
+          if [ -z "${AWS_ACCOUNT_ID}" ]; then
+            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          fi
+          BUCKET="${CATALYST_PREFIX}-tf-state-${AWS_ACCOUNT_ID}-${AWS_REGION}"
+          echo "bucket=${BUCKET}" >> "$GITHUB_OUTPUT"
+          echo "Resolved backend bucket: ${BUCKET}"
       - name: Normalize API ingress allowlist
         run: |
           python - <<'PY'
@@ -61,6 +79,9 @@ jobs:
           print(f"Normalized API ingress allowlist: {normalized}")
           PY
       - name: Terraform init
-        run: terraform -chdir=infrastructure init
+        run: |
+          terraform -chdir=infrastructure init \
+            -backend-config="bucket=${{ steps.backend.outputs.bucket }}" \
+            -backend-config="region=${AWS_REGION}"
       - name: Terraform apply
-        run: terraform -chdir=infrastructure apply -auto-approve
+        run: terraform -chdir=infrastructure apply -auto-approve -input=false

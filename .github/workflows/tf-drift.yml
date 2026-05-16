@@ -1,4 +1,6 @@
 name: tf-drift
+# Scheduled drift detection against the same Terraform state that tf-plan and
+# tf-apply manage. Treats any non-zero diff as drift and opens an issue + SNS.
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -6,19 +8,34 @@ on:
 permissions:
   id-token: write
   contents: read
+  issues: write
 env:
-  CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22"]' }}
+  TF_IN_AUTOMATION: 'true'
+  CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22/32"]' }}
 jobs:
   drift:
     runs-on: ubuntu-latest
-    environment: production
+    environment: Catalyst
+    env:
+      AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+      AWS_ACCOUNT_ID: ${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}
+      CATALYST_PREFIX: ${{ vars.BOOTSTRAP_CATALYST_PREFIX || 'catalyst' }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_PLAN_ARN }}
-          aws-region: us-west-2
+          aws-region: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+      - name: Resolve backend bucket name
+        id: backend
+        run: |
+          if [ -z "${AWS_ACCOUNT_ID}" ]; then
+            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          fi
+          BUCKET="${CATALYST_PREFIX}-tf-state-${AWS_ACCOUNT_ID}-${AWS_REGION}"
+          echo "bucket=${BUCKET}" >> "$GITHUB_OUTPUT"
+          echo "Resolved backend bucket: ${BUCKET}"
       - name: Normalize API ingress allowlist
         run: |
           python - <<'PY'
@@ -59,16 +76,21 @@ jobs:
           print(f"Normalized API ingress allowlist: {normalized}")
           PY
       - name: Terraform init
-        run: terraform -chdir=infrastructure init
+        run: |
+          terraform -chdir=infrastructure init \
+            -backend-config="bucket=${{ steps.backend.outputs.bucket }}" \
+            -backend-config="region=${AWS_REGION}"
       - name: Drift plan
         id: drift
         run: |
           set +e
-          terraform -chdir=infrastructure plan -detailed-exitcode -no-color > drift.txt
+          terraform -chdir=infrastructure plan -detailed-exitcode -no-color -lock=false -input=false > drift.txt
           echo "exit_code=$?" >> $GITHUB_OUTPUT
       - name: Publish SNS on drift
-        if: steps.drift.outputs.exit_code == '2'
-        run: aws sns publish --topic-arn ${{ secrets.DRIFT_SNS_TOPIC_ARN }} --message "Terraform drift detected in Catalyst"
+        if: steps.drift.outputs.exit_code == '2' && env.DRIFT_SNS_TOPIC_ARN != ''
+        env:
+          DRIFT_SNS_TOPIC_ARN: ${{ secrets.DRIFT_SNS_TOPIC_ARN }}
+        run: aws sns publish --topic-arn "${DRIFT_SNS_TOPIC_ARN}" --message "Terraform drift detected in Catalyst"
       - name: Open issue on drift
         if: steps.drift.outputs.exit_code == '2'
         run: |
