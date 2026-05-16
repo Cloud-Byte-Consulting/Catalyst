@@ -60,6 +60,7 @@ jobs:
     name: aws-bootstrap-validation
     if: github.event_name == 'workflow_dispatch' && inputs.run_aws_validation
     runs-on: ubuntu-latest
+    environment: Catalyst
     permissions:
       id-token: write
       contents: read
@@ -73,7 +74,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Require bootstrap repo variables
+      - name: Require bootstrap variables (repo or Catalyst env)
         run: |
           set -euo pipefail
           missing=()
@@ -82,8 +83,8 @@ jobs:
           [ -z "${{ vars.BOOTSTRAP_GITHUB_REPOSITORY }}" ] && missing+=("BOOTSTRAP_GITHUB_REPOSITORY")
           [ -z "${{ vars.BOOTSTRAP_ADMIN_PRINCIPAL_ARN }}" ] && missing+=("BOOTSTRAP_ADMIN_PRINCIPAL_ARN")
           if [ "${#missing[@]}" -ne 0 ]; then
-            echo "::error::Missing required repository Actions variables: ${missing[*]}"
-            echo "Set them under Settings → Secrets and variables → Actions → Variables (repository scope)."
+            echo "::error::Missing required Actions variables: ${missing[*]}"
+            echo "Define them on the Catalyst environment, or at repository scope (Settings → Secrets and variables → Actions)."
             exit 1
           fi
 
