@@ -19,7 +19,9 @@ jobs:
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
       - name: Run TFLint
-        run: tflint --chdir infrastructure
+        run: |
+          tflint --init --chdir infrastructure
+          tflint --chdir infrastructure
       - name: tfsec
         uses: aquasecurity/tfsec-action@v1.0.3
         with:
