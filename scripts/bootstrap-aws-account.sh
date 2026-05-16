@@ -131,6 +131,113 @@ ensure_role_policy_attachment() {
   fi
 }
 
+ensure_role_inline_policy() {
+  local role_name="$1"
+  local policy_name="$2"
+  local policy_json="$3"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "Putting inline policy (dry-run): $role_name / $policy_name"
+    run_cmd aws iam put-role-policy \
+      --role-name "$role_name" \
+      --policy-name "$policy_name" \
+      --policy-document "$policy_json"
+    return 0
+  fi
+
+  log "Putting inline policy: $role_name / $policy_name"
+  run_cmd aws iam put-role-policy \
+    --role-name "$role_name" \
+    --policy-name "$policy_name" \
+    --policy-document "$policy_json"
+}
+
+emit_apply_iam_scoped_policy() {
+  # IAM management permissions for Terraform-created resources. Scoped to
+  # `catalyst-*` role/policy names so the apply role cannot mutate any IAM
+  # principal outside the Catalyst platform's namespace. PowerUserAccess
+  # already covers every non-IAM service the apply role needs.
+  cat <<JSON
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CatalystScopedIAMRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:UpdateRole",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:ListRoleTags",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:PassRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${CATALYST_PREFIX}-*"
+      ]
+    },
+    {
+      "Sid": "CatalystScopedIAMPolicies",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreatePolicy",
+        "iam:DeletePolicy",
+        "iam:GetPolicy",
+        "iam:ListPolicyVersions",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicyVersion",
+        "iam:GetPolicyVersion",
+        "iam:TagPolicy",
+        "iam:UntagPolicy"
+      ],
+      "Resource": [
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/Catalyst*",
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/${CATALYST_PREFIX}-*"
+      ]
+    },
+    {
+      "Sid": "CatalystReadIAMServicePolicies",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion"
+      ],
+      "Resource": [
+        "arn:aws:iam::aws:policy/*"
+      ]
+    },
+    {
+      "Sid": "CatalystServiceLinkedRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateServiceLinkedRole"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "iam:AWSServiceName": [
+            "elasticloadbalancing.amazonaws.com",
+            "lambda.amazonaws.com",
+            "ecs.amazonaws.com"
+          ]
+        }
+      }
+    }
+  ]
+}
+JSON
+}
+
 ensure_backend_resources() {
   local bucket_name="${CATALYST_PREFIX}-tf-state-${AWS_ACCOUNT_ID}-${AWS_REGION}"
   local table_name="${CATALYST_PREFIX}-terraform-locks"
@@ -595,6 +702,15 @@ JSON
   ensure_role_policy_attachment "$plan_role_name" "arn:aws:iam::aws:policy/ReadOnlyAccess"
   ensure_role_policy_attachment "$apply_role_name" "arn:aws:iam::aws:policy/PowerUserAccess"
   ensure_role_policy_attachment "$deploy_role_name" "arn:aws:iam::aws:policy/PowerUserAccess"
+
+  # Attach the scoped IAM management inline policy to the apply role so
+  # Terraform can create resources like the Lambda execution role under the
+  # `catalyst-*` namespace. PowerUserAccess explicitly denies `iam:*`, so
+  # without this inline policy `terraform apply` fails the moment it touches
+  # any IAM resource (e.g. modules/lambda-service).
+  local apply_iam_policy_json
+  apply_iam_policy_json="$(emit_apply_iam_scoped_policy)"
+  ensure_role_inline_policy "$apply_role_name" "CatalystApplyIAMScoped" "$apply_iam_policy_json"
 
   ensure_group "${CATALYST_PREFIX}-owners"
   ensure_group "${CATALYST_PREFIX}-administrators"

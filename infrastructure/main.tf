@@ -30,6 +30,7 @@ provider "aws" {
 module "network" {
   source               = "./modules/network"
   name_prefix          = var.name_prefix
+  vpc_cidr             = var.vpc_cidr
   availability_zones   = var.availability_zones
   public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
@@ -39,6 +40,7 @@ module "security_groups" {
   source                = "./modules/security-groups"
   name_prefix           = var.name_prefix
   vpc_id                = module.network.vpc_id
+  vpc_cidr_block        = var.vpc_cidr
   exposure_mode         = "public-alb"
   alb_ingress_allowlist = var.alb_ingress_allowlist
 }
@@ -59,8 +61,16 @@ module "dynamodb" {
   source = "./modules/dynamodb"
 }
 
+# module.lambda_service requires an existing ECR image tag (image_uri must
+# resolve at apply time). On a fresh account the bootstrap apply runs BEFORE
+# service-cd has ever pushed `:latest`, so we gate the entire module on
+# `var.lambda_image_seeded`. First apply (var=false) provisions VPC + SG +
+# ECR + ECS/ALB; service-cd then pushes the initial image; a follow-up apply
+# with `lambda_image_seeded=true` brings the Lambda online. Once seeded the
+# variable stays true and re-applies are idempotent.
 module "lambda_service" {
   source                    = "./modules/lambda-service"
+  enabled                   = var.lambda_image_seeded
   name_prefix               = var.name_prefix
   image_uri                 = "${module.ecr.repository_url}:latest"
   private_subnet_ids        = module.network.private_subnet_ids

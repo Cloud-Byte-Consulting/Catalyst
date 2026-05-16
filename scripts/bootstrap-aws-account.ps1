@@ -148,6 +148,126 @@ function Ensure-Group {
     }
 }
 
+function Ensure-RoleInlinePolicy {
+    param(
+        [string]$RoleName,
+        [string]$PolicyName,
+        [string]$PolicyJson
+    )
+
+    $tempPath = $null
+    try {
+        if ($DryRun) {
+            $tempPath = "/tmp/$RoleName-$PolicyName.json"
+        }
+        else {
+            $tempPath = [System.IO.Path]::GetTempFileName()
+            Set-Content -Path $tempPath -Value $PolicyJson -Encoding UTF8
+        }
+
+        Write-Info "Putting inline policy: $RoleName / $PolicyName"
+        $put = Invoke-BootstrapAws -Arguments @(
+            "iam", "put-role-policy",
+            "--role-name", $RoleName,
+            "--policy-name", $PolicyName,
+            "--policy-document", "file://$tempPath"
+        )
+        if (-not $put.Success) {
+            Fail "Failed putting inline policy ${PolicyName} on ${RoleName}: $($put.StdOut)"
+        }
+    }
+    finally {
+        if (-not $DryRun -and $tempPath -and (Test-Path -Path $tempPath)) {
+            Remove-Item -Path $tempPath -Force
+        }
+    }
+}
+
+function Get-CatalystApplyIamScopedPolicy {
+    # See bootstrap-aws-account.sh `emit_apply_iam_scoped_policy` for the
+    # equivalent shell version. Scoped to `catalyst-*` names so the apply role
+    # cannot mutate IAM principals outside the platform's namespace.
+    return @"
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CatalystScopedIAMRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:UpdateRole",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:ListRoleTags",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:PassRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::${AccountId}:role/${Prefix}-*"
+      ]
+    },
+    {
+      "Sid": "CatalystScopedIAMPolicies",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreatePolicy",
+        "iam:DeletePolicy",
+        "iam:GetPolicy",
+        "iam:ListPolicyVersions",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicyVersion",
+        "iam:GetPolicyVersion",
+        "iam:TagPolicy",
+        "iam:UntagPolicy"
+      ],
+      "Resource": [
+        "arn:aws:iam::${AccountId}:policy/Catalyst*",
+        "arn:aws:iam::${AccountId}:policy/${Prefix}-*"
+      ]
+    },
+    {
+      "Sid": "CatalystReadIAMServicePolicies",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion"
+      ],
+      "Resource": [
+        "arn:aws:iam::aws:policy/*"
+      ]
+    },
+    {
+      "Sid": "CatalystServiceLinkedRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateServiceLinkedRole"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "iam:AWSServiceName": [
+            "elasticloadbalancing.amazonaws.com",
+            "lambda.amazonaws.com",
+            "ecs.amazonaws.com"
+          ]
+        }
+      }
+    }
+  ]
+}
+"@
+}
+
 function Ensure-BackendResources {
     $bucketName = "$Prefix-tf-state-$AccountId-$Region"
     $tableName = "$Prefix-terraform-locks"
@@ -530,6 +650,12 @@ try {
     Ensure-RolePolicyAttachment -RoleName $planRoleName -PolicyArn "arn:aws:iam::aws:policy/ReadOnlyAccess"
     Ensure-RolePolicyAttachment -RoleName $applyRoleName -PolicyArn "arn:aws:iam::aws:policy/PowerUserAccess"
     Ensure-RolePolicyAttachment -RoleName $deployRoleName -PolicyArn "arn:aws:iam::aws:policy/PowerUserAccess"
+
+    # PowerUserAccess explicitly denies iam:*; attach a scoped inline policy
+    # so Terraform can create Catalyst-namespaced IAM resources (e.g. the
+    # Lambda execution role in modules/lambda-service).
+    $applyIamPolicy = Get-CatalystApplyIamScopedPolicy
+    Ensure-RoleInlinePolicy -RoleName $applyRoleName -PolicyName "CatalystApplyIAMScoped" -PolicyJson $applyIamPolicy
 
     foreach ($groupName in @(
         "$Prefix-owners",

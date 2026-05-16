@@ -9,11 +9,15 @@ resource "aws_internet_gateway" "this" { vpc_id = aws_vpc.this.id }
 data "aws_region" "current" {}
 
 resource "aws_subnet" "public" {
-  for_each                = { for idx, az in var.availability_zones : az => var.public_subnet_cidrs[idx] }
-  vpc_id                  = aws_vpc.this.id
-  cidr_block              = each.value
-  availability_zone       = each.key
-  map_public_ip_on_launch = true
+  for_each          = { for idx, az in var.availability_zones : az => var.public_subnet_cidrs[idx] }
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = each.value
+  availability_zone = each.key
+  # The ALB (the only resource in public subnets today) gets its own
+  # internet-facing IP via the load_balancer_type=application config;
+  # subnet-level auto-assign is not required and is flagged by tfsec
+  # aws-ec2-no-public-ip-subnet. NAT gateways here also do not need it.
+  map_public_ip_on_launch = false
 }
 
 resource "aws_subnet" "private" {

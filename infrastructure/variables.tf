@@ -28,6 +28,18 @@ variable "private_subnet_cidrs" {
   default     = ["10.50.10.0/24", "10.50.11.0/24"]
 }
 
+variable "vpc_cidr" {
+  type        = string
+  description = "Parent VPC CIDR block; must enclose all public_subnet_cidrs and private_subnet_cidrs."
+  default     = "10.50.0.0/16"
+}
+
+variable "lambda_image_seeded" {
+  type        = bool
+  description = "Set to true once the catalyst-api `:latest` image exists in ECR (seeded by service-cd). First-apply bootstraps everything except the Lambda; flipping this true brings the Lambda online on the next apply."
+  default     = false
+}
+
 variable "alb_ingress_allowlist" {
   type        = list(string)
   description = "IPv4 CIDRs (or bare addresses, normalized to /32) allowed to reach the public ALB on 443. Sourced from the CATALYST_API_INGRESS_ALLOWLIST GitHub Actions variable via the tf-plan/apply/drift workflows."

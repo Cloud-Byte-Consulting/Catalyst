@@ -2,6 +2,12 @@ variable "vpc_id" {
   type = string
 }
 
+variable "vpc_cidr_block" {
+  type        = string
+  default     = "10.50.0.0/16"
+  description = "CIDR block of the parent VPC; used to scope ALB SG egress to in-VPC targets only."
+}
+
 variable "name_prefix" {
   type    = string
   default = "catalyst"
