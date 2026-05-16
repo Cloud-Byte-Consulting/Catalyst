@@ -15,7 +15,7 @@ env:
 jobs:
   drift:
     runs-on: ubuntu-latest
-    environment: Catalyst
+    # No `environment:` binding: see tf-plan.yml for the OIDC trust constraint.
     env:
       AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
       AWS_ACCOUNT_ID: ${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}

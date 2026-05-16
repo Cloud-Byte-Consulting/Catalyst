@@ -18,7 +18,10 @@ env:
 jobs:
   apply:
     runs-on: ubuntu-latest
-    environment: Catalyst
+    # No `environment:` binding: see tf-plan.yml for the OIDC trust constraint.
+    # When the bootstrap-managed apply role is updated to accept an
+    # environment-scoped subject, re-add `environment: production` here so an
+    # approval gate is required before each apply.
     env:
       AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
       AWS_ACCOUNT_ID: ${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}

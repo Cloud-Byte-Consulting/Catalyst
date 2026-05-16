@@ -25,7 +25,7 @@ that the pipeline plans and applies — never a one-off script or console click.
 |---|---|---|---|
 | `pr-checks.yml` | `pull_request -> release` | Terraform fmt/validate, TFLint, tfsec, Checkov, Trivy, gitleaks, pytest with `--cov-fail-under=85` | none (read-only) |
 | `tf-plan.yml` | `pull_request -> release` (paths `infrastructure/**`) + dispatch | `terraform init`, `fmt -check`, `validate`, `plan -lock=false`, sticky PR comment | `AWS_ROLE_PLAN_ARN` |
-| `tf-apply.yml` | `push -> release` (paths `infrastructure/**`) + dispatch | `terraform apply -auto-approve` (env `Catalyst`) | `AWS_ROLE_APPLY_ARN` |
+| `tf-apply.yml` | `push -> release` (paths `infrastructure/**`) + dispatch | `terraform apply -auto-approve` (no env binding, see note below) | `AWS_ROLE_APPLY_ARN` |
 | `tf-drift.yml` | cron `0 6 * * *` + dispatch | `plan -detailed-exitcode -lock=false`, SNS publish + auto-issue on exit code 2 | `AWS_ROLE_PLAN_ARN` |
 | `service-cd.yml` | `push -> release` (paths `services/catalyst-api/**`) + dispatch | Builds API image, pushes to ECR, deploys to **lambda** or **ecs** based on `RUNTIME` | `AWS_ROLE_DEPLOY_ARN` |
 | `bootstrap-smoke.yml` | `pull_request -> release` (paths `scripts/bootstrap-aws-account.*`) + dispatch | Bash/PowerShell syntax + pytest smoke; optional live AWS validation | `BOOTSTRAP_AWS_VALIDATION_ROLE_ARN` |
@@ -52,8 +52,17 @@ enforces this so a regression fails CI before reaching AWS.
 
 ## Environment + variables
 
-All AWS-touching workflows target the GitHub `Catalyst` environment. The
-following Actions variables MUST be set on that environment:
+> The tf-* workflows intentionally do NOT bind to a GitHub Actions environment.
+> The bootstrap-provisioned `catalyst-github-{plan,apply,deploy}` roles trust
+> the JWT subjects `repo:OWNER/REPO:pull_request` and
+> `repo:OWNER/REPO:ref:refs/heads/release`. Adding an `environment:` binding
+> mutates the JWT `sub` to include `:environment:<name>` and breaks the
+> AssumeRoleWithWebIdentity call. To gate tf-apply behind a manual environment
+> approval (e.g. `production`), first update the bootstrap-managed role trust
+> policies to accept the env-scoped subject, then re-add `environment:` here.
+
+The following Actions variables MUST be set at repository scope (or, once the
+trust policies are extended, on the bound environment):
 
 | Variable | Purpose |
 |---|---|
@@ -64,7 +73,7 @@ following Actions variables MUST be set on that environment:
 | `BOOTSTRAP_CATALYST_PREFIX` | Optional. Defaults to `catalyst`. Resource prefix used by bootstrap + Terraform. |
 | `CATALYST_API_INGRESS_ALLOWLIST` | JSON array of IPv4 CIDRs (or bare IPs) allowed to reach the public ALB on 443. Flows into `TF_VAR_alb_ingress_allowlist` in `tf-plan`, `tf-apply`, and `tf-drift`. |
 
-The following secrets MUST be set on the `Catalyst` environment:
+The following secrets MUST be set at repository scope:
 
 | Secret | Purpose |
 |---|---|

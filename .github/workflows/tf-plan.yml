@@ -20,7 +20,12 @@ env:
 jobs:
   plan:
     runs-on: ubuntu-latest
-    environment: Catalyst
+    # No `environment:` binding: the catalyst-github-plan OIDC role only trusts
+    # the subject `repo:OWNER/REPO:pull_request` (see scripts/bootstrap-aws-account.sh).
+    # Adding an environment would mutate the JWT `sub` claim to include
+    # `:environment:<name>` and break AssumeRoleWithWebIdentity. To gate
+    # tf-apply behind a manual environment approval, first update the
+    # bootstrap-managed IAM role trust policies to accept the env-scoped sub.
     env:
       AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
       AWS_ACCOUNT_ID: ${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}
