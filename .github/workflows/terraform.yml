@@ -74,7 +74,9 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/release') && secrets.AWS_ROLE_APPLY_ARN || secrets.AWS_ROLE_PLAN_ARN }}
+          # Apply path: any push or workflow_dispatch on release. PR plans
+          # use the read-only plan role.
+          role-to-assume: ${{ (github.ref == 'refs/heads/release' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')) && secrets.AWS_ROLE_APPLY_ARN || secrets.AWS_ROLE_PLAN_ARN }}
           aws-region: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
 
       - name: Resolve backend bucket name
@@ -137,10 +139,10 @@ jobs:
         run: terraform -chdir=infrastructure fmt -recursive -check
 
       - name: Terraform Plan
-        if: github.event_name != 'push' || github.ref != 'refs/heads/release'
+        if: ${{ !(github.ref == 'refs/heads/release' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')) }}
         # -lock=false because the plan OIDC role (ReadOnlyAccess) cannot
-        # acquire the DynamoDB state lock. Apply (release push path) uses the
-        # lock normally.
+        # acquire the DynamoDB state lock. Apply (release push / dispatch
+        # path) uses the lock normally.
         run: terraform -chdir=infrastructure plan -no-color -lock=false -input=false | tee plan.txt
 
       - name: Sticky plan comment
@@ -150,5 +152,11 @@ jobs:
           path: plan.txt
 
       - name: Terraform Apply
-        if: github.event_name == 'push' && github.ref == 'refs/heads/release'
+        # Run apply on push to release (gated CI) and on workflow_dispatch
+        # against release (manual operator path used when flipping
+        # CATALYST_LAMBDA_IMAGE_SEEDED or re-converging after a no-infra
+        # change). Bootstrap-managed apply role only trusts
+        # `repo:OWNER/REPO:ref:refs/heads/release` so dispatch from any
+        # other branch will fail at AssumeRoleWithWebIdentity by design.
+        if: github.ref == 'refs/heads/release' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         run: terraform -chdir=infrastructure apply -auto-approve -input=false
