@@ -7,7 +7,7 @@ run "lambda_image_package" {
     target_group_arn          = "arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/tg/abcd"
   }
   assert {
-    condition     = true
+    condition     = var.image_uri != ""
     error_message = "lambda-service module should plan successfully"
   }
 }

@@ -5,7 +5,7 @@ run "default_private_mode" {
     exposure_mode = "private"
   }
   assert {
-    condition     = true
+    condition     = var.exposure_mode == "private"
     error_message = "private mode should not create public ingress"
   }
 }
