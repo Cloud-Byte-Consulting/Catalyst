@@ -1,40 +1,11 @@
-variable "name_prefix" {
-  type        = string
-  default     = "catalyst"
-  description = "Prefix applied to all child resources"
-}
+variable "name_prefix" { type = string default = "catalyst" }
+variable "availability_zones" { type = list(string) }
+variable "public_subnet_cidrs" { type = list(string) }
+variable "private_subnet_cidrs" { type = list(string) }
+variable "bootstrap_owner_iam_user" { type = string }
+variable "enable_network_firewall" { type = bool default = false }
 
-variable "availability_zones" {
-  type        = list(string)
-  description = "AZs used by the network module"
-}
-
-variable "public_subnet_cidrs" {
-  type        = list(string)
-  description = "Public subnet CIDRs (one per AZ)"
-}
-
-variable "private_subnet_cidrs" {
-  type        = list(string)
-  description = "Private subnet CIDRs (one per AZ)"
-}
-
-variable "bootstrap_owner_iam_user" {
-  type        = string
-  description = "IAM user added to catalyst-owners during bootstrap"
-}
-
-variable "enable_network_firewall" {
-  type        = bool
-  default     = false
-  description = "Compliance-tier toggle for the egress firewall (ADR-010)"
-}
-
-module "backend" {
-  source      = "../../terraform-backend"
-  name_prefix = var.name_prefix
-}
-
+module "backend" { source = "../../terraform-backend" name_prefix = var.name_prefix }
 module "network" {
   source               = "../../network"
   name_prefix          = var.name_prefix
@@ -42,23 +13,17 @@ module "network" {
   public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
 }
-
 module "security_groups" {
-  source        = "../../security-groups"
-  name_prefix   = var.name_prefix
-  vpc_id        = module.network.vpc_id
+  source       = "../../security-groups"
+  name_prefix  = var.name_prefix
+  vpc_id       = module.network.vpc_id
   exposure_mode = "public-alb"
 }
-
 module "iam" {
-  source                   = "../../iam"
+  source = "../../iam"
   bootstrap_owner_iam_user = var.bootstrap_owner_iam_user
 }
-
-module "ecr" {
-  source = "../../ecr"
-}
-
+module "ecr" { source = "../../ecr" }
 module "ecs_alb" {
   source                = "../../ecs-alb"
   name_prefix           = var.name_prefix
@@ -66,11 +31,7 @@ module "ecs_alb" {
   public_subnet_ids     = module.network.public_subnet_ids
   alb_security_group_id = module.security_groups.alb_security_group_id
 }
-
-module "dynamodb" {
-  source = "../../dynamodb"
-}
-
+module "dynamodb" { source = "../../dynamodb" }
 module "lambda_service" {
   source                    = "../../lambda-service"
   name_prefix               = var.name_prefix
@@ -79,7 +40,6 @@ module "lambda_service" {
   runtime_security_group_id = module.security_groups.runtime_security_group_id
   target_group_arn          = module.ecs_alb.target_group_arn
 }
-
 module "network_firewall" {
   source      = "../../network-firewall"
   enabled     = var.enable_network_firewall

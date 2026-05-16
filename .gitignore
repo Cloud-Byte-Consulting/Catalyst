@@ -10,7 +10,8 @@ htmlcov/
 
 # Local terraform working state
 **/.terraform/
-**/.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 *.tfplan
+infrastructure/.terraform.lock.hcl
+infrastructure/modules/**/.terraform.lock.hcl

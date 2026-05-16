@@ -1,8 +1,4 @@
-variable "bootstrap_owner_iam_user" {
-  type        = string
-  description = "IAM user added to catalyst-owners during bootstrap (ADR-008)"
-}
-
+variable "bootstrap_owner_iam_user" { type = string }
 variable "scoped_group_bindings" {
   type = list(object({
     tenant  = string
@@ -13,39 +9,13 @@ variable "scoped_group_bindings" {
   description = "Scoped RBAC groups using catalyst-{tenant}--{project}--{role}"
 }
 
-variable "github_repository" {
-  type        = string
-  default     = "Cloud-Byte-Consulting/Catalyst"
-  description = "GitHub repository allowed to assume the OIDC roles"
-}
-
-resource "aws_iam_group" "owners" {
-  name = "catalyst-owners"
-}
-
-resource "aws_iam_group" "administrators" {
-  name = "catalyst-administrators"
-}
-
-resource "aws_iam_group" "viewers" {
-  name = "catalyst-viewers"
-}
-
-resource "aws_iam_group" "support_admins" {
-  name = "catalyst-support-admins"
-}
-
-resource "aws_iam_group" "support_operators" {
-  name = "catalyst-support-operators"
-}
-
-resource "aws_iam_group" "support_viewers" {
-  name = "catalyst-support-viewers"
-}
-
-resource "aws_iam_group" "breakglass" {
-  name = "catalyst-breakglass"
-}
+resource "aws_iam_group" "owners" { name = "catalyst-owners" }
+resource "aws_iam_group" "administrators" { name = "catalyst-administrators" }
+resource "aws_iam_group" "viewers" { name = "catalyst-viewers" }
+resource "aws_iam_group" "support_admins" { name = "catalyst-support-admins" }
+resource "aws_iam_group" "support_operators" { name = "catalyst-support-operators" }
+resource "aws_iam_group" "support_viewers" { name = "catalyst-support-viewers" }
+resource "aws_iam_group" "breakglass" { name = "catalyst-breakglass" }
 
 resource "aws_iam_policy" "owner_policy" {
   name = "CatalystOwnerPolicy"
@@ -54,12 +24,7 @@ resource "aws_iam_policy" "owner_policy" {
     Statement = [{
       Sid    = "IamGroupManagement"
       Effect = "Allow"
-      Action = [
-        "iam:AddUserToGroup",
-        "iam:RemoveUserFromGroup",
-        "iam:GetGroup",
-        "iam:ListGroupsForUser",
-      ]
+      Action = ["iam:AddUserToGroup", "iam:RemoveUserFromGroup", "iam:GetGroup", "iam:ListGroupsForUser"]
       Resource = [
         aws_iam_group.owners.arn,
         aws_iam_group.administrators.arn,
@@ -67,7 +32,7 @@ resource "aws_iam_policy" "owner_policy" {
         aws_iam_group.support_admins.arn,
         aws_iam_group.support_operators.arn,
         aws_iam_group.support_viewers.arn,
-        aws_iam_group.breakglass.arn,
+        aws_iam_group.breakglass.arn
       ]
     }]
   })
@@ -91,9 +56,9 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
 
 locals {
   role_subjects = {
-    plan   = "repo:${var.github_repository}:pull_request"
-    apply  = "repo:${var.github_repository}:ref:refs/heads/release"
-    deploy = "repo:${var.github_repository}:ref:refs/heads/release"
+    plan   = "repo:Cloud-Byte-Consulting/Catalyst:pull_request"
+    apply  = "repo:Cloud-Byte-Consulting/Catalyst:ref:refs/heads/release"
+    deploy = "repo:Cloud-Byte-Consulting/Catalyst:ref:refs/heads/release"
   }
 
   scoped_group_map = {
@@ -108,23 +73,9 @@ data "aws_iam_policy_document" "github_assume_role" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     effect  = "Allow"
-
-    principals {
-      type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "token.actions.githubusercontent.com:aud"
-      values   = ["sts.amazonaws.com"]
-    }
-
-    condition {
-      test     = "StringLike"
-      variable = "token.actions.githubusercontent.com:sub"
-      values   = [each.value]
-    }
+    principals { type = "Federated" identifiers = [aws_iam_openid_connect_provider.github_actions.arn] }
+    condition { test = "StringEquals" variable = "token.actions.githubusercontent.com:aud" values = ["sts.amazonaws.com"] }
+    condition { test = "StringLike" variable = "token.actions.githubusercontent.com:sub" values = [each.value] }
   }
 }
 
@@ -156,10 +107,4 @@ output "scoped_group_names" {
   description = "Scoped groups in catalyst-{tenant}--{project}--{role} format"
 }
 
-output "github_role_arns" {
-  value = { for key, role in aws_iam_role.github : key => role.arn }
-}
-
-output "oidc_provider_arn" {
-  value = aws_iam_openid_connect_provider.github_actions.arn
-}
+output "github_role_arns" { value = { for key, role in aws_iam_role.github : key => role.arn } }

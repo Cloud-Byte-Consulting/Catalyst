@@ -38,8 +38,21 @@ uvicorn catalyst.main:app --app-dir services/catalyst-api --reload
 5. Run tests:
 
 ```bash
+pip install -r services/catalyst-api/requirements-dev.txt
 pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-branch --cov-fail-under=85
 ```
+
+## Runtime configuration
+
+Resolution order per setting: explicit env var → SSM parameter (`CATALYST_*_PARAMETER`) → Secrets Manager secret (`CATALYST_*_SECRET`) → built-in default.
+
+| Setting | Env var | Default | Notes |
+|---|---|---|---|
+| Repository backend | `CATALYST_REPOSITORY` | `memory` | Set to `dynamodb` in production. |
+| DynamoDB table name | `CATALYST_DYNAMODB_TABLE` or `CATALYST_DYNAMODB_TABLE_PARAMETER` | resolved from SSM in prod | Module: `infrastructure/modules/dynamodb`. |
+| Auth mode | `CATALYST_AUTH_MODE` | `headers` | `sigv4` enforces presigned-STS verification + `iam:ListGroupsForUser`. |
+| Group cache TTL | `CATALYST_GROUP_CACHE_TTL` | `300` (seconds) | Per-process IAM group cache. |
+| Runtime secrets | `CATALYST_RUNTIME_SECRET_<KEY>_SECRET` | unset | Names a Secrets Manager secret for `<KEY>`. |
 
 ## Runtime strategy
 

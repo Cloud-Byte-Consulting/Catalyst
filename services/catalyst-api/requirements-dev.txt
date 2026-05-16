@@ -1,4 +1,5 @@
 -r requirements.txt
-pytest
-pytest-cov
-httpx
+pytest==9.0.2
+pytest-cov==7.1.0
+moto[dynamodb,iam,ssm,secretsmanager,sts]==5.0.16
+httpx==0.27.2

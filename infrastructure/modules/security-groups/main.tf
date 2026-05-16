@@ -1,7 +1,6 @@
 resource "aws_security_group" "alb" {
   name_prefix = "${var.name_prefix}-alb-"
   vpc_id      = var.vpc_id
-
   egress {
     from_port   = 443
     to_port     = 443
@@ -22,7 +21,6 @@ resource "aws_vpc_security_group_ingress_rule" "alb_https_public" {
 resource "aws_security_group" "runtime" {
   name_prefix = "${var.name_prefix}-runtime-"
   vpc_id      = var.vpc_id
-
   egress {
     from_port   = 443
     to_port     = 443
@@ -45,7 +43,7 @@ resource "aws_security_group" "data" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "data_from_runtime" {
-  for_each                     = toset(var.allowed_runtime_ingress_security_group_ids)
+  for_each = toset(var.allowed_runtime_ingress_security_group_ids)
   security_group_id            = aws_security_group.data.id
   referenced_security_group_id = each.value
   from_port                    = 443
