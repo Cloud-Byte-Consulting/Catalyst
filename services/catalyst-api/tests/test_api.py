@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from catalyst.main import app
-from catalyst.repository import repo
+from catalyst.repository import InMemoryRepository, set_repository
 
 
 client = TestClient(app)
@@ -15,11 +15,7 @@ def _headers(groups: str = "catalyst-owners", caller: str = "arn:aws:iam::123456
 
 
 def setup_function() -> None:
-    repo.organizations.clear()
-    repo.services.clear()
-    repo.idempotency.clear()
-    repo.product_instances.clear()
-    repo.groups.clear()
+    set_repository(InMemoryRepository())
 
 
 def test_health() -> None:

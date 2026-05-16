@@ -1,11 +1,11 @@
 name: "Catalyst API"
-description: "Invoke a Catalyst API golden-path operation from a workflow"
+description: "Invoke Catalyst API operations from workflows"
 inputs:
   endpoint:
-    description: "Catalyst API base URL (no trailing slash)"
+    description: "Catalyst API endpoint"
     required: true
   operation:
-    description: "Operation path appended to endpoint (e.g. services/onboard)"
+    description: "Operation path"
     required: true
   method:
     description: "HTTP method"
@@ -18,46 +18,14 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Validate required inputs
-      shell: bash
-      run: |
-        set -euo pipefail
-        missing=()
-        [ -n "${{ inputs.endpoint }}" ] || missing+=("endpoint")
-        [ -n "${{ inputs.operation }}" ] || missing+=("operation")
-        if [ "${#missing[@]}" -gt 0 ]; then
-          echo "::error::missing required input(s): ${missing[*]}"
-          exit 1
-        fi
-        if [ -z "${CATALYST_ACTION_ROLE_ARN:-}" ]; then
-          echo "::error::CATALYST_ACTION_ROLE_ARN env var must be set by the calling workflow"
-          exit 1
-        fi
-    - name: Configure AWS credentials (OIDC)
-      uses: aws-actions/configure-aws-credentials@v4
+    - uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: ${{ env.CATALYST_ACTION_ROLE_ARN }}
         aws-region: ${{ env.AWS_REGION || 'us-west-2' }}
-    - name: Call Catalyst API
-      shell: bash
-      env:
-        ENDPOINT: ${{ inputs.endpoint }}
-        OPERATION: ${{ inputs.operation }}
-        METHOD: ${{ inputs.method }}
-        PAYLOAD: ${{ inputs.payload }}
+    - shell: bash
       run: |
-        set -euo pipefail
-        url="${ENDPOINT%/}/${OPERATION#/}"
-        echo "Calling ${METHOD} ${url}"
-        http_code=$(
-          curl -sS -o response.json -w "%{http_code}" \
-            -X "${METHOD}" "${url}" \
-            -H "Content-Type: application/json" \
-            -d "${PAYLOAD}"
-        )
-        echo "HTTP ${http_code}"
-        cat response.json
-        if [ "${http_code}" -ge 400 ]; then
-          echo "::error::Catalyst API call failed (${http_code})"
+        if [ -z "${{ inputs.endpoint }}" ] || [ -z "${{ inputs.operation }}" ]; then
+          echo "endpoint and operation are required"
           exit 1
         fi
+        curl -sS -X "${{ inputs.method }}" "${{ inputs.endpoint }}/${{ inputs.operation }}"           -H "Content-Type: application/json"           -d '${{ inputs.payload }}'
