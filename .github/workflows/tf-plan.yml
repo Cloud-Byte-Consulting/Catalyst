@@ -14,13 +14,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_PLAN_ARN }}
-          aws-region: us-west-2
       - name: Terraform init
         run: terraform -chdir=infrastructure init
       - name: Terraform plan
+        env:
+          AWS_ACCESS_KEY_ID: dummy
+          AWS_SECRET_ACCESS_KEY: dummy
+          AWS_DEFAULT_REGION: us-west-2
         run: terraform -chdir=infrastructure plan -no-color | tee plan.txt
       - name: Sticky comment
         uses: marocchino/sticky-pull-request-comment@v2
