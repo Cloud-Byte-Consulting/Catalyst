@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import stat
@@ -131,6 +132,66 @@ def test_bash_requires_env_values(tmp_path: Path) -> None:
     assert "Missing AWS region" in proc.stderr
 
 
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+def test_bash_rejects_example_bootstrap_principal_for_wrong_account(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    proc = subprocess.run(
+        [
+            "bash",
+            "scripts/bootstrap-aws-account.sh",
+            "--dry-run",
+            "--region",
+            "us-east-1",
+            "--account-id",
+            "061051223073",
+            "--github-repository",
+            "Cloud-Byte-Consulting/Catalyst",
+            "--bootstrap-admin-principal-arn",
+            "arn:aws:iam::123456789012:role/BootstrapOperator",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode != 0
+    combined = proc.stderr + proc.stdout
+    assert "example account 123456789012" in combined
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+def test_bash_print_github_actions_runner_policy_is_valid_json(tmp_path: Path) -> None:
+    env = os.environ.copy()
+    env["PATH"] = f"{tmp_path}{os.pathsep}{env.get('PATH', '')}"
+    proc = subprocess.run(
+        [
+            "bash",
+            "scripts/bootstrap-aws-account.sh",
+            "--print-github-actions-runner-policy",
+            "--region",
+            "us-west-2",
+            "--account-id",
+            "111111111111",
+            "--prefix",
+            "catalyst",
+            "--bootstrap-role-path",
+            "/catalyst/bootstrap/",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    policy = json.loads(proc.stdout.strip())
+    assert policy["Version"] == "2012-10-17"
+    actions = json.dumps(policy["Statement"])
+    assert "PutBucketPublicAccessBlock" in actions
+    assert "catalyst-tf-state-111111111111-us-west-2" in actions
+
+
 @pytest.mark.skipif(
     shutil.which("bash") is None or os.name == "nt",
     reason="bash command-construction test requires POSIX path semantics",
@@ -198,6 +259,69 @@ def test_powershell_requires_env_values(tmp_path: Path) -> None:
     )
     assert proc.returncode != 0
     assert "Missing AWS account id" in proc.stderr
+
+
+@pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not available")
+def test_powershell_rejects_example_bootstrap_principal_for_wrong_account(tmp_path: Path) -> None:
+    env = _base_env(tmp_path)
+    proc = subprocess.run(
+        [
+            "pwsh",
+            "-NoProfile",
+            "-File",
+            str(POWERSHELL_SCRIPT),
+            "-DryRun",
+            "-Region",
+            "us-east-1",
+            "-AccountId",
+            "061051223073",
+            "-GitHubRepository",
+            "Cloud-Byte-Consulting/Catalyst",
+            "-BootstrapAdminPrincipalArn",
+            "arn:aws:iam::123456789012:role/BootstrapOperator",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode != 0
+    combined = proc.stderr + proc.stdout
+    assert "example account 123456789012" in combined
+
+
+@pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not available")
+def test_powershell_print_github_actions_runner_policy_is_valid_json(tmp_path: Path) -> None:
+    env = os.environ.copy()
+    env["PATH"] = f"{tmp_path}{os.pathsep}{env.get('PATH', '')}"
+    proc = subprocess.run(
+        [
+            "pwsh",
+            "-NoProfile",
+            "-File",
+            str(POWERSHELL_SCRIPT),
+            "-PrintGitHubActionsRunnerPolicy",
+            "-Region",
+            "us-west-2",
+            "-AccountId",
+            "111111111111",
+            "-Prefix",
+            "catalyst",
+            "-BootstrapRolePath",
+            "/catalyst/bootstrap/",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    policy = json.loads(proc.stdout.strip())
+    assert policy["Version"] == "2012-10-17"
+    dumped = json.dumps(policy["Statement"])
+    assert "PutBucketPublicAccessBlock" in dumped
 
 
 @pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not available")

@@ -2,6 +2,7 @@
 [CmdletBinding()]
 param(
     [switch]$DryRun,
+    [switch]$PrintGitHubActionsRunnerPolicy,
     [string]$Region = $env:AWS_REGION,
     [string]$AccountId = $env:AWS_ACCOUNT_ID,
     [string]$GitHubRepository = $env:GITHUB_REPOSITORY,
@@ -250,14 +251,136 @@ function Write-RootGuardrails {
     Write-Warn "  3) Verify alternate contacts and account alias."
 }
 
-if (-not (Get-Command aws -ErrorAction SilentlyContinue)) {
-    Fail "Required command not found: aws"
+function Assert-BootstrapAdminPrincipalArn {
+    param([string]$PrincipalArn, [string]$AccountId)
+
+    if ($PrincipalArn -notmatch '^arn:aws:iam::(\d{12}):(root|user/|role/)') {
+        Fail "BOOTSTRAP_ADMIN_PRINCIPAL_ARN must be an IAM ARN like arn:aws:iam::123456789012:root, .../role/Name, or .../user/Name."
+    }
+    $principalAccount = $Matches[1]
+    if ($principalAccount -eq "123456789012" -and $AccountId -ne "123456789012") {
+        Fail "BOOTSTRAP_ADMIN_PRINCIPAL_ARN still uses the example account 123456789012 while AWS_ACCOUNT_ID is ${AccountId}. Set BOOTSTRAP_ADMIN_PRINCIPAL_ARN to a principal in this account (for example arn:aws:iam::${AccountId}:root for day-0 only, then replace with an admin role)."
+    }
+    if ($principalAccount -ne $AccountId) {
+        Write-Warn "BOOTSTRAP_ADMIN_PRINCIPAL_ARN is in account ${principalAccount} but AWS_ACCOUNT_ID is ${AccountId} (cross-account trust). Ensure this is intentional."
+    }
+}
+
+function Emit-GitHubActionsRunnerPolicy {
+    param(
+        [string]$AccountId,
+        [string]$RegionName,
+        [string]$Prefix,
+        [string]$BootstrapPath
+    )
+
+    $trim = ($BootstrapPath.Trim("/"))
+    $bucketName = "$Prefix-tf-state-$AccountId-$RegionName"
+    $tableName = "$Prefix-terraform-locks"
+    $planRole = "$Prefix-github-plan"
+    $applyRole = "$Prefix-github-apply"
+    $deployRole = "$Prefix-github-deploy"
+    $bootstrapRoleGlob = "arn:aws:iam::${AccountId}:role/${trim}/*"
+
+    $policy = [ordered]@{
+        Version   = "2012-10-17"
+        Statement = @(
+            @{
+                Sid      = "OIDCRead"
+                Effect   = "Allow"
+                Action   = @("iam:ListOpenIDConnectProviders", "iam:GetOpenIDConnectProvider")
+                Resource = "*"
+            },
+            @{
+                Sid      = "OIDCCreateIfMissing"
+                Effect   = "Allow"
+                Action   = "iam:CreateOpenIDConnectProvider"
+                Resource = "*"
+            },
+            @{
+                Sid       = "CreateBootstrapRoles"
+                Effect    = "Allow"
+                Action    = "iam:CreateRole"
+                Resource  = "*"
+                Condition = @{
+                    StringLike = @{
+                        "iam:RoleName" = "$Prefix-*"
+                    }
+                }
+            },
+            @{
+                Sid      = "MutateBootstrapRoles"
+                Effect   = "Allow"
+                Action   = @(
+                    "iam:GetRole", "iam:DeleteRole", "iam:AttachRolePolicy", "iam:DetachRolePolicy",
+                    "iam:ListAttachedRolePolicies", "iam:ListRolePolicies", "iam:UpdateAssumeRolePolicy",
+                    "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:GetRolePolicy", "iam:TagRole",
+                    "iam:UntagRole", "iam:PassRole"
+                )
+                Resource = @(
+                    $bootstrapRoleGlob,
+                    "arn:aws:iam::${AccountId}:role/${planRole}",
+                    "arn:aws:iam::${AccountId}:role/${applyRole}",
+                    "arn:aws:iam::${AccountId}:role/${deployRole}"
+                )
+            },
+            @{
+                Sid       = "CreateBootstrapGroups"
+                Effect    = "Allow"
+                Action    = "iam:CreateGroup"
+                Resource  = "*"
+                Condition = @{
+                    StringLike = @{ "iam:GroupName" = "$Prefix-*" }
+                }
+            },
+            @{
+                Sid      = "ReadBootstrapGroups"
+                Effect   = "Allow"
+                Action   = "iam:GetGroup"
+                Resource = "arn:aws:iam::${AccountId}:group/${Prefix}-*"
+            },
+            @{
+                Sid      = "S3TerraformStateBucket"
+                Effect   = "Allow"
+                Action   = @(
+                    "s3:CreateBucket", "s3:HeadBucket", "s3:PutBucketVersioning", "s3:PutBucketPublicAccessBlock",
+                    "s3:PutEncryptionConfiguration", "s3:GetBucketEncryption", "s3:GetBucketVersioning",
+                    "s3:GetBucketPublicAccessBlock", "s3:ListBucket"
+                )
+                Resource = @(
+                    "arn:aws:s3:::${bucketName}",
+                    "arn:aws:s3:::${bucketName}/*"
+                )
+            },
+            @{
+                Sid      = "DynamoTerraformLocks"
+                Effect   = "Allow"
+                Action   = @("dynamodb:CreateTable", "dynamodb:DescribeTable")
+                Resource = "arn:aws:dynamodb:${RegionName}:${AccountId}:table/${tableName}"
+            }
+        )
+    }
+
+    ($policy | ConvertTo-Json -Depth 10)
+}
+
+if (-not $PrintGitHubActionsRunnerPolicy) {
+    if (-not (Get-Command aws -ErrorAction SilentlyContinue)) {
+        Fail "Required command not found: aws"
+    }
 }
 
 Assert-Value -Value $Region -Message "Missing AWS region. Use -Region or set AWS_REGION."
 Assert-Value -Value $AccountId -Message "Missing AWS account id. Use -AccountId or set AWS_ACCOUNT_ID."
+
+if ($PrintGitHubActionsRunnerPolicy) {
+    Write-Output (Emit-GitHubActionsRunnerPolicy -AccountId $AccountId -RegionName $Region -Prefix $Prefix -BootstrapPath $BootstrapRolePath)
+    exit 0
+}
+
 Assert-Value -Value $GitHubRepository -Message "Missing GitHub repository. Use -GitHubRepository or set GITHUB_REPOSITORY."
 Assert-Value -Value $BootstrapAdminPrincipalArn -Message "Missing bootstrap admin principal ARN. Use -BootstrapAdminPrincipalArn or set BOOTSTRAP_ADMIN_PRINCIPAL_ARN."
+Assert-BootstrapAdminPrincipalArn -PrincipalArn $BootstrapAdminPrincipalArn -AccountId $AccountId
 
 Write-Info "Starting TF-0 AWS bootstrap (dry-run=$DryRun)"
 Write-RootGuardrails

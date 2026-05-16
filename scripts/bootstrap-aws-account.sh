@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_NAME="$(basename "$0")"
 DRY_RUN=false
+PRINT_GITHUB_ACTIONS_RUNNER_POLICY=false
 
 AWS_REGION="${AWS_REGION:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
@@ -27,6 +28,10 @@ Options:
                                     IAM principal allowed to assume bootstrap admin role.
   --prefix <name>                   Resource prefix (default: catalyst).
   --bootstrap-role-path <path>      IAM path for bootstrap admin role.
+  --print-github-actions-runner-policy
+                                    Print JSON IAM policy for the GitHub OIDC role that runs this
+                                    script in CI (stdout only). Requires --region and --account-id;
+                                    optional --prefix. Exits 0 without mutating AWS.
   -h, --help                        Show this help.
 EOF
 }
@@ -246,6 +251,10 @@ parse_args() {
         BOOTSTRAP_ROLE_PATH="${2:-}"
         shift 2
         ;;
+      --print-github-actions-runner-policy)
+        PRINT_GITHUB_ACTIONS_RUNNER_POLICY=true
+        shift
+        ;;
       -h|--help)
         usage
         exit 0
@@ -257,11 +266,148 @@ parse_args() {
   done
 }
 
-validate_inputs() {
+validate_runner_policy_inputs() {
   [[ -n "$AWS_REGION" ]] || fail "Missing AWS region. Use --region or set AWS_REGION."
   [[ -n "$AWS_ACCOUNT_ID" ]] || fail "Missing AWS account id. Use --account-id or set AWS_ACCOUNT_ID."
+}
+
+validate_inputs() {
+  validate_runner_policy_inputs
   [[ -n "$GITHUB_REPOSITORY" ]] || fail "Missing GitHub repository. Use --github-repository or set GITHUB_REPOSITORY."
   [[ -n "$BOOTSTRAP_ADMIN_PRINCIPAL_ARN" ]] || fail "Missing bootstrap admin principal ARN. Use --bootstrap-admin-principal-arn or set BOOTSTRAP_ADMIN_PRINCIPAL_ARN."
+  validate_bootstrap_admin_principal
+}
+
+validate_bootstrap_admin_principal() {
+  local principal_account=""
+  if [[ "$BOOTSTRAP_ADMIN_PRINCIPAL_ARN" =~ ^arn:aws:iam::([0-9]{12}):(root|user/|role/) ]]; then
+    principal_account="${BASH_REMATCH[1]}"
+  else
+    fail "BOOTSTRAP_ADMIN_PRINCIPAL_ARN must be an IAM ARN like arn:aws:iam::123456789012:root, .../role/Name, or .../user/Name."
+  fi
+
+  if [[ "$principal_account" == "123456789012" && "$AWS_ACCOUNT_ID" != "123456789012" ]]; then
+    fail "BOOTSTRAP_ADMIN_PRINCIPAL_ARN still uses the example account 123456789012 while AWS_ACCOUNT_ID is ${AWS_ACCOUNT_ID}. Set BOOTSTRAP_ADMIN_PRINCIPAL_ARN to a principal in this account (for example arn:aws:iam::${AWS_ACCOUNT_ID}:root for day-0 only, then replace with an admin role)."
+  fi
+
+  if [[ "$principal_account" != "$AWS_ACCOUNT_ID" ]]; then
+    warn "BOOTSTRAP_ADMIN_PRINCIPAL_ARN is in account ${principal_account} but AWS_ACCOUNT_ID is ${AWS_ACCOUNT_ID} (cross-account trust). Ensure this is intentional."
+  fi
+}
+
+emit_github_actions_runner_policy() {
+  local bucket_name="${CATALYST_PREFIX}-tf-state-${AWS_ACCOUNT_ID}-${AWS_REGION}"
+  local table_name="${CATALYST_PREFIX}-terraform-locks"
+  local plan_role="${CATALYST_PREFIX}-github-plan"
+  local apply_role="${CATALYST_PREFIX}-github-apply"
+  local deploy_role="${CATALYST_PREFIX}-github-deploy"
+  local path_trim="${BOOTSTRAP_ROLE_PATH#/}"
+  path_trim="${path_trim%/}"
+  local bootstrap_role_glob="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${path_trim}/*"
+
+  cat <<JSON
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "OIDCRead",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ListOpenIDConnectProviders",
+        "iam:GetOpenIDConnectProvider"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "OIDCCreateIfMissing",
+      "Effect": "Allow",
+      "Action": "iam:CreateOpenIDConnectProvider",
+      "Resource": "*"
+    },
+    {
+      "Sid": "CreateBootstrapRoles",
+      "Effect": "Allow",
+      "Action": "iam:CreateRole",
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "iam:RoleName": "${CATALYST_PREFIX}-*"
+        }
+      }
+    },
+    {
+      "Sid": "MutateBootstrapRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:DeleteRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListRolePolicies",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:PassRole"
+      ],
+      "Resource": [
+        "${bootstrap_role_glob}",
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${plan_role}",
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${apply_role}",
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${deploy_role}"
+      ]
+    },
+    {
+      "Sid": "CreateBootstrapGroups",
+      "Effect": "Allow",
+      "Action": "iam:CreateGroup",
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "iam:GroupName": "${CATALYST_PREFIX}-*"
+        }
+      }
+    },
+    {
+      "Sid": "ReadBootstrapGroups",
+      "Effect": "Allow",
+      "Action": "iam:GetGroup",
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:group/${CATALYST_PREFIX}-*"
+    },
+    {
+      "Sid": "S3TerraformStateBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:HeadBucket",
+        "s3:PutBucketVersioning",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:PutEncryptionConfiguration",
+        "s3:GetBucketEncryption",
+        "s3:GetBucketVersioning",
+        "s3:GetBucketPublicAccessBlock",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${bucket_name}",
+        "arn:aws:s3:::${bucket_name}/*"
+      ]
+    },
+    {
+      "Sid": "DynamoTerraformLocks",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:CreateTable",
+        "dynamodb:DescribeTable"
+      ],
+      "Resource": "arn:aws:dynamodb:${AWS_REGION}:${AWS_ACCOUNT_ID}:table/${table_name}"
+    }
+  ]
+}
+JSON
 }
 
 emit_root_guardrails() {
@@ -274,6 +420,13 @@ emit_root_guardrails() {
 
 main() {
   parse_args "$@"
+
+  if [[ "$PRINT_GITHUB_ACTIONS_RUNNER_POLICY" == "true" ]]; then
+    validate_runner_policy_inputs
+    emit_github_actions_runner_policy
+    exit 0
+  fi
+
   validate_inputs
 
   require_cmd aws
