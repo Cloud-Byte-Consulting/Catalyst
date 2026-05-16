@@ -47,7 +47,9 @@ resource "aws_networkfirewall_firewall_policy" "this" {
   name  = "${var.name_prefix}-fw-policy"
 
   firewall_policy {
-    stateful_default_actions = ["aws:drop_strict"]
+    stateless_default_actions          = ["aws:forward_to_sfe"]
+    stateless_fragment_default_actions = ["aws:forward_to_sfe"]
+    stateful_default_actions           = ["aws:drop_strict"]
 
     stateful_engine_options {
       rule_order = "STRICT_ORDER"
