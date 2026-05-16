@@ -204,7 +204,7 @@ function Ensure-BackendResources {
 function Ensure-GitHubOidcProvider {
     if ($DryRun) {
         Write-Info "Ensuring GitHub OIDC provider (dry-run)"
-        Invoke-BootstrapAws -Arguments @("iam", "create-open-id-connect-provider", "--url", "https://token.actions.githubusercontent.com", "--thumbprint-list", "6938fd4d98bab03faadb97b34396831e3780aea1", "--client-id-list", "sts.amazonaws.com") | Out-Null
+        Invoke-BootstrapAws -Arguments @("iam", "create-open-id-connect-provider", "--url", "https://token.actions.githubusercontent.com", "--thumbprint-list", "6938fd4d98bab03faadb97b34396831e3780aea1", "22ff89586561fc2d52f77491e9f1eff1b80be33e", "--client-id-list", "sts.amazonaws.com") | Out-Null
         return
     }
 
@@ -220,8 +220,10 @@ function Ensure-GitHubOidcProvider {
             $provider = Invoke-BootstrapAws -Arguments @("iam", "get-open-id-connect-provider", "--open-id-connect-provider-arn", $arn, "--query", "Url", "--output", "text")
             if ($provider.Success -and $provider.StdOut -eq "token.actions.githubusercontent.com") {
                 $clientIdCheck = Invoke-BootstrapAws -Arguments @("iam", "get-open-id-connect-provider", "--open-id-connect-provider-arn", $arn, "--query", "contains(ClientIDList, 'sts.amazonaws.com')", "--output", "text")
-                $thumbprintCheck = Invoke-BootstrapAws -Arguments @("iam", "get-open-id-connect-provider", "--open-id-connect-provider-arn", $arn, "--query", "contains(ThumbprintList, '6938fd4d98bab03faadb97b34396831e3780aea1')", "--output", "text")
-                if ($clientIdCheck.Success -and $thumbprintCheck.Success -and $clientIdCheck.StdOut -eq "True" -and $thumbprintCheck.StdOut -eq "True") {
+                $thumbprintLegacy = Invoke-BootstrapAws -Arguments @("iam", "get-open-id-connect-provider", "--open-id-connect-provider-arn", $arn, "--query", "contains(ThumbprintList, '6938fd4d98bab03faadb97b34396831e3780aea1')", "--output", "text")
+                $thumbprintModern = Invoke-BootstrapAws -Arguments @("iam", "get-open-id-connect-provider", "--open-id-connect-provider-arn", $arn, "--query", "contains(ThumbprintList, '22ff89586561fc2d52f77491e9f1eff1b80be33e')", "--output", "text")
+                $thumbprintOk = ($thumbprintLegacy.Success -and $thumbprintLegacy.StdOut -eq "True") -or ($thumbprintModern.Success -and $thumbprintModern.StdOut -eq "True")
+                if ($clientIdCheck.Success -and $clientIdCheck.StdOut -eq "True" -and $thumbprintOk) {
                     Write-Info "GitHub OIDC provider exists and matches expected configuration: $arn"
                     $providerExists = $true
                     break
@@ -234,7 +236,7 @@ function Ensure-GitHubOidcProvider {
     if ($providerExists) { return }
 
     Write-Info "Creating GitHub OIDC provider"
-    $create = Invoke-BootstrapAws -Arguments @("iam", "create-open-id-connect-provider", "--url", "https://token.actions.githubusercontent.com", "--thumbprint-list", "6938fd4d98bab03faadb97b34396831e3780aea1", "--client-id-list", "sts.amazonaws.com")
+    $create = Invoke-BootstrapAws -Arguments @("iam", "create-open-id-connect-provider", "--url", "https://token.actions.githubusercontent.com", "--thumbprint-list", "6938fd4d98bab03faadb97b34396831e3780aea1", "22ff89586561fc2d52f77491e9f1eff1b80be33e", "--client-id-list", "sts.amazonaws.com")
     if (-not $create.Success) {
         Fail "Failed creating GitHub OIDC provider: $($create.StdOut)"
     }

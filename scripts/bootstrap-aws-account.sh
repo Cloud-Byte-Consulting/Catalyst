@@ -174,7 +174,7 @@ ensure_github_oidc_provider() {
     log "Ensuring GitHub OIDC provider (dry-run)"
     run_cmd aws iam create-open-id-connect-provider \
       --url "https://token.actions.githubusercontent.com" \
-      --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1" \
+      --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1" "22ff89586561fc2d52f77491e9f1eff1b80be33e" \
       --client-id-list "sts.amazonaws.com"
     return 0
   fi
@@ -187,10 +187,12 @@ ensure_github_oidc_provider() {
       url="$(aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$arn" --query 'Url' --output text || true)"
       if [[ "$url" == "token.actions.githubusercontent.com" ]]; then
         local client_id_ok
-        local thumbprint_ok
+        local thumbprint_legacy_ok
+        local thumbprint_modern_ok
         client_id_ok="$(aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$arn" --query "contains(ClientIDList, 'sts.amazonaws.com')" --output text || true)"
-        thumbprint_ok="$(aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$arn" --query "contains(ThumbprintList, '6938fd4d98bab03faadb97b34396831e3780aea1')" --output text || true)"
-        if [[ "$client_id_ok" == "True" && "$thumbprint_ok" == "True" ]]; then
+        thumbprint_legacy_ok="$(aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$arn" --query "contains(ThumbprintList, '6938fd4d98bab03faadb97b34396831e3780aea1')" --output text || true)"
+        thumbprint_modern_ok="$(aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$arn" --query "contains(ThumbprintList, '22ff89586561fc2d52f77491e9f1eff1b80be33e')" --output text || true)"
+        if [[ "$client_id_ok" == "True" && ( "$thumbprint_legacy_ok" == "True" || "$thumbprint_modern_ok" == "True" ) ]]; then
           log "GitHub OIDC provider exists and matches expected configuration: $arn"
           return 0
         fi
@@ -202,7 +204,7 @@ ensure_github_oidc_provider() {
   log "Creating GitHub OIDC provider"
   run_cmd aws iam create-open-id-connect-provider \
     --url "https://token.actions.githubusercontent.com" \
-    --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1" \
+    --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1" "22ff89586561fc2d52f77491e9f1eff1b80be33e" \
     --client-id-list "sts.amazonaws.com"
 }
 
