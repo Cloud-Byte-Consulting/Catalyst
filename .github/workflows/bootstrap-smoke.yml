@@ -97,7 +97,7 @@ jobs:
       - name: Verify caller identity
         run: aws sts get-caller-identity
 
-      - name: Run bootstrap script (dry-run by default)
+      - name: Run bootstrap script (respects allow_live_changes)
         run: |
           if [[ "${{ inputs.allow_live_changes }}" == "true" ]]; then
             bash scripts/bootstrap-aws-account.sh
