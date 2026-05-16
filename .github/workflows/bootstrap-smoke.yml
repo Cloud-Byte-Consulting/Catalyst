@@ -39,7 +39,16 @@ jobs:
         run: bash -n scripts/bootstrap-aws-account.sh
 
       - name: Validate PowerShell syntax
-        run: pwsh -NoProfile -Command "[System.Management.Automation.Language.Parser]::ParseFile('scripts/bootstrap-aws-account.ps1',[ref]$null,[ref]$null) | Out-Null"
+        shell: pwsh
+        run: |
+          $path = Join-Path $env:GITHUB_WORKSPACE 'scripts/bootstrap-aws-account.ps1'
+          $tokens = $null
+          $errors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+          if ($errors) {
+            $errors | Format-List
+            exit 1
+          }
 
       - name: Install pytest
         run: pip install pytest
@@ -63,6 +72,20 @@ jobs:
       BOOTSTRAP_ROLE_PATH: ${{ vars.BOOTSTRAP_ROLE_PATH }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Require bootstrap repo variables
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -z "${{ vars.BOOTSTRAP_AWS_REGION }}" ] && missing+=("BOOTSTRAP_AWS_REGION")
+          [ -z "${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}" ] && missing+=("BOOTSTRAP_AWS_ACCOUNT_ID")
+          [ -z "${{ vars.BOOTSTRAP_GITHUB_REPOSITORY }}" ] && missing+=("BOOTSTRAP_GITHUB_REPOSITORY")
+          [ -z "${{ vars.BOOTSTRAP_ADMIN_PRINCIPAL_ARN }}" ] && missing+=("BOOTSTRAP_ADMIN_PRINCIPAL_ARN")
+          if [ "${#missing[@]}" -ne 0 ]; then
+            echo "::error::Missing required repository Actions variables: ${missing[*]}"
+            echo "Set them under Settings → Secrets and variables → Actions → Variables (repository scope)."
+            exit 1
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
