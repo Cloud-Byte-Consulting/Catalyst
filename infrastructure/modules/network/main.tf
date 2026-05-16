@@ -9,7 +9,7 @@ resource "aws_internet_gateway" "this" { vpc_id = aws_vpc.this.id }
 data "aws_region" "current" {}
 
 resource "aws_subnet" "public" {
-  for_each = { for idx, az in var.availability_zones : az => var.public_subnet_cidrs[idx] }
+  for_each                = { for idx, az in var.availability_zones : az => var.public_subnet_cidrs[idx] }
   vpc_id                  = aws_vpc.this.id
   cidr_block              = each.value
   availability_zone       = each.key
@@ -17,13 +17,16 @@ resource "aws_subnet" "public" {
 }
 
 resource "aws_subnet" "private" {
-  for_each = { for idx, az in var.availability_zones : az => var.private_subnet_cidrs[idx] }
+  for_each          = { for idx, az in var.availability_zones : az => var.private_subnet_cidrs[idx] }
   vpc_id            = aws_vpc.this.id
   cidr_block        = each.value
   availability_zone = each.key
 }
 
-resource "aws_eip" "nat" { for_each = aws_subnet.public domain = "vpc" }
+resource "aws_eip" "nat" {
+  for_each = aws_subnet.public
+  domain   = "vpc"
+}
 
 resource "aws_nat_gateway" "this" {
   for_each      = aws_subnet.public
@@ -62,14 +65,14 @@ resource "aws_route_table_association" "private" {
 
 resource "aws_vpc_endpoint" "dynamodb" {
   vpc_id            = aws_vpc.this.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.dynamodb"
+  service_name      = "com.amazonaws.${data.aws_region.current.region}.dynamodb"
   vpc_endpoint_type = "Gateway"
   route_table_ids   = [for rt in aws_route_table.private : rt.id]
 }
 
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.this.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  service_name      = "com.amazonaws.${data.aws_region.current.region}.s3"
   vpc_endpoint_type = "Gateway"
   route_table_ids   = [for rt in aws_route_table.private : rt.id]
 }

@@ -1,0 +1,106 @@
+name: bootstrap-smoke
+
+on:
+  pull_request:
+    branches: [release]
+    paths:
+      - scripts/bootstrap-aws-account.sh
+      - scripts/bootstrap-aws-account.ps1
+      - scripts/tests/**
+      - .github/workflows/bootstrap-smoke.yml
+  workflow_dispatch:
+    inputs:
+      run_aws_validation:
+        description: "Run AWS validation job (requires AWS role secret)"
+        required: false
+        type: boolean
+        default: false
+      allow_live_changes:
+        description: "Allow live account mutations (default is dry-run)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap-script-tests:
+    name: bootstrap-script-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate shell syntax
+        run: bash -n scripts/bootstrap-aws-account.sh
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          $path = Join-Path $env:GITHUB_WORKSPACE 'scripts/bootstrap-aws-account.ps1'
+          $tokens = $null
+          $errors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+          if ($errors) {
+            $errors | Format-List
+            exit 1
+          }
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run bootstrap smoke tests
+        run: pytest scripts/tests/test_bootstrap_scripts.py -v
+
+  aws-bootstrap-validation:
+    name: aws-bootstrap-validation
+    if: github.event_name == 'workflow_dispatch' && inputs.run_aws_validation
+    runs-on: ubuntu-latest
+    environment: Catalyst
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}
+      GITHUB_REPOSITORY: ${{ vars.BOOTSTRAP_GITHUB_REPOSITORY }}
+      BOOTSTRAP_ADMIN_PRINCIPAL_ARN: ${{ vars.BOOTSTRAP_ADMIN_PRINCIPAL_ARN }}
+      CATALYST_PREFIX: ${{ vars.BOOTSTRAP_CATALYST_PREFIX }}
+      BOOTSTRAP_ROLE_PATH: ${{ vars.BOOTSTRAP_ROLE_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require bootstrap variables (repo or Catalyst env)
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -z "${{ vars.BOOTSTRAP_AWS_REGION }}" ] && missing+=("BOOTSTRAP_AWS_REGION")
+          [ -z "${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}" ] && missing+=("BOOTSTRAP_AWS_ACCOUNT_ID")
+          [ -z "${{ vars.BOOTSTRAP_GITHUB_REPOSITORY }}" ] && missing+=("BOOTSTRAP_GITHUB_REPOSITORY")
+          [ -z "${{ vars.BOOTSTRAP_ADMIN_PRINCIPAL_ARN }}" ] && missing+=("BOOTSTRAP_ADMIN_PRINCIPAL_ARN")
+          if [ "${#missing[@]}" -ne 0 ]; then
+            echo "::error::Missing required Actions variables: ${missing[*]}"
+            echo "Define them on the Catalyst environment, or at repository scope (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.BOOTSTRAP_AWS_VALIDATION_ROLE_ARN }}
+          aws-region: ${{ vars.BOOTSTRAP_AWS_REGION }}
+
+      - name: Verify caller identity
+        run: aws sts get-caller-identity
+
+      - name: Run bootstrap script (respects allow_live_changes)
+        run: |
+          if [[ "${{ inputs.allow_live_changes }}" == "true" ]]; then
+            bash scripts/bootstrap-aws-account.sh
+          else
+            bash scripts/bootstrap-aws-account.sh --dry-run
+          fi
