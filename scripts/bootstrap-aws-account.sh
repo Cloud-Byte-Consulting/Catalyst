@@ -453,6 +453,7 @@ emit_github_actions_runner_policy() {
   local plan_role="${CATALYST_PREFIX}-github-plan"
   local apply_role="${CATALYST_PREFIX}-github-apply"
   local deploy_role="${CATALYST_PREFIX}-github-deploy"
+  local drift_role="${CATALYST_PREFIX}-github-drift"
   local path_trim="${BOOTSTRAP_ROLE_PATH#/}"
   path_trim="${path_trim%/}"
   local bootstrap_role_glob="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${path_trim}/*"
@@ -509,7 +510,8 @@ emit_github_actions_runner_policy() {
         "${bootstrap_role_glob}",
         "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${plan_role}",
         "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${apply_role}",
-        "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${deploy_role}"
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${deploy_role}",
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${drift_role}"
       ]
     },
     {
@@ -612,6 +614,7 @@ main() {
   local plan_role_name="${CATALYST_PREFIX}-github-plan"
   local apply_role_name="${CATALYST_PREFIX}-github-apply"
   local deploy_role_name="${CATALYST_PREFIX}-github-deploy"
+  local drift_role_name="${CATALYST_PREFIX}-github-drift"
 
   local bootstrap_trust_json
   bootstrap_trust_json="$(cat <<JSON
@@ -675,17 +678,23 @@ JSON
   local plan_trust_file=""
   local apply_trust_file=""
   local deploy_trust_file=""
+  local drift_trust_file=""
 
   if [[ "$DRY_RUN" != "true" ]]; then
     create_temp_file bootstrap_trust_file "$bootstrap_trust_json"
     create_temp_file plan_trust_file "$role_plan_trust_json"
     create_temp_file apply_trust_file "$role_release_trust_json"
     create_temp_file deploy_trust_file "$role_release_trust_json"
+    # Drift role currently shares the same release-ref trust as apply/deploy.
+    # Security hardening (env-scoped sub + job_workflow_ref condition) is
+    # tracked separately in #124 (CICD-11b).
+    create_temp_file drift_trust_file "$role_release_trust_json"
   else
     bootstrap_trust_file="/tmp/bootstrap-trust.json"
     plan_trust_file="/tmp/plan-trust.json"
     apply_trust_file="/tmp/apply-trust.json"
     deploy_trust_file="/tmp/deploy-trust.json"
+    drift_trust_file="/tmp/drift-trust.json"
   fi
 
   ensure_role_with_trust "$bootstrap_role_name" "$BOOTSTRAP_ROLE_PATH" "$bootstrap_trust_file"
@@ -698,10 +707,12 @@ JSON
   ensure_role_with_trust "$plan_role_name" "/" "$plan_trust_file"
   ensure_role_with_trust "$apply_role_name" "/" "$apply_trust_file"
   ensure_role_with_trust "$deploy_role_name" "/" "$deploy_trust_file"
+  ensure_role_with_trust "$drift_role_name" "/" "$drift_trust_file"
 
   ensure_role_policy_attachment "$plan_role_name" "arn:aws:iam::aws:policy/ReadOnlyAccess"
   ensure_role_policy_attachment "$apply_role_name" "arn:aws:iam::aws:policy/PowerUserAccess"
   ensure_role_policy_attachment "$deploy_role_name" "arn:aws:iam::aws:policy/PowerUserAccess"
+  ensure_role_policy_attachment "$drift_role_name" "arn:aws:iam::aws:policy/ReadOnlyAccess"
 
   # Attach the scoped IAM management inline policy to the apply role so
   # Terraform can create resources like the Lambda execution role under the
@@ -721,10 +732,11 @@ JSON
   ensure_group "${CATALYST_PREFIX}-breakglass"
 
   if [[ "$DRY_RUN" != "true" ]]; then
-    rm -f "$bootstrap_trust_file" "$plan_trust_file" "$apply_trust_file" "$deploy_trust_file"
+    rm -f "$bootstrap_trust_file" "$plan_trust_file" "$apply_trust_file" "$deploy_trust_file" "$drift_trust_file"
   fi
 
   log "Bootstrap complete."
+  log "Set the AWS_ROLE_DRIFT_ARN repo secret to: arn:aws:iam::${AWS_ACCOUNT_ID}:role/${drift_role_name}"
 }
 
 main "$@"
