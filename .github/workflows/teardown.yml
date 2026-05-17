@@ -1,0 +1,151 @@
+name: Teardown (Demo Cost-Save)
+# Destroys all Terraform-managed Catalyst resources on demand.
+# Bootstrap resources (IAM roles, OIDC provider, S3 state bucket,
+# DynamoDB lock table) are NOT destroyed — they cost $0 and let the
+# environment be re-provisioned with a single `terraform apply`.
+#
+# Safety:
+#   - Only triggers on workflow_dispatch. Never on push or schedule.
+#   - Requires the operator to type "destroy" as a confirmation input.
+#   - Uses the apply role (PowerUserAccess + CatalystApplyIAMScoped).
+#
+# To re-provision after teardown:
+#   gh workflow run terraform.yml --ref release
+#   (Then follow the day-1 sequence in docs/operator-bootstrap.md §Step 7)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: >
+          Type exactly "destroy" to confirm you want to tear down all
+          Terraform-managed resources (VPC, NAT, ECS, Lambda, ALB, ECR,
+          DynamoDB platform-state table). Bootstrap resources are preserved.
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+  id-token: write
+  # write needed by the post-destroy step that resets CATALYST_LAMBDA_IMAGE_SEEDED
+  actions: write
+
+# Prevent two simultaneous teardowns from racing a terraform destroy mid-run.
+concurrency:
+  group: teardown
+  cancel-in-progress: false
+
+jobs:
+  teardown:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+    # Guard: fail immediately if the operator did not type the magic word.
+    # This check runs before any AWS credential exchange.
+    if: ${{ github.event.inputs.confirmation == 'destroy' }}
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+      AWS_ACCOUNT_ID: ${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}
+      CATALYST_PREFIX: ${{ vars.BOOTSTRAP_CATALYST_PREFIX || 'catalyst' }}
+      TF_IN_AUTOMATION: 'true'
+      # Teardown with the last-known runtime variables so the plan is coherent.
+      TF_VAR_lambda_image_seeded: ${{ vars.CATALYST_LAMBDA_IMAGE_SEEDED || 'false' }}
+      CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22/32"]' }}
+
+    steps:
+      - name: Confirm operator intent
+        run: |
+          echo "::notice::Teardown confirmed by ${GITHUB_ACTOR} — destroying all Terraform-managed resources."
+          echo "Bootstrap resources (IAM roles, OIDC provider, S3 state bucket, DynamoDB lock) will be preserved."
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_APPLY_ARN }}
+          aws-region: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+
+      - name: Resolve backend bucket name
+        id: backend
+        run: |
+          if [ -z "${AWS_ACCOUNT_ID}" ]; then
+            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          fi
+          BUCKET="${CATALYST_PREFIX}-tf-state-${AWS_ACCOUNT_ID}-${AWS_REGION}"
+          echo "bucket=${BUCKET}" >> "$GITHUB_OUTPUT"
+          echo "Resolved backend bucket: ${BUCKET}"
+
+      - name: Normalize API ingress allowlist
+        run: |
+          python - <<'PY'
+          import ipaddress, json, os
+          raw = (os.environ.get("CATALYST_API_INGRESS_ALLOWLIST") or "").strip()
+          if not raw:
+              entries = []
+          else:
+              try:
+                  parsed = json.loads(raw)
+                  if not isinstance(parsed, list):
+                      raise ValueError("must be a JSON array")
+                  entries = [str(item).strip() for item in parsed]
+              except json.JSONDecodeError:
+                  entries = [p.strip() for p in raw.replace("\n", ",").split(",")]
+          normalized = []
+          for e in entries:
+              e = e.strip()
+              if not e:
+                  continue
+              normalized.append(e if "/" in e else e + "/32")
+          result = json.dumps(normalized)
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+              f.write(f"TF_VAR_alb_ingress_allowlist={result}\n")
+          print(f"TF_VAR_alb_ingress_allowlist={result}")
+          PY
+
+      - name: Terraform init
+        run: |
+          terraform -chdir=infrastructure init \
+            -backend-config="bucket=${{ steps.backend.outputs.bucket }}" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${CATALYST_PREFIX}-terraform-locks" \
+            -input=false
+
+      - name: Terraform destroy
+        run: |
+          terraform -chdir=infrastructure destroy -auto-approve -input=false
+
+      - name: Reset lambda image-seeded flag
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh variable set CATALYST_LAMBDA_IMAGE_SEEDED \
+            --repo "${{ github.repository }}" \
+            --body "false"
+          echo "::notice::CATALYST_LAMBDA_IMAGE_SEEDED reset to false. Run service-cd before next terraform apply."
+
+      - name: Teardown summary
+        if: success()
+        run: |
+          echo "## Teardown complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "All Terraform-managed resources have been destroyed." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Preserved (bootstrap tier — cost \$0):**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- IAM roles: \`${CATALYST_PREFIX}-github-{plan,apply,deploy,drift}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GitHub OIDC identity provider" >> "$GITHUB_STEP_SUMMARY"
+          echo "- S3 state bucket: \`${CATALYST_PREFIX}-tf-state-*\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- DynamoDB lock table: \`${CATALYST_PREFIX}-terraform-locks\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**To re-provision:** \`gh workflow run terraform.yml --ref release\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Then follow docs/operator-bootstrap.md §Step 7 for the full day-1 sequence." >> "$GITHUB_STEP_SUMMARY"

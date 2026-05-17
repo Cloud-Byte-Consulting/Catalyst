@@ -25,7 +25,7 @@ that the pipeline plans and applies — never a one-off script or console click.
 |---|---|---|---|
 | `pr-checks.yml` | `pull_request -> release` | Terraform fmt/validate, TFLint, tfsec, Checkov, Trivy, gitleaks, pytest with `--cov-fail-under=85` | none (read-only) |
 | `terraform.yml` | `pull_request -> release` and `push -> release` (paths `infrastructure/**`) + dispatch | Consolidated HashiCorp-style pipeline: `terraform init` (S3 backend + DynamoDB lock), `fmt -check`, `plan -lock=false` (sticky PR comment) on PRs, `apply -auto-approve` on release push | `AWS_ROLE_PLAN_ARN` for PR runs, `AWS_ROLE_APPLY_ARN` for release push (selected via `role-to-assume` expression on `github.event_name`) |
-| `tf-drift.yml` | cron `0 6 * * *` + dispatch | `plan -detailed-exitcode -lock=false`, SNS publish + auto-issue on exit code 2 | `AWS_ROLE_PLAN_ARN` |
+| `tf-drift.yml` | cron `0 6 * * *` + dispatch | `plan -detailed-exitcode -lock=false`, SNS publish + auto-issue on exit code 2 | `AWS_ROLE_DRIFT_ARN` |
 | `service-cd.yml` | `push -> release` (paths `services/catalyst-api/**`) + dispatch | Builds API image, pushes to ECR, deploys to **lambda** or **ecs** based on `RUNTIME` | `AWS_ROLE_DEPLOY_ARN` |
 | `bootstrap-smoke.yml` | `pull_request -> release` (paths `scripts/bootstrap-aws-account.*`) + dispatch | Bash/PowerShell syntax + pytest smoke; optional live AWS validation | `BOOTSTRAP_AWS_VALIDATION_ROLE_ARN` |
 | `validate-policies.yml` | `pull_request -> release` (paths `infrastructure/policy/opa/**`) | `conftest verify` against the OPA policy bundle | none |
@@ -40,6 +40,7 @@ Roles are provisioned by `scripts/bootstrap-aws-account.sh`:
 * `catalyst-github-plan` → `AWS_ROLE_PLAN_ARN` (subject `pull_request`, `ReadOnlyAccess`)
 * `catalyst-github-apply` → `AWS_ROLE_APPLY_ARN` (subject `ref:refs/heads/release`, `PowerUserAccess` + scoped inline `CatalystApplyIAMScoped` for `iam:*` against `catalyst-*` roles/policies, see ADR-008)
 * `catalyst-github-deploy` → `AWS_ROLE_DEPLOY_ARN` (subject `ref:refs/heads/release`, `PowerUserAccess`)
+* `catalyst-github-drift` → `AWS_ROLE_DRIFT_ARN` (subject `ref:refs/heads/release`, `ReadOnlyAccess`) — added in [CICD-11a #130](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/130). Scheduled `tf-drift.yml` uses this role because the plan role's `pull_request`-only subject does not match `schedule`/`workflow_dispatch` events. Security hardening tracked in [CICD-11b #124](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/124).
 
 Every AWS-touching workflow declares `permissions.id-token: write`, uses
 `aws-actions/configure-aws-credentials@v4`, and references the matching
@@ -82,6 +83,7 @@ The following secrets MUST be set at repository scope:
 | `AWS_ROLE_PLAN_ARN` | ARN of `catalyst-github-plan` role. |
 | `AWS_ROLE_APPLY_ARN` | ARN of `catalyst-github-apply` role. |
 | `AWS_ROLE_DEPLOY_ARN` | ARN of `catalyst-github-deploy` role. |
+| `AWS_ROLE_DRIFT_ARN` | ARN of `catalyst-github-drift` role. Required for scheduled `tf-drift.yml`. |
 | `DRIFT_SNS_TOPIC_ARN` | Optional. Topic notified by `tf-drift.yml` on drift. |
 
 ## Runtime selection in `service-cd`

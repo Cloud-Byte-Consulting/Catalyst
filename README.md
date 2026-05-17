@@ -27,9 +27,11 @@ table.
 1. Once per account, run the bootstrap script (or trigger
    `bootstrap-smoke.yml` with `run_aws_validation: true, allow_live_changes: true`).
    **New operator? Start here: [`docs/operator-bootstrap.md`](./docs/operator-bootstrap.md)** —
-   what to gather, where to get each value, and the full post-run secret/variable setup.
+   what to gather (AWS auth choice, account-id, admin principal ARN, region), where to get
+   each value, and the full post-run secret/variable setup with verification commands.
 2. Configure the `Catalyst` GitHub Actions environment with the variables and
-   secrets listed in `.github/workflows/README.md`.
+   secrets listed in [`.github/workflows/README.md`](./.github/workflows/README.md)
+   (the operator runbook in the previous step walks through this).
 3. Open a PR touching `infrastructure/**`; the `Terraform` job in `terraform.yml`
    runs `plan` automatically and sticky-comments the rendered plan.
 4. Merge to `release`; the same `terraform.yml` workflow runs `apply` against
