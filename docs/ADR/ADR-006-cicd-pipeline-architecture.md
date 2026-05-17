@@ -27,7 +27,7 @@ GitHub Actions with OIDC token exchange is the chosen substrate (established by 
 |---|---|---|
 | `terraform.yml` | PR opened / synchronized against `release`, AND push to `release` | Single HashiCorp-style consolidated pipeline. On PRs assumes the plan role and runs `init` + `fmt -check` + `plan` (sticky comment). On `push -> release` assumes the apply role and runs `apply -auto-approve`. `role-to-assume` selects between `AWS_ROLE_PLAN_ARN` and `AWS_ROLE_APPLY_ARN` based on `github.event_name` + `github.ref`. |
 | `service-cd.yml` | Push to `release` after `terraform.yml` apply succeeds, or manual dispatch | Build image → push ECR (`:${SHA}` always; `:latest` only when absent) → update Lambda (`update-function-code`) or ECS service (`update-service`) based on `RUNTIME` env var |
-| `tf-drift.yml` | Schedule: daily at 06:00 UTC | Run `terraform plan` in read-only mode (`-lock=false`, plan role); publish drift summary to SNS + open `state/pending` issue on exit code 2 |
+| `tf-drift.yml` | Schedule: daily at 06:00 UTC | Run `terraform plan` in read-only mode (`-lock=false`, drift role); publish drift summary to SNS + open `state/pending` issue on exit code 2 |
 
 > Earlier revisions of this ADR described `tf-plan.yml` + `tf-apply.yml` as a
 > two-workflow split with a GitHub Environment approval on apply. PR #115
@@ -84,8 +84,9 @@ Phase 2 **must not run on a fresh account** before Phase 1 has completed. `servi
 | `catalyst-github-plan` | `terraform plan` only — read permissions on all managed resources | `repo:Cloud-Byte-Consulting/Catalyst:pull_request` |
 | `catalyst-github-apply` | Full write on managed resources | `repo:Cloud-Byte-Consulting/Catalyst:ref:refs/heads/release` |
 | `catalyst-github-deploy` | ECR push + Lambda `update-function-code` (Lambda path) + ECS `register-task-definition` + `update-service` (ECS path) + SSM `GetParameter` | `repo:Cloud-Byte-Consulting/Catalyst:ref:refs/heads/release` |
+| `catalyst-github-drift` | `terraform plan` on schedule/dispatch — read-only (`ReadOnlyAccess` managed policy) | `repo:Cloud-Byte-Consulting/Catalyst:ref:refs/heads/release` |
 
-All three roles share the same OIDC identity provider (`token.actions.githubusercontent.com`), provisioned by `CICD-1` using the `modules/iam/` module from #7.
+All four roles share the same OIDC identity provider (`token.actions.githubusercontent.com`), provisioned by `scripts/bootstrap-aws-account.sh` (imperative bash; the `modules/iam/` Terraform module mirrors the same shape for test/documentation parity but is not the deployment vector). The drift role was added in CICD-11a (#130) because `schedule` and `workflow_dispatch` events emit `sub: ref:refs/heads/release`, which the plan role's `pull_request`-only sub rejects with `sts:AssumeRoleWithWebIdentity Not authorized`. Security hardening of the drift role (env-scoped sub, `job_workflow_ref` condition, explicit allow/deny IAM policy, GitHub Environment, env-scoped secret) is tracked in CICD-11b (#124).
 
 ### Manual approval gate (deferred)
 
