@@ -126,13 +126,20 @@ jobs:
 
       - name: Reset lambda image-seeded flag
         if: success()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh variable set CATALYST_LAMBDA_IMAGE_SEEDED \
-            --repo "${{ github.repository }}" \
-            --body "false"
-          echo "::notice::CATALYST_LAMBDA_IMAGE_SEEDED reset to false. Run service-cd before next terraform apply."
+          # GITHUB_TOKEN cannot set repo variables (HTTP 403 — platform limitation).
+          # This step uses continue-on-error so a 403 does not fail an otherwise
+          # successful destroy. If it fails, run the manual command below.
+          if gh variable set CATALYST_LAMBDA_IMAGE_SEEDED \
+               --repo "${{ github.repository }}" \
+               --body "false"; then
+            echo "::notice::CATALYST_LAMBDA_IMAGE_SEEDED reset to false."
+          else
+            echo "::warning::Could not reset CATALYST_LAMBDA_IMAGE_SEEDED automatically (GITHUB_TOKEN lacks repo-variable write access). Run manually: gh variable set CATALYST_LAMBDA_IMAGE_SEEDED --repo ${{ github.repository }} --body false"
+          fi
 
       - name: Teardown summary
         if: success()
