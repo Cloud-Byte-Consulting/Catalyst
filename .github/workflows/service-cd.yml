@@ -5,6 +5,13 @@ name: service-cd
 # created by tf-apply (root config in infrastructure/). This workflow only
 # builds the container image, pushes to ECR, and points the runtime (Lambda or
 # ECS service) at the new tag.
+#
+# Job split (CICD-5 / fix #68):
+#   build-and-push  — always runs; seeds :latest on first cold start.
+#   deploy          — needs build-and-push; gated on the runtime SSM param
+#                     existing. On first cold start (Lambda not yet
+#                     provisioned), Deploy logs the bootstrap dance instead
+#                     of failing so the next operator action is unambiguous.
 on:
   push:
     branches: [release]
@@ -26,24 +33,23 @@ env:
   AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
   RUNTIME: ${{ inputs.runtime || vars.RUNTIME || 'lambda' }}
 jobs:
-  deploy:
+  build-and-push:
+    # Always runs. Cannot abort the bootstrap seeding of ECR :latest because
+    # of a downstream gate — that was the root cause of the chicken-and-egg
+    # failure described in #68.
     runs-on: ubuntu-latest
+    outputs:
+      image-uri: ${{ steps.push.outputs.image-uri }}
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_DEPLOY_ARN }}
           aws-region: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
-      - name: Validate runtime prerequisites
-        run: |
-          if [ "${RUNTIME}" = "lambda" ]; then
-            aws ssm get-parameter --name /catalyst/shared/lambda/catalyst-api/arn >/dev/null
-          else
-            aws ssm get-parameter --name /catalyst/shared/ecs/cluster/arn >/dev/null
-          fi
       - name: Login ECR
         uses: aws-actions/amazon-ecr-login@v2
       - name: Build and push
+        id: push
         # ECR is IMMUTABLE, so `:${GITHUB_SHA}` is always a unique manifest.
         # We additionally push `:latest` the FIRST time only — the Lambda
         # module bootstraps with `image_uri = ${ECR}:latest`, so the tag has
@@ -63,22 +69,57 @@ jobs:
           else
             echo "${ECR_URI}:latest already exists; skipping bootstrap re-tag (ECR IMMUTABLE)"
           fi
-          echo "ECR_URI=${ECR_URI}:${GITHUB_SHA}" >> $GITHUB_ENV
-      - name: Deploy lambda
+          echo "image-uri=${ECR_URI}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_URI: ${{ needs.build-and-push.outputs.image-uri }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_DEPLOY_ARN }}
+          aws-region: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+      - name: Check Lambda runtime readiness
+        id: lambda-ready
         if: env.RUNTIME == 'lambda'
-        # Only updates if the Lambda already exists (lambda_image_seeded=true
-        # apply has run). On the very first service-cd run after the
-        # initial first-apply, the Lambda may not exist yet; the operator
-        # flips CATALYST_LAMBDA_IMAGE_SEEDED to "true", re-runs terraform.yml,
-        # and a subsequent service-cd push will then update the Lambda.
+        # First-cold-start safety net: if the Lambda function (and its SSM
+        # param) has not been provisioned yet, log the bootstrap dance
+        # instead of failing. The image has already been pushed to ECR by
+        # the previous job, so the operator can now flip
+        # CATALYST_LAMBDA_IMAGE_SEEDED=true and re-run terraform.yml.
         run: |
-          if aws lambda get-function --function-name catalyst-api >/dev/null 2>&1; then
-            aws lambda update-function-code --function-name catalyst-api --image-uri ${ECR_URI}
+          if aws ssm get-parameter --name /catalyst/shared/lambda/catalyst-api/arn >/dev/null 2>&1; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Lambda catalyst-api not yet created; image is now seeded in ECR. Flip CATALYST_LAMBDA_IMAGE_SEEDED=true and re-run terraform.yml to provision the function."
+            echo "Lambda not yet provisioned (SSM param /catalyst/shared/lambda/catalyst-api/arn missing)."
+            echo "Cold-start bootstrap dance:"
+            echo "  1. Image is now seeded in ECR (build-and-push step completed)."
+            echo "  2. Set repository variable CATALYST_LAMBDA_IMAGE_SEEDED=true."
+            echo "  3. Re-run terraform.yml on release to provision the Lambda function."
+            echo "  4. Re-run this workflow to update the Lambda with the latest image."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Deploy ecs
+      - name: Check ECS runtime readiness
+        id: ecs-ready
         if: env.RUNTIME == 'ecs'
+        run: |
+          if aws ssm get-parameter --name /catalyst/shared/ecs/cluster/arn >/dev/null 2>&1; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ECS cluster not yet provisioned (SSM param /catalyst/shared/ecs/cluster/arn missing)."
+            echo "Run terraform.yml on release to provision the cluster before deploying the service."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Deploy lambda
+        if: env.RUNTIME == 'lambda' && steps.lambda-ready.outputs.ready == 'true'
+        run: |
+          aws lambda update-function-code \
+            --function-name catalyst-api \
+            --image-uri "${IMAGE_URI}"
+      - name: Deploy ecs
+        if: env.RUNTIME == 'ecs' && steps.ecs-ready.outputs.ready == 'true'
         run: |
           CLUSTER=$(aws ssm get-parameter --name /catalyst/shared/ecs/cluster/arn --query Parameter.Value --output text)
           SERVICE=$(aws ssm get-parameter --name /catalyst/shared/ecs/service/name --query Parameter.Value --output text)
