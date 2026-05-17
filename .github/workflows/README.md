@@ -25,11 +25,12 @@ that the pipeline plans and applies — never a one-off script or console click.
 |---|---|---|---|
 | `pr-checks.yml` | `pull_request -> release` | Terraform fmt/validate, TFLint, tfsec, Checkov, Trivy, gitleaks, pytest with `--cov-fail-under=85` | none (read-only) |
 | `terraform.yml` | `pull_request -> release` and `push -> release` (paths `infrastructure/**`) + dispatch | Consolidated HashiCorp-style pipeline: `terraform init` (S3 backend + DynamoDB lock), `fmt -check`, `plan -lock=false` (sticky PR comment) on PRs, `apply -auto-approve` on release push | `AWS_ROLE_PLAN_ARN` for PR runs, `AWS_ROLE_APPLY_ARN` for release push (selected via `role-to-assume` expression on `github.event_name`) |
-| `tf-drift.yml` | cron `0 6 * * *` + dispatch | `plan -detailed-exitcode -lock=false`, SNS publish + auto-issue on exit code 2 | `AWS_ROLE_PLAN_ARN` |
+| `tf-drift.yml` | cron `0 6 * * *` + dispatch | `plan -detailed-exitcode -lock=false`, SNS publish + auto-issue on exit code 2 | `AWS_ROLE_DRIFT_ARN` |
 | `service-cd.yml` | `push -> release` (paths `services/catalyst-api/**`) + dispatch | Builds API image, pushes to ECR, deploys to **lambda** or **ecs** based on `RUNTIME` | `AWS_ROLE_DEPLOY_ARN` |
 | `bootstrap-smoke.yml` | `pull_request -> release` (paths `scripts/bootstrap-aws-account.*`) + dispatch | Bash/PowerShell syntax + pytest smoke; optional live AWS validation | `BOOTSTRAP_AWS_VALIDATION_ROLE_ARN` |
 | `validate-policies.yml` | `pull_request -> release` (paths `infrastructure/policy/opa/**`) | `conftest verify` against the OPA policy bundle | none |
 | `ci-smoke.yml` | `pull_request -> release` (paths `.github/**`) + dispatch | Workflow-level smoke: `actionlint`, structural validator, optional STS GetCallerIdentity | optional `AWS_ROLE_PLAN_ARN` |
+| `teardown.yml` | `workflow_dispatch` only (never push/schedule) | Destroy all Terraform-managed resources on demand. Requires confirmation input `"destroy"`. Preserves bootstrap tier (IAM roles, OIDC provider, S3 state, DynamoDB lock). Resets `CATALYST_LAMBDA_IMAGE_SEEDED` to `false` on success. | `AWS_ROLE_APPLY_ARN` |
 
 ## OIDC role mapping
 
