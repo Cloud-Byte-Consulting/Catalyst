@@ -26,6 +26,8 @@ table.
 
 1. Once per account, run the bootstrap script (or trigger
    `bootstrap-smoke.yml` with `run_aws_validation: true, allow_live_changes: true`).
+   **New operator? Start here: [`docs/operator-bootstrap.md`](./docs/operator-bootstrap.md)** —
+   what to gather, where to get each value, and the full post-run secret/variable setup.
 2. Configure the `Catalyst` GitHub Actions environment with the variables and
    secrets listed in `.github/workflows/README.md`.
 3. Open a PR touching `infrastructure/**`; the `Terraform` job in `terraform.yml`
@@ -78,6 +80,12 @@ Resolution order per setting: explicit env var → SSM parameter (`CATALYST_*_PA
 Scoped RBAC groups use `catalyst-{tenant}--{project}--{role}` to avoid tenant/project
 parsing ambiguity. Migration notes and backward-compatibility behavior are documented in
 `docs/migrations/2026-05-15-rbac-scoped-group-delimiter.md`.
+
+## Demo cost management
+
+The Catalyst demo environment auto-destructs nightly at 22:00 UTC Mon–Fri via `teardown-scheduled.yml`. All Terraform-managed resources (VPC, NAT, ECS, Lambda, ALB, ECR, DynamoDB) are destroyed; bootstrap resources (IAM, OIDC provider, S3 state, DynamoDB lock) are preserved.
+
+To rebuild after teardown or to trigger teardown on demand, see **[`docs/teardown.md`](./docs/teardown.md)**.
 
 ## Decision records
 

@@ -1,0 +1,166 @@
+name: Teardown Scheduled (Demo Cost-Save)
+# Automatically destroys all Terraform-managed Catalyst resources at end of day
+# so the demo environment does not accrue costs overnight or on weekends.
+#
+# Runs on a cron schedule (Mon–Fri 22:00 UTC) and is also dispatchable on
+# demand via workflow_dispatch — no confirmation input required since this path
+# is designed for automation.
+#
+# Bootstrap resources (IAM roles, OIDC provider, S3 state bucket, DynamoDB
+# lock table) are NOT in Terraform state and therefore survive intact. The
+# state file is left empty after destroy so the next `terraform apply` via
+# terraform.yml provisions everything from a clean baseline.
+#
+# Rebuild after teardown:
+#   gh workflow run terraform.yml --ref release
+#   (Follow docs/teardown.md for the full re-provisioning sequence)
+#
+# To adjust the schedule without a code change, override TEARDOWN_CRON_SCHEDULE
+# as a GitHub Actions repository variable (format: standard cron expression).
+# Default: 0 22 * * 1-5  (22:00 UTC Mon–Fri)
+
+on:
+  schedule:
+    - cron: '0 22 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write   # required for the post-destroy variable reset step
+
+# Prevent two simultaneous teardowns from racing terraform destroy mid-run.
+concurrency:
+  group: teardown
+  cancel-in-progress: false
+
+jobs:
+  teardown:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      AWS_REGION: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+      AWS_ACCOUNT_ID: ${{ vars.BOOTSTRAP_AWS_ACCOUNT_ID }}
+      CATALYST_PREFIX: ${{ vars.BOOTSTRAP_CATALYST_PREFIX || 'catalyst' }}
+      TF_IN_AUTOMATION: 'true'
+      TF_VAR_lambda_image_seeded: ${{ vars.CATALYST_LAMBDA_IMAGE_SEEDED || 'false' }}
+      CATALYST_API_INGRESS_ALLOWLIST: ${{ vars.CATALYST_API_INGRESS_ALLOWLIST || '["73.239.59.22/32"]' }}
+
+    steps:
+      - name: Log teardown intent
+        run: |
+          echo "::notice::Scheduled teardown started — triggered by: ${{ github.event_name }} | run: ${{ github.run_id }} | sha: ${{ github.sha }}"
+          echo "Bootstrap resources (IAM roles, OIDC provider, S3 state, DynamoDB lock) will be preserved."
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_APPLY_ARN }}
+          aws-region: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
+
+      - name: Resolve backend bucket name
+        id: backend
+        run: |
+          if [ -z "${AWS_ACCOUNT_ID}" ]; then
+            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          fi
+          BUCKET="${CATALYST_PREFIX}-tf-state-${AWS_ACCOUNT_ID}-${AWS_REGION}"
+          echo "bucket=${BUCKET}" >> "$GITHUB_OUTPUT"
+          echo "Resolved backend bucket: ${BUCKET}"
+
+      - name: Normalize API ingress allowlist
+        run: |
+          python - <<'PY'
+          import json, os
+          raw = (os.environ.get("CATALYST_API_INGRESS_ALLOWLIST") or "").strip()
+          if not raw:
+              entries = []
+          else:
+              try:
+                  parsed = json.loads(raw)
+                  if not isinstance(parsed, list):
+                      raise ValueError("must be a JSON array")
+                  entries = [str(item).strip() for item in parsed]
+              except json.JSONDecodeError:
+                  entries = [p.strip() for p in raw.replace("\n", ",").split(",")]
+          normalized = []
+          for e in entries:
+              e = e.strip()
+              if not e:
+                  continue
+              normalized.append(e if "/" in e else e + "/32")
+          result = json.dumps(normalized)
+          with open(os.environ["GITHUB_ENV"], "a") as f:
+              f.write(f"TF_VAR_alb_ingress_allowlist={result}\n")
+          print(f"TF_VAR_alb_ingress_allowlist={result}")
+          PY
+
+      - name: Terraform init
+        run: |
+          terraform -chdir=infrastructure init \
+            -backend-config="bucket=${{ steps.backend.outputs.bucket }}" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${CATALYST_PREFIX}-terraform-locks" \
+            -input=false
+
+      - name: Pre-destroy manifest
+        run: |
+          echo "## Resources targeted for destruction" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          terraform -chdir=infrastructure state list 2>/dev/null \
+            || echo "(state is already empty — idempotent no-op run)"
+          terraform -chdir=infrastructure state list 2>/dev/null \
+            >> "$GITHUB_STEP_SUMMARY" \
+            || echo "(state is already empty — idempotent no-op run)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Terraform destroy
+        run: |
+          terraform -chdir=infrastructure destroy -auto-approve -input=false
+
+      - name: Reset lambda image-seeded flag
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh variable set CATALYST_LAMBDA_IMAGE_SEEDED \
+            --repo "${{ github.repository }}" \
+            --body "false"
+          echo "::notice::CATALYST_LAMBDA_IMAGE_SEEDED reset to false."
+
+      - name: Teardown summary
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          echo "## Teardown result: ${STATUS}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${STATUS}" = "success" ]; then
+            echo "All Terraform-managed resources destroyed. State file is empty." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Preserved (bootstrap tier — cost \$0):**" >> "$GITHUB_STEP_SUMMARY"
+            echo "- IAM roles: \`${CATALYST_PREFIX}-github-{plan,apply,deploy,drift}\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- GitHub OIDC identity provider" >> "$GITHUB_STEP_SUMMARY"
+            echo "- S3 state bucket: \`${CATALYST_PREFIX}-tf-state-*\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- DynamoDB lock table: \`${CATALYST_PREFIX}-terraform-locks\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**To rebuild:** \`gh workflow run terraform.yml --ref release\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "See [docs/teardown.md](../../docs/teardown.md) for the full re-provisioning sequence." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Teardown did not complete cleanly. Check the logs above." >> "$GITHUB_STEP_SUMMARY"
+            echo "Partial destroy may leave the state file in an inconsistent state." >> "$GITHUB_STEP_SUMMARY"
+            echo "Run \`terraform plan\` to assess current state before retrying." >> "$GITHUB_STEP_SUMMARY"
+          fi
