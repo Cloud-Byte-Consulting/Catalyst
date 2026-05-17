@@ -83,6 +83,12 @@ Scoped RBAC groups use `catalyst-{tenant}--{project}--{role}` to avoid tenant/pr
 parsing ambiguity. Migration notes and backward-compatibility behavior are documented in
 `docs/migrations/2026-05-15-rbac-scoped-group-delimiter.md`.
 
+## Demo cost management
+
+The Catalyst demo environment auto-destructs nightly at 22:00 UTC Mon–Fri via `teardown-scheduled.yml`. All Terraform-managed resources (VPC, NAT, ECS, Lambda, ALB, ECR, DynamoDB) are destroyed; bootstrap resources (IAM, OIDC provider, S3 state, DynamoDB lock) are preserved.
+
+To rebuild after teardown or to trigger teardown on demand, see **[`docs/teardown.md`](./docs/teardown.md)**.
+
 ## Decision records
 
 Use `DECISIONS.md` as a pointer to canonical ADRs in `docs/ADR/`.
