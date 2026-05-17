@@ -27,7 +27,11 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_PLAN_ARN }}
+          # CICD-11a (#130): drift uses its own role because the plan role's
+          # OIDC trust sub matches `pull_request` only; scheduled/dispatched
+          # runs emit `ref:refs/heads/release`. Security hardening (env-scoped
+          # sub + job_workflow_ref) is tracked in #124 (CICD-11b).
+          role-to-assume: ${{ secrets.AWS_ROLE_DRIFT_ARN }}
           aws-region: ${{ vars.BOOTSTRAP_AWS_REGION || 'us-east-1' }}
       - name: Resolve backend bucket name
         id: backend

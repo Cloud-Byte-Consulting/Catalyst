@@ -97,6 +97,10 @@ locals {
     plan   = "repo:${var.github_repository}:pull_request"
     apply  = "repo:${var.github_repository}:ref:refs/heads/release"
     deploy = "repo:${var.github_repository}:ref:refs/heads/release"
+    # CICD-11a (#130): drift role for scheduled tf-drift.yml runs. Uses the
+    # same ref-pinned sub as apply/deploy. Security hardening (env-scoped
+    # sub + job_workflow_ref) is tracked in #124 (CICD-11b).
+    drift = "repo:${var.github_repository}:ref:refs/heads/release"
   }
 
   scoped_group_map = {

@@ -37,8 +37,13 @@ run "iam_module_provisions_documented_groups" {
   }
 
   assert {
-    condition     = length(aws_iam_role.github) == 3
-    error_message = "expected three GitHub OIDC roles (plan/apply/deploy) per ADR-006"
+    condition     = length(aws_iam_role.github) == 4
+    error_message = "expected four GitHub OIDC roles (plan/apply/deploy/drift) per ADR-006 + CICD-11a (#130)"
+  }
+
+  assert {
+    condition     = aws_iam_role.github["drift"].name == "catalyst-github-drift"
+    error_message = "drift role must exist and follow catalyst-github-{role} naming"
   }
 }
 
