@@ -30,6 +30,7 @@ that the pipeline plans and applies — never a one-off script or console click.
 | `bootstrap-smoke.yml` | `pull_request -> release` (paths `scripts/bootstrap-aws-account.*`) + dispatch | Bash/PowerShell syntax + pytest smoke; optional live AWS validation | `BOOTSTRAP_AWS_VALIDATION_ROLE_ARN` |
 | `validate-policies.yml` | `pull_request -> release` (paths `infrastructure/policy/opa/**`) | `conftest verify` against the OPA policy bundle | none |
 | `ci-smoke.yml` | `pull_request -> release` (paths `.github/**`) + dispatch | Workflow-level smoke: `actionlint`, structural validator, optional STS GetCallerIdentity | optional `AWS_ROLE_PLAN_ARN` |
+| `teardown.yml` | `workflow_dispatch` only (never push/schedule) | Destroy all Terraform-managed resources on demand. Requires confirmation input `"destroy"`. Preserves bootstrap tier (IAM roles, OIDC provider, S3 state, DynamoDB lock). Resets `CATALYST_LAMBDA_IMAGE_SEEDED` to `false` on success. | `AWS_ROLE_APPLY_ARN` |
 
 ## OIDC role mapping
 
