@@ -125,7 +125,7 @@ def _call(method: str, path: str, *, json_body: dict | None = None) -> dict:
             # Auto-generate when AWS creds are available; surfaces a clear
             # error when they aren't, instead of silently sending no header.
             token = generate_presigned_sts_url()
-        # Header name MUST match `services/catalyst-api/catalyst/rbac.py:153`
+        # Header name MUST match `services/catalyst-api/catalyst/rbac.py:163`
         # (`x-catalyst-identity-url`). Earlier versions used a different
         # name (`X-Catalyst-Identity`); that was a bug — the API expects
         # the URL itself, not an opaque token, and the header name is
