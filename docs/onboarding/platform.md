@@ -164,6 +164,21 @@ On Windows, the equivalent is `scripts/bootstrap-aws-account.ps1`. The script ha
 
 `bootstrap-smoke.yml` runs on PRs touching `scripts/bootstrap-aws-account.*`. For live AWS validation, dispatch it manually with `run_aws_validation: true` and the `Catalyst` environment configured (see [`.github/workflows/bootstrap-smoke.yml:63`](../../.github/workflows/bootstrap-smoke.yml) — this is one of the only places we use the GitHub Environment binding; Terraform workflows MUST NOT per ADR-012).
 
+## Branch protection (`release`)
+
+`release` is GitOps-protected by Terraform via [`infrastructure/branch-protection/`](../../infrastructure/branch-protection/), which wraps the [`infrastructure/modules/github`](../../infrastructure/modules/github/) module on top of the `integrations/github` provider's `github_branch_protection` resource. The rule requires ≥ 1 approving review, dismissal of stale reviews on push, all canonical CI checks green (`python-tests`, `cli-tests`, `Analyze (python)`, `terraform-quality`, `Terraform`, `cursor-config`, `conftest`, `workflow-structure`), a branch that is up-to-date with `release`, no force pushes, no deletions, and `enforce_admins = true`. See [ADR-006](../ADR/ADR-006-cicd-pipeline-architecture.md) for why this gate matters.
+
+CI does **not** apply this root — it has its own sibling state key per [ADR-015](../ADR/ADR-015-terraform-state-partitioning.md). The operator applies it once:
+
+```bash
+cd infrastructure/branch-protection
+export GITHUB_TOKEN=<fine-grained PAT with Administration: write on the repo>
+terraform init -backend-config="bucket=<state-bucket-from-bootstrap>"
+terraform apply
+```
+
+Re-apply whenever the contract changes (e.g. when [#200](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/200) flips `actionlint` to required).
+
 ## After bootstrap completes — pipeline prerequisites checklist
 
 1. **Set repository variables:** `BOOTSTRAP_AWS_ACCOUNT_ID`, `BOOTSTRAP_AWS_REGION`, `BOOTSTRAP_GITHUB_REPOSITORY`, `BOOTSTRAP_ADMIN_PRINCIPAL_ARN`, optional `BOOTSTRAP_CATALYST_PREFIX`, `CATALYST_API_INGRESS_ALLOWLIST`.
