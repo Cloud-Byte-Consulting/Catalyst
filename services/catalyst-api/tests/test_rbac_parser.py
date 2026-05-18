@@ -40,19 +40,16 @@ def test_parses_modern_three_segment_scoped_form(
 @pytest.mark.parametrize(
     "group,expected",
     [
-        ("catalyst-cloud-byte-payments-viewers", ("cloud-byte-payments", "viewers"))
-        if False
-        else ("catalyst-acme-billing-viewers", ("acme", "billing")),
+        ("catalyst-acme-billing-viewers", ("acme", "billing")),
         ("catalyst-acme-billing-admins", ("acme", "billing")),
+        # Multi-hyphen tenant: rsplit("-", 1) takes everything-before-last-hyphen
+        # as the tenant. "cloud-byte" + "payments" + "viewers" parses cleanly.
+        ("catalyst-cloud-byte-payments-viewers", ("cloud-byte", "payments")),
     ],
 )
 def test_parses_legacy_three_segment_scoped_form(
     group: str, expected: tuple[str, str]
 ) -> None:
-    # The legacy form uses rsplit("-", 1) so multi-hyphen tenants are
-    # interpreted as ``tenant=<everything-but-last-segment>``. The test cases
-    # here intentionally use single-token tenants/projects to keep parity
-    # with how the legacy fixtures are actually populated in the API tests.
     assert _parse_scoped_group(group) == expected
 
 
