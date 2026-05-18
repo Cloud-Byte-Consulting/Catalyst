@@ -128,17 +128,19 @@ One final top-level comment on the PR. Includes:
 - Post-fix CI status snapshot (`gh pr checks <PR#>` output)
 - Explicit `Ready for human merge call.` line if no DEFERRED-ARCH, or `Awaiting human decision on N DEFERRED-ARCH thread(s) before merge.` if any
 
-### 7. Synchronize issue-state label
+### 7. Synchronize issue metadata
 
-The tracking issue's `state/*` label MUST reflect whether a PR is in flight. The triage skill is the right place to enforce this because triage happens with the PR open.
+Two pieces of issue metadata MUST be kept correct while a PR is in flight. Triage is the right place to enforce both because triage runs with the PR open and the branch known.
 
-| Situation | Required issue label |
+#### 7a. `state/*` label
+
+| Situation | Required label |
 |---|---|
 | PR open, no unresolved DEFERRED-ARCH threads | `state/agent-working` |
 | PR open, at least one DEFERRED-ARCH thread waiting on a human | `state/blocked-on-human` |
 | PR merged or closed | label set by the merge contract (`Closes #N` auto-closes the issue; no further label change) |
 
-NEVER leave an issue at `state/pending` if a PR exists for it — the open PR contradicts the "pending pickup" semantics of that label. Use:
+NEVER leave an issue at `state/pending` if a PR exists for it — the open PR contradicts the "pending pickup" semantics of that label.
 
 ```bash
 gh issue edit <issue#> --repo Cloud-Byte-Consulting/Catalyst \
@@ -147,6 +149,48 @@ gh issue edit <issue#> --repo Cloud-Byte-Consulting/Catalyst \
 ```
 
 If the issue lacks a `state/*` label entirely, add the appropriate one. If it carries both `state/pending` and one of the active states (drift from a previous triage), drop `state/pending`.
+
+#### 7b. Branch named on the tracking issue
+
+A reader opening the issue should be able to find the working branch without guessing the naming convention or clicking through to the PR. Two mechanisms exist; both are documented here because GitHub's native primitive only covers half the cases.
+
+**GitHub's native `linkedBranches` (Development panel)** — useful but limited:
+
+| When the branch is created via … | Behavior |
+|---|---|
+| `gh issue develop <issue#> --base release --name <branch>` | Branch + link created together. Appears in the Development panel automatically. **Preferred for new work.** |
+| `git switch -c <branch>` in an agent worktree | No link. The branch is on origin but the issue's `linkedBranches` collection stays empty. |
+| `gh pr create` referencing `Closes #N` | The PR is linked, the branch is **not**. Clicking through the PR shows the branch — indirect navigation. |
+
+The `createLinkedBranch` GraphQL mutation is a *create* operation, not a *link* operation — passing the oid + name of an existing branch returns `linkedBranch: null` (silent noop). There is no API to retroactively link an already-existing branch to an issue as of 2026-05-18; only the web UI's "Link a branch" dropdown does that, and it has no CLI/MCP equivalent.
+
+**Catalyst convention — Decision Log carries the branch name (always works):**
+
+Every Decision Log posted to a tracking issue MUST name the branch explicitly:
+
+```markdown
+**Contract:**
+- Branch from `origin/release` as `<branch-name>`
+- ...
+```
+
+This is the navigable artifact regardless of GitHub's Development-panel state. Triage verifies the branch name appears in *some* comment on the issue; if not (drift from an older convention or a branch renamed mid-flight), the skill posts a one-line clarifying comment:
+
+```bash
+ISSUE_NUM=<issue#>
+BRANCH=<branch-name>
+
+if ! gh issue view "$ISSUE_NUM" --repo Cloud-Byte-Consulting/Catalyst --json comments,body \
+     --jq ".body + \"\n\" + ([.comments[].body] | join(\"\n\"))" \
+     | grep -Fq "$BRANCH"; then
+  gh issue comment "$ISSUE_NUM" --repo Cloud-Byte-Consulting/Catalyst \
+    --body "Working branch: \`$BRANCH\` (PR: <pr-url>). Recorded by /pr-review-triage so the branch is discoverable from this issue."
+fi
+```
+
+**For future branches**, prefer `gh issue develop` upfront so both mechanisms light up — the branch lands in the Development panel AND the agent's Decision Log mentions it by name.
+
+After the PR merges and the branch is auto-deleted, both mechanisms decay gracefully: GitHub drops the linked-branch record automatically, and the Decision Log comment stays as a historical record of where the work happened.
 
 ### 8. Stop
 
@@ -160,7 +204,8 @@ The skill never:
 The skill always:
 - Pushes commits if any fixes applied
 - Leaves a single trail-end summary comment
-- Synchronizes the tracking issue's `state/*` label (step 7)
+- Synchronizes the tracking issue's `state/*` label (step 7a)
+- Ensures the working branch is named in the issue (step 7b) — `gh issue develop` upfront when possible, otherwise a Decision-Log-style comment
 - Reports back to the user with the merge readiness state
 
 ## Anti-patterns
