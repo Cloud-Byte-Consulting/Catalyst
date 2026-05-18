@@ -1,6 +1,6 @@
 # ADR-013 — Guided milestone orchestration from templates
 
-**Status**: Proposed · 2026-05-18
+**Status**: Accepted · 2026-05-18
 
 ## Context
 
@@ -130,7 +130,7 @@ Each template defines:
 |---|---|
 | `template_id` | Stable slug (e.g. `new-api-endpoint`, `new-service-module`) |
 | `title_pattern` | Issue title with `{construct_address}` / `{feature}` placeholders |
-| `labels` | Initial `type/*`, `state/pending`, tenant/env/project labels per [STATE-MACHINE.md](STATE-MACHINE.md) |
+| `labels` | Initial `type/*`, `state/pending`, plus all five construct-address anchors (`tenant/*`, `env/*`, `lz/*`, `project/*`, `app/*`) per [STATE-MACHINE.md](STATE-MACHINE.md) |
 | `body_sections` | Pre-filled `## Context`, `## Scope`, fenced `gherkin` AC skeleton |
 | `child_issues` | Optional checklist of follow-on issues (IaC, service, docs) |
 | `golden_path_hint` | When applicable, pointer to ADR-007 endpoint(s) |
@@ -155,7 +155,7 @@ gate 1). Board status follows ADR-001: `todo` → `in-progress` → `review` →
 | **2 — Issue creation** | Break work into trackable issues | Child issues with Context/Scope/Gherkin; dependencies via `Depends on #N` | Review issue set |
 | **3 — Intent validation** | Pre-implementation scope check | `intent-judge` MCP `validate_intent` (`.cursor/rules/intent-judge.mdc`); ACCEPT/REJECT on tracking issue | REJECT → revise scope or escalate human |
 | **4 — Implementation** | Agent execution per child issue | Commits; `state/agent-working`; model decision logs at material choices | `state/blocked-on-human` on scope/security surprises |
-| **5 — Validation** | Tests, policy, coverage | pytest `--cov-fail-under=85`; `terraform fmt/validate/test`; Checkov/OPA where IaC touched | CI green on PR |
+| **5 — Validation** | Tests, policy, coverage | `pr-checks.yml`: pytest `--cov-fail-under=85`; Terraform `fmt` + `validate`; TFLint; Checkov/Trivy (soft-fail); gitleaks. OPA via `validate-policies.yml` when `infrastructure/policy/opa/**` changes | Required checks green on PR |
 | **6 — Pre-PR peer review** | ADR-011 gate 5 | Sub-agent review on tracking issue; ACCEPT/REJECT table | All ACCEPT resolved |
 | **7 — Security review** | Secret scan + hardening | GitHub MCP `secret_protection` / `run_secret_scanning` (`.cursor/rules/github-secret-scanning.mdc`); Trivy/SBOM if container touched | Scan clean or documented exception |
 | **8 — PR creation** | Open linked PR | PR body: Context, Scope, Gherkin AC, Agent Decision Log, peer-review disposition, Verification | Human merge (not agent-merge) |
