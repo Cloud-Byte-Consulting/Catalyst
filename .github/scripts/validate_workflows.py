@@ -32,7 +32,7 @@ WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 
 OIDC_ROLE_SECRETS = {
     "terraform.yml": "AWS_ROLE_PLAN_ARN",
-    "tf-drift.yml": "AWS_ROLE_PLAN_ARN",
+    "tf-drift.yml": "AWS_ROLE_DRIFT_ARN",
     "service-cd.yml": "AWS_ROLE_DEPLOY_ARN",
 }
 
