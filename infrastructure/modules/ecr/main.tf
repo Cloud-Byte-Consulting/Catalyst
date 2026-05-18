@@ -13,6 +13,9 @@ variable "name" {
 resource "aws_ecr_repository" "this" {
   name                 = var.name
   image_tag_mutability = "IMMUTABLE"
+  # Required for terraform destroy to succeed when images are present.
+  # Safe because destroy is only triggered intentionally (teardown workflows).
+  force_delete = true
 
   image_scanning_configuration {
     scan_on_push = true
