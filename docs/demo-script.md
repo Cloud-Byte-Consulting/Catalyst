@@ -2,7 +2,7 @@
 
 Interview-panel walkthrough of Catalyst. Goal: prove this is a production-grade
 AWS Internal Developer Platform built by AI agents under a disciplined
-operating contract. Six minutes including 60 seconds of buffer.
+operating contract. Six minutes with a 0:45 closing buffer (5:15–6:00).
 
 ## Pre-demo checklist (5 min before)
 
@@ -20,10 +20,10 @@ aws elbv2 describe-target-health --target-group-arn $tgArn --query 'TargetHealth
 Open these tabs in order before starting:
 
 1. `https://github.com/Cloud-Byte-Consulting/Catalyst` (repo root)
-2. `https://github.com/Cloud-Byte-Consulting/Catalyst/blob/release/AGENTS.md`
+2. `https://github.com/Cloud-Byte-Consulting/Catalyst/blob/HEAD/AGENTS.md`
 3. `https://github.com/Cloud-Byte-Consulting/Catalyst/pull/147` (peer-review evidence)
 4. `https://github.com/Cloud-Byte-Consulting/Catalyst/actions` (CI runs)
-5. `https://github.com/Cloud-Byte-Consulting/Catalyst/blob/release/diagrams/control-plane.md`
+5. `https://github.com/Cloud-Byte-Consulting/Catalyst/blob/HEAD/diagrams/control-plane.md`
 6. Terminal with creds loaded
 
 ## 0:00 — 0:45 · What Catalyst is

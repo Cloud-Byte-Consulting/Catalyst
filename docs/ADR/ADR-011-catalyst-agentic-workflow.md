@@ -1,7 +1,6 @@
 # ADR-011 — Adopt a multi-gate agentic workflow contract for Catalyst delivery
 
 **Status**: Accepted · 2026-05-18
-**Related**: [ADR-001](ADR-001-github-issues-as-state-machine.md), [ADR-004](ADR-004-rlm-for-long-context-agent-tasks.md), [ADR-005](ADR-005-aws-agentic-platform-engineering.md), [ADR-006](ADR-006-cicd-pipeline-architecture.md), [STATE-MACHINE.md](STATE-MACHINE.md), [`AGENTS.md`](../../AGENTS.md), [`docs/ai-workflow-narrative.md`](../ai-workflow-narrative.md), [`docs/issue-execution-gherkin-workflow-2026-05-13.md`](../issue-execution-gherkin-workflow-2026-05-13.md)
 
 ## Context
 

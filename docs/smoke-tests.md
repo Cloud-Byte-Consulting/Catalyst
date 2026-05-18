@@ -86,7 +86,7 @@ awscurl --service execute-api --region us-east-1 "http://$albDns/v1/applications
 | `lambda get-function` returns `NoSuchEntity` | Terraform apply ran with `CATALYST_LAMBDA_IMAGE_SEEDED=false` and stopped before phase 2 | Re-check `gh variable list`; if false, set to true and re-run `terraform.yml` |
 | Target group state = `unused` | Lambda exists but not wired to ALB target group | Inspect `module.ecs_alb` resources in state; usually means a partial apply |
 | Target group state = `unhealthy` | Lambda is returning 5xx on the health check path | `aws logs tail /aws/lambda/catalyst-api --follow` |
-| HTTP request times out | Your IP isn't on `CATALYST_API_INGRESS_ALLOWLIST` | Add your `/32` to the variable and re-run terraform.yml |
+| HTTP request times out | Your IP isn't on `CATALYST_API_INGRESS_ALLOWLIST` | `gh variable set CATALYST_API_INGRESS_ALLOWLIST --repo Cloud-Byte-Consulting/Catalyst --body '["73.239.59.22/32","<your-ip>/32"]'` then `gh workflow run terraform.yml --ref release` |
 | HTTP returns 502 | Lambda cold-start error or handler exception | CloudWatch logs as above |
 | ECR `list-images` returns empty | `service-cd.yml` never built a real image | Trigger `service-cd.yml` with `runtime=lambda` |
 | DynamoDB table missing | Bootstrap was rolled back or never completed | Re-run `scripts/bootstrap-aws-account.sh` (idempotent) |
