@@ -31,6 +31,7 @@ All onboarding work tracks under the `type/onboarding` label (created 2026-05-18
 ## Related
 
 - [ADR-012](../ADR/ADR-012-onboarding-experience.md) — the architectural decision
+- [`docs/plans/onboarding-followup-plan.md`](../plans/onboarding-followup-plan.md) — sequenced execution plan for issues #166-#172 (the work that completes the onboarding surface)
 - [`docs/operator-bootstrap.md`](../operator-bootstrap.md) — canonical step-by-step bootstrap runbook (linked from Track A)
 - [`docs/smoke-tests.md`](../smoke-tests.md) — post-onboarding verification
 - [`.github/workflows/README.md`](../../.github/workflows/README.md) — variables + OIDC role mapping
