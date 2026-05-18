@@ -24,9 +24,7 @@ in ``conftest.py`` does NOT replace :func:`catalyst.onboard.provision_app`
 from __future__ import annotations
 
 import json
-import os
 import subprocess
-import uuid
 
 import pytest
 from fastapi.testclient import TestClient
