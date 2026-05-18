@@ -61,6 +61,8 @@ Reasoning: the AWS Groups library doesn't have a dedicated "subnet" shape, so we
 - Private-app subnet: `fillColor=#F0F8E6` (light green)
 - Private-data subnet: `fillColor=#FFFAEB` (light tan)
 
+**Audience-driven flattening.** When the audience does not need network detail (e.g. the application-layer view targets service developers, not network engineers), collapse the hierarchy into `AWS Cloud → resource` or `AWS Cloud → logical-group → resource`. Skip VPC / AZ / subnet groups in those views — they add noise without adding signal. `diagrams/application-layer.drawio` is the canonical example of this flattening: it uses `lambda-group` as a logical container rather than a network container.
+
 ### Connector conventions
 
 | Use | Style fragment |
@@ -87,10 +89,10 @@ All edges use `edgeStyle=orthogonalEdgeStyle` (right-angle routing) unless the d
 ### Page layout
 
 - Page size `1400 × 900` for the wide views (network, application)
-- Page size `1000 × 1200` for vertical-flow views (agentic workflow)
+- Page size `1200 × 1280` for vertical-flow views (agentic workflow — the canonical reference uses these dimensions; pages may extend to `1200 × 1400` when dense legends or worked-example callouts require it)
 - Title at `y=20`, subtitle at `y=60`, content starts at `y=100`
-- Legend block at the bottom (`y=820`, width 400)
-- AWS Cloud outer group sits at `x=180, y=100` with `width=1180, height=780` to leave room for an external caller on the left
+- Legend block at the bottom (`y=820` for wide views, `y=1180+` for vertical-flow), width matching the page minus the left/right margins
+- AWS Cloud outer group sits at `x=180, y=100` with `width=1180, height=780` to leave room for an external caller on the left (wide views only)
 
 ## Working shape style strings
 
@@ -134,7 +136,7 @@ Substitute `GROUPICON` (e.g. `group_vpc`, `group_az`, `group_security_group`, `g
 points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.GROUPICON;strokeColor=STROKE;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=STROKE;dashed=0;
 ```
 
-Containers MUST set `container=1` and `collapsible=0`. Set `dashed=1` on AZ groups for the AWS convention.
+Containers MUST set `container=1` and `collapsible=0`. Set `dashed=1` on AZ groups for the AWS convention. For containers representing an **alternative path** (e.g. the ECS Fargate runtime swap in `application-layer.drawio`), use `dashed=8 4` (long-dash) on the container outline — matching the long-dash edge style for alternative paths in the connector table — and reduce icon opacity inside the container with `opacity=70` so the alternative reads as "available but not active."
 
 ### Annotation panels (non-AWS-icon callouts)
 

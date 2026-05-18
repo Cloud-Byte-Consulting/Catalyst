@@ -45,7 +45,6 @@ Every diagram cites at least one ADR. Reverse index:
 | ADR-002 (Construct hierarchy) | `control-plane.md` (implicit) |
 | ADR-003 (Static + ephemeral envs) | `gitops.md` (implicit) |
 | ADR-004 (RLM scaffold) | `agentic-workflow.drawio` |
-| ADR-005 (Agentic platform engineering pattern) | `agentic-workflow.drawio` |
 | ADR-006 (CI/CD pipeline architecture) | `gitops.md`, `agentic-workflow.drawio` |
 | ADR-007 (Golden paths) | `application-layer.drawio` |
 | ADR-008 (RBAC + SigV4) | `application-layer.drawio` |
