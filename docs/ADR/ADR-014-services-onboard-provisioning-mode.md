@@ -66,14 +66,14 @@ Option B is **not dismissed**. It is filed as a deferred direction with an expli
 
 ### Negative / trade-offs
 
-- **Caller blocks 2–5 minutes.** Onboard becomes a long-running synchronous call. CLI clients ([`clients/catalyst-cli/`](../../clients/catalyst-cli/)) must extend their default request timeout for the `services onboard` command; the cap follows Lambda's 15-min ceiling and is documented in [`docs/onboarding/application.md`](../onboarding/application.md).
+- **Caller blocks 2–5 minutes.** Onboard becomes a long-running synchronous call. CLI clients ([`clients/catalyst-cli/`](../../clients/catalyst-cli/)) must extend their default request timeout for the `services onboard` command; the cap follows Lambda's 15-min ceiling. The CLI timeout-extension and the Lambda-cap note are to be documented in [`docs/onboarding/application.md`](../onboarding/application.md) as part of #167's implementation PR (not yet present in the runbook).
 - **No progress signal.** The caller sees nothing between request and response. If apply gets stuck at 10 minutes, the client cannot tell whether the system is healthy or hung until Lambda times out.
 - **Lambda 15-min cap is now a product constraint.** If the composite module grows (e.g. cross-region replication, multi-account vending), onboard runtime can approach the ceiling. The trip-wire below catches this before users do.
 - **Cold-start binary page-in.** First invocation after idle pays for paging the `terraform` binary into RAM. Acceptable today; mitigated by ADR-009's provisioned-concurrency option if it becomes a complaint.
 
 ### Deferred — Option B as v3
 
-Option B is filed as the planned next evolution. **Trip-wire metric:** if `POST /services/onboard` end-to-end runtime p95 exceeds **10 minutes over a rolling 30-day window**, open a v3 epic to ship the async pipeline. Source the metric from the Lambda invocation duration CloudWatch metric (`AWS/Lambda` → `Duration` → `FunctionName=catalyst-api`) filtered to the onboard handler via a structured-log subscription on the `correlation_id` / `endpoint=services_onboard` log field.
+Option B is filed as the planned next evolution. **Trip-wire metric:** if `POST /services/onboard` end-to-end runtime p95 exceeds **10 minutes over a rolling 30-day window**, open a v3 epic to ship the async pipeline. Implementation: the onboard handler emits a custom CloudWatch metric on each invocation via `PutMetricData` (namespace `Catalyst/Onboard`, metric `OnboardDuration`, dimensions `Endpoint=services_onboard` + `Result=success|failure`); a CloudWatch alarm on the `p95` statistic of that metric drives the trip-wire. The built-in `AWS/Lambda` `Duration` metric is function-scoped (not per-endpoint) and cannot be filtered post-hoc by log fields, so a handler-emitted custom metric is the right surface. CloudWatch Logs Insights over the structured onboard log lines is the secondary verification path.
 
 Threshold rationale: 10 minutes leaves 5 minutes of headroom under Lambda's 15-min hard cap — enough to ship v3 before user-visible timeouts. p95 over 30 days smooths out single noisy applies (e.g. a one-off VPC endpoint backfill) and catches sustained drift.
 
@@ -95,7 +95,7 @@ This deferred direction is **not** a commitment to ship Option B; it is the desi
 - The composite module from #168 MUST be invoked via the Terraform remote backend (S3 + DynamoDB lock) — never with local state.
 - Onboard responses MUST continue to honour the ADR-007 `idempotency_key` contract and return `X-Idempotent-Replay: true` on replay.
 - CLI default request timeout MUST be set to cover the Lambda 15-min ceiling (with a small margin) and MUST be documented at the call site.
-- Onboard handler MUST emit a structured log line with `endpoint=services_onboard` and `correlation_id=…` on entry and exit so the v3 trip-wire metric is computable without code changes later.
+- Onboard handler MUST emit a structured log line with `endpoint=services_onboard` and `correlation_id=…` on entry and exit, and MUST call `PutMetricData` once per invocation in namespace `Catalyst/Onboard` (metric `OnboardDuration`, unit `Milliseconds`, dimensions `Endpoint=services_onboard` + `Result=success|failure`) so the v3 trip-wire alarm is computable from a first-class metric — not from log filtering after the fact.
 
 ---
 
