@@ -163,6 +163,54 @@ gate 1). Board status follows ADR-001: `todo` → `in-progress` → `review` →
 **Terminal success**: parent issue records `pr_url`, `pr_merged=true`, children
 `state/done` where applicable, parent transitions to `state/done`.
 
+### Copilot / peer review triage (phase 8 adjunct)
+
+After a PR opens (phase 8) and CI runs (phase 5), GitHub Copilot and other
+automated reviewers may leave **inline review comments**. This step extends
+[ADR-011](ADR-011-catalyst-agentic-workflow.md) **gate 5** (pre-PR peer review —
+ACCEPT/REJECT disposition on the tracking issue) into post-open PR triage, and
+applies **gate 6** (secret scanning) when Copilot flags credential or security
+patterns.
+
+For **each** Copilot-authored inline comment on the PR:
+
+1. **Reply in-thread** on GitHub with a short disposition block:
+   - `Relevant?` **yes** or **no**
+   - If **yes**: what changed (commit SHA) or why the concern stands
+   - If **no**: rationale (e.g. diff-hunk false positive on `|` table syntax)
+2. **Classify** as **accept** (fix or doc update) or **reject** (no change).
+3. **Link the fix commit** when accepting (e.g. `4c698f9`).
+4. **Resolve the review thread** via GitHub API when disposition is complete:
+   `resolveReviewThread` GraphQL mutation on the `pullRequestReviewThread` id.
+5. **Post a summary** on the tracking issue (Decision Log or peer-review table)
+   when all threads are closed — satisfies gate 5 reconstructability.
+
+CLI / agent helpers:
+
+```bash
+# List Copilot inline comments on a PR
+gh api repos/Cloud-Byte-Consulting/Catalyst/pulls/<N>/comments --paginate \
+  | jq '.[] | select(.user.login=="Copilot")'
+
+# Reply in-thread (REST: in_reply_to = parent comment database id)
+gh api -X POST repos/Cloud-Byte-Consulting/Catalyst/pulls/<N>/comments \
+  -f body="**Relevant?** yes\n\nFixed in \`4c698f9\`." -F in_reply_to=<comment_id>
+
+# Resolve thread (GraphQL variable for threadId)
+gh api graphql -f query='mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }' \
+  -f id=PRRT_kw...
+```
+
+**Worked example — ADR-013 delivery ([PR #181](https://github.com/Cloud-Byte-Consulting/Catalyst/pull/181), [PR #182](https://github.com/Cloud-Byte-Consulting/Catalyst/pull/182)):**
+
+| PR | Role | Copilot threads | Disposition |
+|---|---|---:|---|
+| [#181](https://github.com/Cloud-Byte-Consulting/Catalyst/pull/181) | Superseded draft; closed without merge | 5 | 3 rejected (false-positive `||` table syntax in diff hunks); 2 accepted on successor #182 |
+| [#182](https://github.com/Cloud-Byte-Consulting/Catalyst/pull/182) | Merge target | 4 | 4 accepted — fixes in [`4c698f9`](https://github.com/Cloud-Byte-Consulting/Catalyst/commit/4c698f9): templates placeholder dir, full construct-address labels, phase-5 CI alignment, ADR status **Accepted** |
+
+All nine threads received in-thread replies and were resolved via
+`resolveReviewThread` as part of the ADR-013 milestone close-out.
+
 ### Context carry-forward
 
 Orchestration MUST preserve:
