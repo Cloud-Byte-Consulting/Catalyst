@@ -184,7 +184,13 @@ def test_environment_unknown_landing_zone_returns_422() -> None:
         "/orgs/cloud-byte/environments", json=payload, headers=_headers("catalyst-owners")
     )
     assert response.status_code == 422
-    assert "unknown landing zone" in response.json()["detail"]
+    # #61 harmonised the error body to ``{error, correlation_id, detail}``;
+    # the human-readable string lives under ``detail.detail`` now.
+    body = response.json()["detail"]
+    assert isinstance(body, dict)
+    assert body["error"] == "ValidationFailure"
+    assert "unknown landing zone" in body["detail"]
+    assert "correlation_id" in body
 
 
 def test_environment_rejects_unknown_extra_field() -> None:

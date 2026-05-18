@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
+from typing import Callable
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from mangum import Mangum
 from pydantic import ValidationError
 
 from .catalog import RESOURCE_CATALOG
 from .constructs import ConstructAddress
+from .errors import (
+    ResourceNotFound,
+    ValidationFailure,
+    to_http_exception,
+)
 from .models import (
     ApplicationCreateRequest,
     EnvironmentCreateRequest,
@@ -24,6 +31,8 @@ from .onboard import provision_app
 from .rbac import AccessContext, access_dependency, can_read_scope, require_write
 from .repository import Repository, get_repository
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="Catalyst API")
 
 
@@ -31,8 +40,45 @@ def repo_dependency() -> Repository:
     return get_repository()
 
 
-def _correlation_id() -> str:
-    return str(uuid.uuid4())
+# ---------------------------------------------------------------------------
+# Correlation-ID propagation (#61).
+#
+# Every handler shares a single ``correlation_id`` produced by the
+# :func:`correlation_id_dependency`. The id is taken from the
+# ``X-Correlation-ID`` request header if present (so the CLI / GitHub
+# Action can thread its own id through API calls) or minted as a fresh
+# UUIDv4 otherwise. The id lands in:
+#
+#   * Every success-path response body (``correlation_id`` field — already
+#     existed on most handlers; harmonised across all of them here)
+#   * Every error-path response body (via ``errors.to_http_exception``)
+#   * The ``X-Correlation-ID`` response header (so a CLI / curl client
+#     can grep CloudWatch without parsing the JSON body)
+#   * Every structured log line emitted by the wrapped handler
+#
+# A single id therefore threads the full request lifecycle: header in,
+# log lines mid-request, body + header out.
+# ---------------------------------------------------------------------------
+
+
+def correlation_id_dependency(
+    response: Response,
+    request: Request,
+    x_correlation_id: str | None = Header(default=None, alias="X-Correlation-ID"),
+) -> str:
+    """Return the per-request correlation id, generating one if missing.
+
+    Also sets the ``X-Correlation-ID`` response header so clients can
+    retrieve the id without parsing the JSON body — useful when the body
+    is a streaming or empty response.
+    """
+
+    correlation_id = x_correlation_id or str(uuid.uuid4())
+    response.headers["X-Correlation-ID"] = correlation_id
+    # Stash on request.state so handlers (and any future middleware) can
+    # log it without re-resolving the dependency.
+    request.state.correlation_id = correlation_id
+    return correlation_id
 
 
 def _idempotent_response(
@@ -48,26 +94,73 @@ def _idempotent_response(
     return payload
 
 
-def _parse_construct(value: str) -> ConstructAddress:
+def _parse_construct(value: str, correlation_id: str) -> ConstructAddress:
+    """Parse + validate a construct address, raising the canonical 422 on miss."""
+
     try:
         return ConstructAddress(value=value)
     except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise to_http_exception(
+            ValidationFailure(
+                "construct address must be tenant/env/lz/project/app",
+                context={"raw": value, "pydantic": str(exc)},
+            ),
+            correlation_id,
+        ) from exc
+
+
+def _safe_call(
+    correlation_id: str,
+    fn: Callable[..., object],
+    *args: object,
+    **kwargs: object,
+):
+    """Invoke ``fn(*args, **kwargs)`` inside the canonical error boundary.
+
+    Repository / boto3 failures are caught here, classified by
+    :func:`errors.to_http_exception`, and re-raised as ``HTTPException``
+    with the canonical ``{error, correlation_id, detail}`` body. All
+    handlers funnel AWS-side calls through this helper so the error
+    shape is uniform without sprinkling try/except across every
+    function body.
+    """
+
+    try:
+        return fn(*args, **kwargs)
+    except HTTPException:
+        # Don't double-wrap something the caller already shaped; pass through.
+        raise
+    except Exception as exc:  # noqa: BLE001 - boundary wrapper
+        logger.error(
+            "handler_boundary_error",
+            extra={
+                "correlation_id": correlation_id,
+                "fn": getattr(fn, "__name__", repr(fn)),
+                "error_class": type(exc).__name__,
+            },
+        )
+        raise to_http_exception(exc, correlation_id) from exc
 
 
 @app.get("/health")
-def health() -> dict:
-    return {"status": "ok"}
+def health(correlation_id: str = Depends(correlation_id_dependency)) -> dict:
+    """Liveness probe; never wrapped because it has no AWS-side dependency."""
+
+    return {"status": "ok", "correlation_id": correlation_id}
 
 
 @app.get("/catalog")
-def catalog(access: AccessContext = Depends(access_dependency)) -> dict:
+def catalog(
+    correlation_id: str = Depends(correlation_id_dependency),
+    access: AccessContext = Depends(access_dependency),
+) -> dict:
     return {
         "resources": [
             {"key": r.key, "category": r.category, "default_exposure": r.default_exposure}
             for r in RESOURCE_CATALOG
         ],
         "role": access.role,
+        "correlation_id": correlation_id,
     }
 
 
@@ -75,18 +168,24 @@ def catalog(access: AccessContext = Depends(access_dependency)) -> dict:
 def create_ou(
     tenant: str,
     request: OuCreateRequest,
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
     require_write(access, "tier1")
-    repo.append_org_record(tenant, "ous", request.name)
-    return {"tenant": tenant, "ou_name": request.name, "correlation_id": _correlation_id()}
+    _safe_call(correlation_id, repo.append_org_record, tenant, "ous", request.name)
+    return {
+        "tenant": tenant,
+        "ou_name": request.name,
+        "correlation_id": correlation_id,
+    }
 
 
 @app.post("/orgs/{tenant}/landing-zones")
 def create_landing_zone(
     tenant: str,
     request: LandingZoneCreateRequest,
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
@@ -98,7 +197,9 @@ def create_landing_zone(
     """
 
     require_write(access, "tier1")
-    repo.append_org_record(
+    _safe_call(
+        correlation_id,
+        repo.append_org_record,
         tenant,
         "landing_zones",
         request.name,
@@ -116,7 +217,7 @@ def create_landing_zone(
         "account_id": request.account_id,
         "compliance": request.compliance,
         "status": "provisioned",
-        "correlation_id": _correlation_id(),
+        "correlation_id": correlation_id,
     }
 
 
@@ -124,6 +225,7 @@ def create_landing_zone(
 def create_environment(
     tenant: str,
     request: EnvironmentCreateRequest,
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
@@ -136,14 +238,16 @@ def create_environment(
     """
 
     require_write(access, "tier1")
-    org = repo.get_organization(tenant)
+    org = _safe_call(correlation_id, repo.get_organization, tenant)
     known_lzs = {lz["name"] for lz in org.get("landing_zones", [])}
     if request.landing_zone not in known_lzs:
-        raise HTTPException(
-            status_code=422,
-            detail=f"unknown landing zone: {request.landing_zone}",
+        raise to_http_exception(
+            ValidationFailure(f"unknown landing zone: {request.landing_zone}"),
+            correlation_id,
         )
-    repo.append_org_record(
+    _safe_call(
+        correlation_id,
+        repo.append_org_record,
         tenant,
         "environments",
         request.name,
@@ -155,7 +259,7 @@ def create_environment(
         "environment_id": f"{tenant}/{request.landing_zone}/{request.name}",
         "landing_zone": request.landing_zone,
         "status": "provisioned",
-        "correlation_id": _correlation_id(),
+        "correlation_id": correlation_id,
     }
 
 
@@ -163,11 +267,14 @@ def create_environment(
 def create_application(
     tenant: str,
     request: ApplicationCreateRequest,
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
     require_write(access, "tier1")
-    repo.append_org_record(
+    _safe_call(
+        correlation_id,
+        repo.append_org_record,
         tenant,
         "applications",
         request.name,
@@ -177,25 +284,35 @@ def create_application(
         "tenant": tenant,
         "application": request.name,
         "project": request.project,
-        "correlation_id": _correlation_id(),
+        "correlation_id": correlation_id,
     }
 
 
 @app.get("/orgs/{tenant}")
 def get_org(
     tenant: str,
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
     if not can_read_scope(access, tenant):
-        raise HTTPException(status_code=403, detail="insufficient_permissions")
-    return {"tenant": tenant, "structure": repo.get_organization(tenant), "correlation_id": _correlation_id()}
+        raise to_http_exception(
+            HTTPException(status_code=403, detail="insufficient_permissions"),
+            correlation_id,
+        )
+    structure = _safe_call(correlation_id, repo.get_organization, tenant)
+    return {
+        "tenant": tenant,
+        "structure": structure,
+        "correlation_id": correlation_id,
+    }
 
 
 @app.post("/services/onboard")
 def onboard_service(
     request: ServiceOnboardRequest,
     response: Response,
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
@@ -212,16 +329,20 @@ def onboard_service(
     apply, replay returns the cached payload without re-invoking
     ``provision_app`` (so Terraform's own S3-state convergence is only
     exercised on the first call within the 24h idempotency window).
+
+    ``onboard.provision_app`` already implements the per-#61 boundary
+    contract internally (catching ``CalledProcessError`` / ``TimeoutExpired``
+    and raising ``HTTPException(500)`` with the correlation id). We
+    re-raise those untouched so the curated message survives.
     """
 
     require_write(access, "tier2")
-    construct = _parse_construct(request.construct_address)
-    cached = repo.get_idempotent(request.idempotency_key)
+    construct = _parse_construct(request.construct_address, correlation_id)
+    cached = _safe_call(correlation_id, repo.get_idempotent, request.idempotency_key)
     if cached is not None:
         response.headers["X-Idempotent-Replay"] = "true"
         return cached
-    repo.init_service(construct.value)
-    correlation_id = _correlation_id()
+    _safe_call(correlation_id, repo.init_service, construct.value)
     result = provision_app(
         construct.value,
         idempotency_key=request.idempotency_key,
@@ -247,20 +368,24 @@ def deploy_service(
     construct_address: str,
     request: ServiceDeployRequest,
     response: Response,
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
     require_write(access, "tier2")
-    construct = _parse_construct(construct_address)
-    if repo.get_service(construct.value) is None:
-        raise HTTPException(status_code=404, detail="service_not_found")
+    construct = _parse_construct(construct_address, correlation_id)
+    service = _safe_call(correlation_id, repo.get_service, construct.value)
+    if service is None:
+        raise to_http_exception(
+            ResourceNotFound("service_not_found"), correlation_id
+        )
     event = {"image_tag": request.image_tag, "at": repo.now().isoformat()}
-    repo.append_service_deployment(construct.value, event)
+    _safe_call(correlation_id, repo.append_service_deployment, construct.value, event)
     payload = {
         "construct_address": construct.value,
         "deployed_image_tag": request.image_tag,
         "deployment_status": "stabilizing",
-        "correlation_id": _correlation_id(),
+        "correlation_id": correlation_id,
     }
     return _idempotent_response(repo, request.idempotency_key, payload, response)
 
@@ -268,16 +393,22 @@ def deploy_service(
 @app.get("/services/{construct_address:path}")
 def service_status(
     construct_address: str,
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
-    construct = _parse_construct(construct_address)
+    construct = _parse_construct(construct_address, correlation_id)
     tenant, _, _, project, _ = construct.value.split("/")
     if not can_read_scope(access, tenant, project):
-        raise HTTPException(status_code=403, detail="insufficient_permissions")
-    service = repo.get_service(construct.value)
+        raise to_http_exception(
+            HTTPException(status_code=403, detail="insufficient_permissions"),
+            correlation_id,
+        )
+    service = _safe_call(correlation_id, repo.get_service, construct.value)
     if not service:
-        raise HTTPException(status_code=404, detail="service_not_found")
+        raise to_http_exception(
+            ResourceNotFound("service_not_found"), correlation_id
+        )
     deployments = service["deployments"]
     latest = deployments[-1] if deployments else None
     return {
@@ -285,7 +416,7 @@ def service_status(
         "current_image_tag": latest["image_tag"] if latest else "none",
         "running_task_count": 1 if latest else 0,
         "last_deploy_at": latest["at"] if latest else None,
-        "correlation_id": _correlation_id(),
+        "correlation_id": correlation_id,
     }
 
 
@@ -294,23 +425,29 @@ def service_config(
     construct_address: str,
     request: ServiceConfigRequest,
     response: Response,
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
     require_write(access, "tier2")
-    construct = _parse_construct(construct_address)
-    repo.update_service_config(construct.value, request.params)
+    construct = _parse_construct(construct_address, correlation_id)
+    _safe_call(
+        correlation_id, repo.update_service_config, construct.value, request.params
+    )
     payload = {
         "construct_address": construct.value,
         "ssm_path_prefix": f"/catalyst/{construct.value}/config/",
         "param_count": len(request.params),
-        "correlation_id": _correlation_id(),
+        "correlation_id": correlation_id,
     }
     return _idempotent_response(repo, request.idempotency_key, payload, response)
 
 
 @app.get("/iam/groups")
-def list_groups(access: AccessContext = Depends(access_dependency)) -> dict:
+def list_groups(
+    correlation_id: str = Depends(correlation_id_dependency),
+    access: AccessContext = Depends(access_dependency),
+) -> dict:
     return {
         "groups": [
             "catalyst-owners",
@@ -321,7 +458,7 @@ def list_groups(access: AccessContext = Depends(access_dependency)) -> dict:
             "catalyst-support-viewers",
             "catalyst-breakglass",
         ],
-        "correlation_id": _correlation_id(),
+        "correlation_id": correlation_id,
     }
 
 
@@ -330,19 +467,24 @@ def update_group_membership(
     group: str,
     user_arn: str = Header(...),
     action: str = Header(...),
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
     if access.role != "owner":
-        raise HTTPException(status_code=403, detail="insufficient_permissions")
-    repo.record_group_action(group, action, user_arn)
-    return {"group": group, "action": action, "correlation_id": _correlation_id()}
+        raise to_http_exception(
+            HTTPException(status_code=403, detail="insufficient_permissions"),
+            correlation_id,
+        )
+    _safe_call(correlation_id, repo.record_group_action, group, action, user_arn)
+    return {"group": group, "action": action, "correlation_id": correlation_id}
 
 
 @app.post("/products/deploy")
 def deploy_product(
     request: ProductDeploymentRequest,
     response: Response,
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
@@ -357,21 +499,28 @@ def deploy_product(
         resources=[r.key for r in RESOURCE_CATALOG],
         updated_at=now,
     )
-    repo.put_product(key, record.model_dump(mode="json"))
-    payload = {"product_instance": repo.get_product(key), "correlation_id": _correlation_id()}
+    _safe_call(correlation_id, repo.put_product, key, record.model_dump(mode="json"))
+    product = _safe_call(correlation_id, repo.get_product, key)
+    payload = {"product_instance": product, "correlation_id": correlation_id}
     return _idempotent_response(repo, request.idempotency_key, payload, response)
 
 
 @app.get("/products")
 def list_products(
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
+    records = _safe_call(correlation_id, repo.list_products)
     visible = []
-    for record in repo.list_products():
+    for record in records:
         if can_read_scope(access, record["tenant"], record["project"]):
             visible.append(record)
-    return {"instances": visible, "count": len(visible), "correlation_id": _correlation_id()}
+    return {
+        "instances": visible,
+        "count": len(visible),
+        "correlation_id": correlation_id,
+    }
 
 
 @app.get("/products/{tenant}/{project}/{app_name}")
@@ -379,16 +528,22 @@ def get_product(
     tenant: str,
     project: str,
     app_name: str,
+    correlation_id: str = Depends(correlation_id_dependency),
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
     if not can_read_scope(access, tenant, project):
-        raise HTTPException(status_code=403, detail="insufficient_permissions")
+        raise to_http_exception(
+            HTTPException(status_code=403, detail="insufficient_permissions"),
+            correlation_id,
+        )
     key = f"{tenant}/{project}/{app_name}"
-    record = repo.get_product(key)
+    record = _safe_call(correlation_id, repo.get_product, key)
     if record is None:
-        raise HTTPException(status_code=404, detail="product_not_found")
-    return {"product_instance": record, "correlation_id": _correlation_id()}
+        raise to_http_exception(
+            ResourceNotFound("product_not_found"), correlation_id
+        )
+    return {"product_instance": record, "correlation_id": correlation_id}
 
 
 handler = Mangum(app)
