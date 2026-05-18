@@ -92,7 +92,7 @@ This deferred direction is **not** a commitment to ship Option B; it is the desi
 ## Compliance
 
 - Synchronous Terraform execution MUST run as the existing Lambda execution role; no new principals introduced by this ADR.
-- The composite module from #168 MUST be invoked via the Terraform remote backend (S3 + DynamoDB lock) — never with local state.
+- The composite module from #168 MUST be invoked via the Terraform remote backend (S3 + DynamoDB lock) — never with local state. The backend `key` MUST follow the L4 convention in [ADR-015](ADR-015-terraform-state-partitioning.md) (`catalyst/tenants/{tenant}/environments/{env}/apps/{app}.tfstate`), generated at apply time via `-backend-config="key=…"`.
 - Onboard responses MUST continue to honour the ADR-007 `idempotency_key` contract and return `X-Idempotent-Replay: true` on replay.
 - CLI default request timeout MUST be set to cover the Lambda 15-min ceiling (with a small margin) and MUST be documented at the call site.
 - Onboard handler MUST emit a structured log line with `endpoint=services_onboard` and `correlation_id=…` on entry and exit, and MUST call `PutMetricData` once per invocation in namespace `Catalyst/Onboard` (metric `OnboardDuration`, unit `Milliseconds`, dimensions `Endpoint=services_onboard` + `Result=success|failure`) so the v3 trip-wire alarm is computable from a first-class metric — not from log filtering after the fact.
