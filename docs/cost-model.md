@@ -55,7 +55,7 @@ Net: ~$100/month for a stack carrying zero workload traffic. Across multiple dev
 | Demo Mon-Fri auto-teardown stack | `dev` | Idle weekends; gateway-only endpoints + NAT is enough for the demo's egress needs |
 | Operator sandbox / scratch environment | `dev` | Same reasoning; tear down via `docs/teardown.md` when finished |
 | Steady-state production | `prod` | Interface endpoints reduce Lambda cold-start latency and keep traffic off public NAT lanes when added |
-| HIPAA / regulated workload | `hipaa` | Adds Network Firewall per [ADR-010](./ADR/ADR-010-cell-architecture-and-egress-controls.md) |
+| HIPAA / regulated workload | `hipaa` | Adds Network Firewall per [ADR-010](./ADR/ADR-010-egress-control.md) |
 
 ## How `cost_tier` is wired
 
@@ -67,7 +67,7 @@ The comment block in [`modules/network/main.tf`](../infrastructure/modules/netwo
 
 ## Related
 
-- [ADR-010 — cell architecture and egress controls](./ADR/ADR-010-cell-architecture-and-egress-controls.md)
+- [ADR-010 — egress control for Catalyst workloads](./ADR/ADR-010-egress-control.md)
 - [ADR-012 §Notes — cost review for NAT/interface endpoints](./ADR/ADR-012-onboarding-experience.md)
 - [PR #151 — orphan-VPC cleanup](https://github.com/Cloud-Byte-Consulting/Catalyst/pull/151)
 - [Issue #170 — cost_tier kaizen](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/170)
