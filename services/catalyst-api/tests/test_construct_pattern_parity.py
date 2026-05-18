@@ -10,8 +10,8 @@ until somebody reports a confusing 422.
 
 This test fails loudly on drift. It deliberately AST-parses the CLI source
 (rather than importing the module) so that running the test does not pull in
-``knack``, ``requests``, or ``boto3``. The test only needs the regex literal,
-not the runtime behavior.
+``knack``, ``requests``, or ``boto3``. The test only needs the regex literal
+and flags expression, not the runtime behavior.
 
 Issue #172. Surfaced during peer review of PR #165 (peer-review suggestion #2).
 """
@@ -30,40 +30,120 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 CLI_SOURCE = REPO_ROOT / "clients" / "catalyst-cli" / "catalyst_cli.py"
 
 
-def _extract_cli_construct_re_pattern() -> str:
-    """Read the CLI source via AST and return the literal string passed to
-    ``re.compile`` for ``CONSTRUCT_RE``.
+def _is_re_compile_call(call_node: ast.AST) -> bool:
+    """True iff ``call_node`` is ``re.compile(...)`` specifically.
 
-    No CLI imports happen — we walk the AST and pull the first argument out
-    of the ``re.compile(...)`` call assigned to ``CONSTRUCT_RE``.
+    Tightened per Copilot review on PR #179: previously this checked only
+    that the RHS was *some* call with args, which would false-pass on a
+    wrapper like ``CONSTRUCT_RE = wrap(re.compile(r"..."))``. Now we
+    require ``re.compile(...)`` exactly.
     """
-    if not CLI_SOURCE.is_file():
-        pytest.skip(f"CLI source not present at {CLI_SOURCE} — running outside repo?")
-    tree = ast.parse(CLI_SOURCE.read_text(encoding="utf-8"))
+    if not isinstance(call_node, ast.Call):
+        return False
+    func = call_node.func
+    if not isinstance(func, ast.Attribute):
+        return False
+    if func.attr != "compile":
+        return False
+    if not isinstance(func.value, ast.Name) or func.value.id != "re":
+        return False
+    return True
+
+
+def _construct_re_value_node(tree: ast.AST) -> ast.Call:
+    """Return the ``re.compile(...)`` Call node assigned to ``CONSTRUCT_RE``.
+
+    Handles both ``CONSTRUCT_RE = re.compile(...)`` (Assign) and
+    ``CONSTRUCT_RE: re.Pattern[str] = re.compile(...)`` (AnnAssign) shapes.
+    Raises with a clear message if the constant has been renamed, moved,
+    or wrapped in a non-``re.compile`` callable.
+    """
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Assign):
+        targets: list[ast.expr]
+        value: ast.expr | None
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+            value = node.value
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+            value = node.value
+        else:
             continue
-        if not any(
-            isinstance(target, ast.Name) and target.id == "CONSTRUCT_RE"
-            for target in node.targets
-        ):
+        if not any(isinstance(t, ast.Name) and t.id == "CONSTRUCT_RE" for t in targets):
             continue
-        # Expect the value to be `re.compile("...")` — pull the first arg literal.
-        if not (isinstance(node.value, ast.Call) and node.value.args):
+        if value is None:
             raise AssertionError(
-                "CONSTRUCT_RE assignment found but its value is not re.compile(...) — "
-                "either the CLI changed shape or the parity test needs an update."
+                "CONSTRUCT_RE has a bare type annotation with no value — "
+                "the parity test cannot extract a regex source."
             )
-        try:
-            return ast.literal_eval(node.value.args[0])
-        except (ValueError, SyntaxError) as exc:
+        if not _is_re_compile_call(value):
             raise AssertionError(
-                f"CONSTRUCT_RE first arg is not a constant string: {exc}"
-            ) from exc
+                "CONSTRUCT_RE assignment found, but its value is not a direct "
+                "`re.compile(...)` call. The parity test relies on a direct call "
+                "so the regex source and flags can be extracted via AST. If the "
+                "CLI was intentionally restructured, update this parity test in "
+                "the same PR."
+            )
+        return value  # type: ignore[return-value]
     raise AssertionError(
         f"CONSTRUCT_RE assignment not found in {CLI_SOURCE}. If the constant was "
         "renamed or moved, update this parity test in the same PR."
     )
+
+
+def _extract_cli_construct_re_pattern() -> str:
+    """Return the literal string passed as ``re.compile(...)``'s first arg."""
+    if not CLI_SOURCE.is_file():
+        pytest.skip(f"CLI source not present at {CLI_SOURCE} — running outside repo?")
+    tree = ast.parse(CLI_SOURCE.read_text(encoding="utf-8"))
+    call = _construct_re_value_node(tree)
+    if not call.args:
+        raise AssertionError("CONSTRUCT_RE = re.compile() called with no arguments")
+    try:
+        return ast.literal_eval(call.args[0])
+    except (ValueError, SyntaxError) as exc:
+        raise AssertionError(
+            f"CONSTRUCT_RE first arg is not a constant string: {exc}"
+        ) from exc
+
+
+def _extract_cli_construct_re_flags() -> int:
+    """Return the resolved flags int passed to ``re.compile(...)``.
+
+    Handles ``re.compile(p, flags=re.IGNORECASE)``, ``re.compile(p,
+    re.IGNORECASE | re.MULTILINE)``, and the no-flags case (returns 0).
+    The flags expression is extracted as Python source via ``ast.unparse``
+    and evaluated in a sandboxed namespace exposing only ``re`` — repo-
+    controlled input, no untrusted strings.
+
+    Fixed per Copilot review on PR #179: previously this test re-compiled
+    the CLI pattern string with *default* flags, which would never catch
+    a CLI-only ``re.IGNORECASE`` divergence.
+    """
+    if not CLI_SOURCE.is_file():
+        pytest.skip(f"CLI source not present at {CLI_SOURCE} — running outside repo?")
+    tree = ast.parse(CLI_SOURCE.read_text(encoding="utf-8"))
+    call = _construct_re_value_node(tree)
+
+    flags_node: ast.expr | None = None
+    if len(call.args) >= 2:
+        flags_node = call.args[1]
+    else:
+        for kw in call.keywords:
+            if kw.arg == "flags":
+                flags_node = kw.value
+                break
+
+    if flags_node is None:
+        return 0
+
+    flags_src = ast.unparse(flags_node)
+    # Sandboxed eval — only ``re`` is in scope, no builtins. The expression
+    # comes from a file already version-controlled in this same repository,
+    # so the input is trust-equivalent to anything pytest would normally
+    # import. The sandbox limits what a hypothetical malicious value could
+    # reference at evaluation time.
+    return int(eval(flags_src, {"re": re, "__builtins__": {}}))  # noqa: S307
 
 
 def test_construct_regex_pattern_parity() -> None:
@@ -80,18 +160,28 @@ def test_construct_regex_pattern_parity() -> None:
 
 
 def test_construct_regex_flags_parity() -> None:
-    """Both regexes compile with the same flags (default — no IGNORECASE etc.).
+    """CLI and server compile their regex with the same flags.
 
-    A flag-only divergence would let the server accept inputs the CLI rejects
-    or vice versa, even when the source strings match. Defensive guard.
+    Flags-only divergence (e.g. CLI adds ``re.IGNORECASE`` while the server
+    stays default) would let the server reject inputs the CLI accepts, or
+    vice versa, even when the source strings match. This test extracts the
+    flags expression directly from the CLI AST so a unilateral flag change
+    is detected.
+
+    Both sides are run through ``re.compile`` so Python's implicit defaults
+    (e.g. ``re.UNICODE`` for ``str`` patterns) apply identically; only
+    *explicit* flag divergence between CLI source and server source surfaces.
     """
-    cli_pattern_str = _extract_cli_construct_re_pattern()
-    cli_compiled = re.compile(cli_pattern_str)
+    cli_pattern = _extract_cli_construct_re_pattern()
+    cli_explicit_flags = _extract_cli_construct_re_flags()
+    cli_compiled = re.compile(cli_pattern, cli_explicit_flags)
     assert cli_compiled.flags == CONSTRUCT_PATTERN.flags, (
-        f"Regex flags differ — CLI re-compile flags={cli_compiled.flags!r}, "
+        f"Regex flags differ — CLI explicit flags={cli_explicit_flags!r} "
+        f"(extracted from AST), runtime-resolved CLI flags={cli_compiled.flags!r}, "
         f"server CONSTRUCT_PATTERN.flags={CONSTRUCT_PATTERN.flags!r}. "
         "If one side intentionally uses re.IGNORECASE or similar, the parity "
-        "convention is broken."
+        "convention is broken — either update both sides or update this test "
+        "in the same PR."
     )
 
 
