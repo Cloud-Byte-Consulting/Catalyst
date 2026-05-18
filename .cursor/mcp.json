@@ -9,7 +9,6 @@
       "command": "python",
       "args": [".cursor/skills/aws-platform-engineering/aws_pe_mcp_server.py"],
       "env": {}
-<<<<<<< HEAD
     },
     "bedrock-binding": {
       "command": "python",
@@ -20,27 +19,14 @@
       "command": "python",
       "args": [".cursor/skills/intent-judge-shim/intent_judge_mcp_server.py"],
       "env": {}
-=======
-<<<<<<< HEAD
->>>>>>> origin/release
     },
     "github": {
       "type": "http",
       "url": "https://api.githubcopilot.com/mcp/",
       "headers": {
-<<<<<<< HEAD
         "X-MCP-Toolsets": "secret_protection",
         "X-MCP-Tools": "run_secret_scanning"
       }
-=======
-        "Authorization": "Bearer ghp_XXXXXXXXXXXXXXXXXXXX",
-        "X-MCP-Toolsets": "secret_protection",
-        "X-MCP-Tools": "run_secret_scanning"
-      }
-=======
->>>>>>> origin/release
->>>>>>> origin/release
     }
   }
 }
-
