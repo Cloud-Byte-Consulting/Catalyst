@@ -44,6 +44,16 @@ flowchart TD
 
 For the actual commands, secret values, and verification at each step, follow **[`docs/operator-bootstrap.md`](../operator-bootstrap.md)** § Step 1 through Step 7.
 
+## Cost considerations
+
+The network module ships with a `cost_tier` variable (`dev | prod | hipaa`, default `dev`) that gates spend-sensitive add-ons. A 2-AZ VPC sitting idle costs ~$66/month today on NAT gateways alone; future interface VPC endpoints would add ~$7.30/month each per AZ if not gated.
+
+- **Demo Mon-Fri auto-teardown stack:** use `cost_tier = "dev"` (the default).
+- **Steady-state production:** set `cost_tier = "prod"`.
+- **HIPAA / regulated workloads:** set `cost_tier = "hipaa"` (adds Network Firewall per ADR-010).
+
+See [`docs/cost-model.md`](../cost-model.md) for the per-tier dollar table and the PR #151 orphan-VPC incident that motivated the convention.
+
 ## Bootstrap scope (what the script does — and doesn't)
 
 **Provisions:**
