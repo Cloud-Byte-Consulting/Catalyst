@@ -183,6 +183,89 @@ def groups_list_command() -> dict:
     return _call("GET", "/iam/groups")
 
 
+# ---------------------------------------------------------------------------
+# Tier 1 organization commands (#169 — see docs/onboarding/organization.md)
+# Each wraps an ADR-007 §Tier 1 endpoint. Auth flows through the existing
+# _call seam, so the same presigned-STS header forwarding tests cover these.
+# ---------------------------------------------------------------------------
+
+
+def orgs_get_command(tenant: str) -> dict:
+    """GET /orgs/{tenant} — fetch the full hierarchy for a tenant."""
+    if not tenant:
+        raise SystemExit("tenant is required")
+    return _call("GET", f"/orgs/{tenant}")
+
+
+def orgs_landing_zones_create_command(
+    tenant: str,
+    name: str,
+    account_id: str,
+    compliance: str = "standard",
+    idempotency_key: str | None = None,
+) -> dict:
+    """POST /orgs/{tenant}/landing-zones — register a new landing zone."""
+    if not tenant or not name or not account_id:
+        raise SystemExit("tenant, name, and account_id are required")
+    body: dict[str, Any] = {
+        "tenant": tenant,
+        "name": name,
+        "account_id": account_id,
+        "compliance": compliance,
+    }
+    if idempotency_key:
+        body["idempotency_key"] = idempotency_key
+    return _call("POST", f"/orgs/{tenant}/landing-zones", json_body=body)
+
+
+def orgs_environments_create_command(
+    tenant: str,
+    name: str,
+    landing_zone: str,
+    idempotency_key: str | None = None,
+) -> dict:
+    """POST /orgs/{tenant}/environments — register an environment in a LZ."""
+    if not tenant or not name or not landing_zone:
+        raise SystemExit("tenant, name, and landing_zone are required")
+    body: dict[str, Any] = {
+        "tenant": tenant,
+        "name": name,
+        "landing_zone": landing_zone,
+    }
+    if idempotency_key:
+        body["idempotency_key"] = idempotency_key
+    return _call("POST", f"/orgs/{tenant}/environments", json_body=body)
+
+
+def orgs_ous_create_command(
+    tenant: str,
+    name: str,
+    idempotency_key: str | None = None,
+) -> dict:
+    """POST /orgs/{tenant}/ous — register an OU (multi-OU topologies only)."""
+    if not tenant or not name:
+        raise SystemExit("tenant and name are required")
+    body: dict[str, Any] = {"tenant": tenant, "name": name}
+    if idempotency_key:
+        body["idempotency_key"] = idempotency_key
+    return _call("POST", f"/orgs/{tenant}/ous", json_body=body)
+
+
+def orgs_applications_create_command(
+    tenant: str,
+    project: str,
+    name: str,
+    idempotency_key: str | None = None,
+) -> dict:
+    """POST /orgs/{tenant}/applications — catalog entry without runtime."""
+    if not tenant or not project or not name:
+        raise SystemExit("tenant, project, and name are required")
+    body: dict[str, Any] = {"tenant": tenant, "project": project, "name": name}
+    if idempotency_key:
+        body["idempotency_key"] = idempotency_key
+    return _call("POST", f"/orgs/{tenant}/applications", json_body=body)
+
+
 class CatalystCommandsLoader(CLICommandsLoader):
     def load_command_table(self, args):
         with CommandGroup(self, "health", "__main__#{}") as g:
@@ -194,6 +277,16 @@ class CatalystCommandsLoader(CLICommandsLoader):
             g.command("onboard", "services_onboard_command")
         with CommandGroup(self, "groups", "__main__#{}") as g:
             g.command("list", "groups_list_command")
+        with CommandGroup(self, "orgs", "__main__#{}") as g:
+            g.command("get", "orgs_get_command")
+        with CommandGroup(self, "orgs landing-zones", "__main__#{}") as g:
+            g.command("create", "orgs_landing_zones_create_command")
+        with CommandGroup(self, "orgs environments", "__main__#{}") as g:
+            g.command("create", "orgs_environments_create_command")
+        with CommandGroup(self, "orgs ous", "__main__#{}") as g:
+            g.command("create", "orgs_ous_create_command")
+        with CommandGroup(self, "orgs applications", "__main__#{}") as g:
+            g.command("create", "orgs_applications_create_command")
         return OrderedDict(self.command_table)
 
     def load_arguments(self, command):
@@ -206,6 +299,11 @@ def cli_main(argv: list[str] | None = None) -> int:
     sys.modules["__main__"].services_status_command = services_status_command
     sys.modules["__main__"].services_onboard_command = services_onboard_command
     sys.modules["__main__"].groups_list_command = groups_list_command
+    sys.modules["__main__"].orgs_get_command = orgs_get_command
+    sys.modules["__main__"].orgs_landing_zones_create_command = orgs_landing_zones_create_command
+    sys.modules["__main__"].orgs_environments_create_command = orgs_environments_create_command
+    sys.modules["__main__"].orgs_ous_create_command = orgs_ous_create_command
+    sys.modules["__main__"].orgs_applications_create_command = orgs_applications_create_command
     cli = CLI(cli_name="catalyst", commands_loader_cls=CatalystCommandsLoader)
     return cli.invoke(argv if argv is not None else sys.argv[1:])
 

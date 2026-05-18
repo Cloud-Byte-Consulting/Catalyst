@@ -5,7 +5,7 @@ Onboarding into Catalyst is **three orthogonal tracks**, each with its own audie
 | Track | Audience | Runbook | Outcome |
 |---|---|---|---|
 | **A — Platform** | Cloud / platform engineering | [`platform.md`](./platform.md) | Fresh AWS account ready for GitOps; Catalyst API reachable from allowlisted networks |
-| **B — Organisation** | Team / lab leaders (Owners) | [`organisation.md`](./organisation.md) | Tenant hierarchy registered (OUs, landing zones, environments) |
+| **B — Organization** | Team / lab leaders (Owners) | [`organization.md`](./organization.md) | Tenant hierarchy registered (OUs, landing zones, environments) |
 | **C — Application** | Platform engineers / app teams (Owners + Administrators) | [`application.md`](./application.md) | Application service provisioned at a construct address |
 
 ## Which track applies to me?

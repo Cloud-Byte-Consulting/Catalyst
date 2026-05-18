@@ -214,6 +214,53 @@ def test_cli_main_invokes_command_through_knack(monkeypatch):
 
 
 @mock_aws
+def test_orgs_landing_zones_create_attaches_presigned_url_header(monkeypatch, aws_credentials):
+    """Tier 1 orgs commands (#169) flow through the same _call seam as Tier 2,
+    so the auto-generated x-catalyst-identity-url header should be attached
+    on outbound POST requests when CATALYST_AUTH=presigned-sts.
+    """
+    captured: dict = {}
+
+    class _R:
+        status_code = 201
+        text = '{"landing_zone_id":"lz-1","construct_address":"cloud-byte/shared"}'
+        headers = {"content-type": "application/json"}
+
+        def json(self):
+            return {"landing_zone_id": "lz-1", "construct_address": "cloud-byte/shared"}
+
+    def _fake_request(method, url, **kwargs):
+        captured["method"] = method
+        captured["url"] = url
+        captured["headers"] = kwargs.get("headers") or {}
+        captured["json_body"] = kwargs.get("json")
+        return _R()
+
+    monkeypatch.setattr(catalyst_cli.requests, "request", _fake_request)
+    catalyst_cli.orgs_landing_zones_create_command(
+        tenant="cloud-byte",
+        name="shared",
+        account_id="123456789012",
+        compliance="standard",
+        idempotency_key="lz-integration-001",
+    )
+    assert captured["method"] == "POST"
+    assert captured["url"].endswith("/orgs/cloud-byte/landing-zones")
+    assert "x-catalyst-identity-url" in captured["headers"], (
+        f"expected x-catalyst-identity-url header (matches rbac.py:153); "
+        f"got headers={captured['headers']!r}"
+    )
+    token = captured["headers"]["x-catalyst-identity-url"]
+    assert urlparse(token).scheme == "https"
+    qs = parse_qs(urlparse(token).query)
+    assert qs.get("Action") == ["GetCallerIdentity"]
+    # Body sanity-check — confirms the command serialized correctly.
+    assert captured["json_body"]["tenant"] == "cloud-byte"
+    assert captured["json_body"]["compliance"] == "standard"
+    assert captured["json_body"]["idempotency_key"] == "lz-integration-001"
+
+
+@mock_aws
 def test_call_respects_env_supplied_url(monkeypatch, aws_credentials):
     """When CATALYST_PRESIGNED_STS_URL is set explicitly, the CLI forwards it
     verbatim — does not regenerate. Useful when the caller has already

@@ -146,7 +146,7 @@ See [`docs/smoke-tests.md`](../smoke-tests.md) for the full three-tier runbook (
 
 Once Track A is complete and verified, hand off to:
 
-- [`organisation.md`](./organisation.md) for tenant / LZ / environment registration (Track B), or directly to
+- [`organization.md`](./organization.md) for tenant / LZ / environment registration (Track B), or directly to
 - [`application.md`](./application.md) for application-service onboarding (Track C) if Track B is already done.
 
 ## Related
