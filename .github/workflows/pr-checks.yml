@@ -50,6 +50,23 @@ jobs:
         run: pip install -r services/catalyst-api/requirements-dev.txt
       - name: Run pytest
         run: pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-branch --cov-fail-under=85
+  cursor-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate MCP JSON files
+        run: |
+          python -m json.tool .cursor/mcp.json > /dev/null
+          python -m json.tool .mcp.json > /dev/null
+      - name: No merge conflict markers in .cursor/agents
+        run: |
+          if grep -rE '^(<<<<<<<|=======|>>>>>>>)' .cursor/agents/; then
+            echo "Merge conflict markers found in .cursor/agents/"
+            exit 1
+          fi
   cli-tests:
     runs-on: ubuntu-latest
     steps:
