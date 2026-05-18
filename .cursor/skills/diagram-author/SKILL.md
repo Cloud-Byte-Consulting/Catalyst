@@ -94,11 +94,18 @@ borders for planned/future resources.
 
 ## Output
 
-- draw.io XML source files for each diagram.
-- PNG and SVG exports at readable resolution (minimum 1200px wide for PNG).
-- Legend included in each diagram or as a separate `00-legend.drawio` file.
-- Markdown image references for embedding in documentation:
-  `![Architecture](diagrams/01-architecture.png)`
+- draw.io XML source files for each diagram, committed under `diagrams/` (see
+  `diagrams/README.md` for the canonical index of all six diagrams across the
+  Mermaid + Draw.io formats).
+- The Catalyst-specific authoring conventions, working AWS shape style
+  strings, two authoring modes, and verification checklist live in
+  `.claude/skills/draw-aws-diagrams/SKILL.md` — prefer that skill over this
+  one for AWS-flavoured diagrams in the Catalyst repo.
+- PNG and SVG exports at readable resolution (minimum 1200px wide for PNG)
+  when a static image is needed for non-rendering contexts; for GitHub
+  inline rendering, prefer Mermaid sources committed as `.md`.
+- Legend block at the bottom of each diagram (see the convention in
+  `.claude/skills/draw-aws-diagrams/SKILL.md`).
 
 ## Guardrails
 
