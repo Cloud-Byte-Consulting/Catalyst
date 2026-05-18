@@ -81,6 +81,45 @@ See [`docs/cost-model.md`](../cost-model.md) for the per-tier dollar table and t
 
 Adding **new platform-wide AWS resource types** is always a Terraform PR — never an extension to the bootstrap script.
 
+## Narrowing the bootstrap-admin principal
+
+**Why this matters.** [ADR-012](../ADR/ADR-012-onboarding-experience.md) §Consequences tolerates day-0 `account:root` for `BOOTSTRAP_ADMIN_PRINCIPAL_ARN` but requires it to be narrowed immediately after bootstrap. [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md) defines the RBAC group/policy model the replacement principal must follow. Leaving `BOOTSTRAP_ADMIN_PRINCIPAL_ARN=arn:aws:iam::{account}:root` in place after day-0 means any compromise of root credentials is also a compromise of the Catalyst RBAC plane. `scripts/bootstrap-aws-account.sh` will emit a `[WARN]` (non-blocking) when it detects an `account:root` principal so operators can't silently ship that posture into production.
+
+**What to do post-bootstrap.**
+
+1. Create a dedicated break-glass IAM role in the same account — e.g. `catalyst-bootstrap-breakglass` — assumable only by your identity-provider's break-glass group, with MFA required.
+2. Attach the minimal inline policy below — the allowlist matches [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md)'s `CatalystOwnerPolicy` (`iam:AddUserToGroup`, `iam:RemoveUserFromGroup`, `iam:GetGroup`, `iam:ListGroupsForUser`) scoped to the three Catalyst RBAC groups (`catalyst-owners`, `catalyst-administrators`, `catalyst-viewers`). Not `iam:*` — the specific allowlist denies role creation, policy authoring, and cross-account trust by construction.
+3. Update `BOOTSTRAP_ADMIN_PRINCIPAL_ARN` (env var, GitHub repo var, and any `.env` file) to that role's ARN and re-run `scripts/bootstrap-aws-account.sh`. The script is idempotent — re-running rotates the trust policy on `catalyst-bootstrap-admin` to the new principal.
+
+**Suggested policy shape** (matches ADR-008's canonical `CatalystOwnerPolicy`):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "IamGroupManagement",
+      "Effect": "Allow",
+      "Action": [
+        "iam:AddUserToGroup",
+        "iam:RemoveUserFromGroup",
+        "iam:GetGroup",
+        "iam:ListGroupsForUser"
+      ],
+      "Resource": [
+        "arn:aws:iam::{account}:group/catalyst-owners",
+        "arn:aws:iam::{account}:group/catalyst-administrators",
+        "arn:aws:iam::{account}:group/catalyst-viewers"
+      ]
+    }
+  ]
+}
+```
+
+This is the same policy ADR-008 attaches to `catalyst-owners`. Listing specific actions (rather than `iam:*`) limits the principal to group-membership management on exactly the three Catalyst RBAC groups — no role creation, no policy authoring, no cross-account trust.
+
+**Follow-up.** A dedicated Terraform module (`infrastructure/modules/iam-breakglass/`) will codify this role + policy so operators don't hand-roll it; that work is tracked as a separate follow-up to #166 and will land once an operator exercises the path end-to-end.
+
 ## Local validation (no AWS calls)
 
 Before pushing infra changes, run these locally:

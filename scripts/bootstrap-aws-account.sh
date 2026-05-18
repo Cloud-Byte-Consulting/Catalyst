@@ -459,6 +459,24 @@ validate_bootstrap_admin_principal() {
   if [[ "$principal_account" != "$AWS_ACCOUNT_ID" ]]; then
     warn "BOOTSTRAP_ADMIN_PRINCIPAL_ARN is in account ${principal_account} but AWS_ACCOUNT_ID is ${AWS_ACCOUNT_ID} (cross-account trust). Ensure this is intentional."
   fi
+
+  # ADR-012 / issue #166: ADR-012 §Consequences flags day-0 account:root as
+  # tolerated only at bootstrap and "must be narrowed immediately after".
+  # ADR-008 defines the RBAC group/policy model the replacement principal
+  # follows. Non-blocking so day-0 operators can still proceed, but we
+  # surface the production debt so it cannot be silently left in place.
+  if [[ "$BOOTSTRAP_ADMIN_PRINCIPAL_ARN" =~ ^arn:aws:iam::[0-9]+:root$ ]]; then
+    warn "BOOTSTRAP_ADMIN_PRINCIPAL_ARN is account:root (${BOOTSTRAP_ADMIN_PRINCIPAL_ARN})."
+    warn "  ADR-012 (onboarding) tolerates account:root at day-0 only and"
+    warn "  requires it to be narrowed before production traffic. Replace"
+    warn "  with a dedicated break-glass role that holds an allowlist of"
+    warn "  iam:AddUserToGroup, iam:RemoveUserFromGroup, iam:GetGroup,"
+    warn "  iam:ListGroupsForUser on catalyst-{owners,administrators,viewers}"
+    warn "  per ADR-008's CatalystOwnerPolicy."
+    warn "  Guidance: docs/onboarding/platform.md § Narrowing the bootstrap-admin principal"
+    warn "  Bootstrap contract: docs/ADR/ADR-012-onboarding-experience.md"
+    warn "  RBAC policy model:  docs/ADR/ADR-008-catalyst-api-rbac.md"
+  fi
 }
 
 emit_github_actions_runner_policy() {
