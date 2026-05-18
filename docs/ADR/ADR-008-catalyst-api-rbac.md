@@ -123,10 +123,10 @@ The Catalyst auth env vars use different names on the two sides of the wire for 
 
 | Side | Env var | Value selecting the production flow |
 |---|---|---|
-| **Server** (`services/catalyst-api/catalyst/rbac.py:144`) | `CATALYST_AUTH_MODE` | `sigv4` |
+| **Server** (`services/catalyst-api/catalyst/rbac.py:150`, via `get_settings().auth_mode`) | `CATALYST_AUTH_MODE` | `sigv4` |
 | **Client / CLI** (`clients/catalyst-cli/catalyst_cli.py`) | `CATALYST_AUTH` | `presigned-sts` |
 
-Both refer to the **same** presigned `sts:GetCallerIdentity` URL flow forwarded in the `x-catalyst-identity-url` header (see `rbac.py:153` and `clients/catalyst-cli/catalyst_cli.py:_call`). The CLI has a separate `CATALYST_AUTH=sigv4` strategy that uses AWS4Auth against `execute-api` — that one is retained for completeness but is not how Catalyst (ALB → Lambda) is wired and is not the production path.
+The server reads `CATALYST_AUTH_MODE` indirectly through the Pydantic `Settings.auth_mode` field (not a direct `os.environ.get`), so anything that lands in that setting selects the mode — env var, `.env` file, or Pydantic-config override. Both refer to the **same** presigned `sts:GetCallerIdentity` URL flow forwarded in the `x-catalyst-identity-url` header (see `rbac.py:163` and `clients/catalyst-cli/catalyst_cli.py:_call`). The CLI has a separate `CATALYST_AUTH=sigv4` strategy that uses AWS4Auth against `execute-api` — that one is retained for completeness but is not how Catalyst (ALB → Lambda) is wired and is not the production path.
 
 **Why the names differ:** the server-side mode predates the CLI rename. The server's enum value `sigv4` reflects the original RBAC design ("SigV4 request signing"). The CLI's strategy was later renamed `presigned-sts` because that's a more accurate description of what the client actually sends — a presigned URL, not a SigV4-signed direct request. Renaming the server-side value to `presigned-sts` would be a breaking change for deployed environments; that work is tracked separately if anyone wants to take it.
 

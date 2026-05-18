@@ -11,7 +11,7 @@ Uses Microsoft `knack` per AGENTS.md.
     Catalyst production path; retained for completeness)
   - `presigned-sts` — attach a presigned STS GetCallerIdentity URL in the
     `x-catalyst-identity-url` header (consumed by the RBAC path in
-    `services/catalyst-api/catalyst/rbac.py:153`, see ADR-008)
+    `services/catalyst-api/catalyst/rbac.py:163`, see ADR-008)
 
 **Naming asymmetry note (#171):** the production `presigned-sts` strategy
 here corresponds to **server-side `CATALYST_AUTH_MODE=sigv4`**. The
