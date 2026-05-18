@@ -62,4 +62,8 @@ jobs:
           pip install -r clients/catalyst-cli/requirements.txt
           pip install -r clients/catalyst-cli/requirements-dev.txt
       - name: Run CLI tests
-        run: pytest clients/catalyst-cli/tests -v --cov=catalyst_cli --cov-branch --cov-fail-under=80 --cov-report=term-missing
+        # `-m 'not live'` excludes the opt-in live-stack smoke suite (#157)
+        # which auto-skips without CATALYST_API_ENDPOINT anyway; the explicit
+        # marker filter keeps the suite output clean ("0 deselected" beats
+        # a wall of "skipped: requires endpoint").
+        run: pytest clients/catalyst-cli/tests -v -m 'not live' --cov=catalyst_cli --cov-branch --cov-fail-under=80 --cov-report=term-missing
