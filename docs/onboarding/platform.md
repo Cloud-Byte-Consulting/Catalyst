@@ -83,12 +83,12 @@ Adding **new platform-wide AWS resource types** is always a Terraform PR — nev
 
 ## Narrowing the bootstrap-admin principal
 
-**Why this matters.** [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md) assumes the bootstrap admin is a **scoped IAM principal**, not the account root. Leaving `BOOTSTRAP_ADMIN_PRINCIPAL_ARN=arn:aws:iam::<account>:root` in place after day-0 means any compromise of root credentials is also a compromise of the Catalyst RBAC plane. `scripts/bootstrap-aws-account.sh` will emit a `[WARN]` (non-blocking) when it detects an `account:root` principal so operators can't silently ship that posture into production.
+**Why this matters.** [ADR-012](../ADR/ADR-012-onboarding-experience.md) §Consequences tolerates day-0 `account:root` for `BOOTSTRAP_ADMIN_PRINCIPAL_ARN` but requires it to be narrowed immediately after bootstrap. [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md) defines the RBAC group/policy model the replacement principal must follow. Leaving `BOOTSTRAP_ADMIN_PRINCIPAL_ARN=arn:aws:iam::{account}:root` in place after day-0 means any compromise of root credentials is also a compromise of the Catalyst RBAC plane. `scripts/bootstrap-aws-account.sh` will emit a `[WARN]` (non-blocking) when it detects an `account:root` principal so operators can't silently ship that posture into production.
 
 **What to do post-bootstrap.**
 
 1. Create a dedicated break-glass IAM role in the same account — e.g. `catalyst-bootstrap-breakglass` — assumable only by your identity-provider's break-glass group, with MFA required.
-2. Attach the minimal inline policy below: `iam:*` scoped to the three Catalyst RBAC groups (`catalyst-owners`, `catalyst-administrators`, `catalyst-viewers`). The full per-group action matrix lives in [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md).
+2. Attach the minimal inline policy below — the allowlist matches [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md)'s `CatalystOwnerPolicy` (`iam:AddUserToGroup`, `iam:RemoveUserFromGroup`, `iam:GetGroup`, `iam:ListGroupsForUser`) scoped to the three Catalyst RBAC groups (`catalyst-owners`, `catalyst-administrators`, `catalyst-viewers`). Not `iam:*` — the specific allowlist denies role creation, policy authoring, and cross-account trust by construction.
 3. Update `BOOTSTRAP_ADMIN_PRINCIPAL_ARN` (env var, GitHub repo var, and any `.env` file) to that role's ARN and re-run `scripts/bootstrap-aws-account.sh`. The script is idempotent — re-running rotates the trust policy on `catalyst-bootstrap-admin` to the new principal.
 
 **Suggested policy shape** (matches ADR-008's canonical `CatalystOwnerPolicy`):

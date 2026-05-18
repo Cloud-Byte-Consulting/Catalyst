@@ -166,6 +166,66 @@ def test_bash_rejects_example_bootstrap_principal_for_wrong_account(tmp_path: Pa
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+def test_bash_warns_when_bootstrap_principal_is_account_root(tmp_path: Path) -> None:
+    """ADR-012 / issue #166: account:root MUST emit a [WARN] but MUST NOT block."""
+    env = _base_env(tmp_path)
+    proc = subprocess.run(
+        [
+            "bash",
+            "scripts/bootstrap-aws-account.sh",
+            "--dry-run",
+            "--region",
+            "us-west-2",
+            "--account-id",
+            "123456789012",
+            "--github-repository",
+            "Cloud-Byte-Consulting/Catalyst",
+            "--bootstrap-admin-principal-arn",
+            "arn:aws:iam::123456789012:root",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    combined = _strip_ansi(proc.stderr + proc.stdout)
+    assert "BOOTSTRAP_ADMIN_PRINCIPAL_ARN is account:root" in combined
+    assert "ADR-012" in combined
+    assert "ADR-008" in combined
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
+def test_bash_does_not_warn_when_bootstrap_principal_is_role(tmp_path: Path) -> None:
+    """A scoped role principal MUST NOT trigger the account:root warning."""
+    env = _base_env(tmp_path)
+    proc = subprocess.run(
+        [
+            "bash",
+            "scripts/bootstrap-aws-account.sh",
+            "--dry-run",
+            "--region",
+            "us-west-2",
+            "--account-id",
+            "123456789012",
+            "--github-repository",
+            "Cloud-Byte-Consulting/Catalyst",
+            "--bootstrap-admin-principal-arn",
+            "arn:aws:iam::123456789012:role/BootstrapOperator",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    combined = _strip_ansi(proc.stderr + proc.stdout)
+    assert "BOOTSTRAP_ADMIN_PRINCIPAL_ARN is account:root" not in combined
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
 def test_bash_print_github_actions_runner_policy_is_valid_json(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["PATH"] = f"{tmp_path}{os.pathsep}{env.get('PATH', '')}"
