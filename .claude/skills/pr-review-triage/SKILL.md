@@ -128,17 +128,19 @@ One final top-level comment on the PR. Includes:
 - Post-fix CI status snapshot (`gh pr checks <PR#>` output)
 - Explicit `Ready for human merge call.` line if no DEFERRED-ARCH, or `Awaiting human decision on N DEFERRED-ARCH thread(s) before merge.` if any
 
-### 7. Synchronize issue-state label
+### 7. Synchronize issue metadata
 
-The tracking issue's `state/*` label MUST reflect whether a PR is in flight. The triage skill is the right place to enforce this because triage happens with the PR open.
+Two pieces of issue metadata MUST be kept correct while a PR is in flight. Triage is the right place to enforce both because triage runs with the PR open and the branch known.
 
-| Situation | Required issue label |
+#### 7a. `state/*` label
+
+| Situation | Required label |
 |---|---|
 | PR open, no unresolved DEFERRED-ARCH threads | `state/agent-working` |
 | PR open, at least one DEFERRED-ARCH thread waiting on a human | `state/blocked-on-human` |
 | PR merged or closed | label set by the merge contract (`Closes #N` auto-closes the issue; no further label change) |
 
-NEVER leave an issue at `state/pending` if a PR exists for it — the open PR contradicts the "pending pickup" semantics of that label. Use:
+NEVER leave an issue at `state/pending` if a PR exists for it — the open PR contradicts the "pending pickup" semantics of that label.
 
 ```bash
 gh issue edit <issue#> --repo Cloud-Byte-Consulting/Catalyst \
@@ -147,6 +149,52 @@ gh issue edit <issue#> --repo Cloud-Byte-Consulting/Catalyst \
 ```
 
 If the issue lacks a `state/*` label entirely, add the appropriate one. If it carries both `state/pending` and one of the active states (drift from a previous triage), drop `state/pending`.
+
+#### 7b. Linked branch (GitHub Development panel)
+
+GitHub's "Development" panel on each issue shows linked branches and PRs. The PR is auto-linked via `Closes #N` in the PR body, but **the branch itself needs an explicit link** via the `createLinkedBranch` GraphQL mutation. Triage is the right place to enforce this because if a branch was created outside `gh issue develop` (e.g. an agent's `git switch -c <name>`), it won't have been auto-linked.
+
+Why it matters: a reader opening the issue should see the branch in the sidebar, not have to derive it from the naming convention or click through to the PR. Especially useful while the branch exists but the PR hasn't been opened yet (draft state), and during long-running implementation work.
+
+```bash
+REPO_OWNER=Cloud-Byte-Consulting
+REPO_NAME=Catalyst
+ISSUE_NUM=<issue#>
+BRANCH=<branch-name>
+
+ISSUE_ID=$(gh issue view "$ISSUE_NUM" --repo "$REPO_OWNER/$REPO_NAME" --json id --jq .id)
+
+BRANCH_ID=$(gh api graphql -f query='
+query($owner:String!, $repo:String!, $ref:String!) {
+  repository(owner:$owner, name:$repo) {
+    ref(qualifiedName:$ref) { id }
+  }
+}' -F owner="$REPO_OWNER" -F repo="$REPO_NAME" -F ref="refs/heads/$BRANCH" \
+  --jq '.data.repository.ref.id')
+
+ALREADY=$(gh api graphql -f query='
+query($owner:String!, $repo:String!, $n:Int!) {
+  repository(owner:$owner, name:$repo) {
+    issue(number:$n) {
+      linkedBranches(first:10) { nodes { ref { name } } }
+    }
+  }
+}' -F owner="$REPO_OWNER" -F repo="$REPO_NAME" -F n="$ISSUE_NUM" \
+  --jq ".data.repository.issue.linkedBranches.nodes[].ref.name" | grep -Fx "$BRANCH" || true)
+
+if [[ -z "$ALREADY" ]]; then
+  gh api graphql -f query='
+  mutation($issueId:ID!, $branchId:ID!) {
+    createLinkedBranch(input:{issueId:$issueId, branchId:$branchId}) {
+      linkedBranch { id }
+    }
+  }' -F issueId="$ISSUE_ID" -F branchId="$BRANCH_ID"
+fi
+```
+
+**For future branches**, the cleaner pattern is `gh issue develop <issue#> --base release --branch-name <branch>` — creates the branch *and* links it in one step. The post-hoc `createLinkedBranch` mutation exists for when branches are created via `git switch -c` (the agent-worktree default).
+
+After the PR merges and the branch is auto-deleted, the linked-branch record falls off automatically. No cleanup needed.
 
 ### 8. Stop
 
@@ -160,7 +208,8 @@ The skill never:
 The skill always:
 - Pushes commits if any fixes applied
 - Leaves a single trail-end summary comment
-- Synchronizes the tracking issue's `state/*` label (step 7)
+- Synchronizes the tracking issue's `state/*` label (step 7a)
+- Links the branch to the tracking issue if not already (step 7b)
 - Reports back to the user with the merge readiness state
 
 ## Anti-patterns
