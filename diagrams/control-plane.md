@@ -73,6 +73,7 @@ sequenceDiagram
     participant TF as terraform.yml
     participant CD as service-cd.yml
     participant Drift as tf-drift.yml
+    participant SSMOut as SSM /catalyst/shared/*
 
     Op->>Bootstrap: one-time, root creds
     Bootstrap-->>Op: OIDC provider, 4 roles, state bucket, lock table
