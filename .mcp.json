@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "rlm-repl": {
+      "command": "python",
+      "args": [".cursor/skills/rlm/rlm_mcp_server.py"],
+      "env": {}
+    },
+    "aws-pe": {
+      "command": "python",
+      "args": [".cursor/skills/aws-platform-engineering/aws_pe_mcp_server.py"],
+      "env": {}
+    },
+    "bedrock-binding": {
+      "command": "python",
+      "args": [".cursor/skills/bedrock-binding/bedrock_mcp_server.py"],
+      "env": {}
+    },
+    "intent-judge": {
+      "command": "python",
+      "args": [".cursor/skills/intent-judge-shim/intent_judge_mcp_server.py"],
+      "env": {}
+    }
+  }
+}
