@@ -129,6 +129,19 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private[each.key].id
 }
 
+# Gateway VPC endpoints (S3, DynamoDB) are free in all tiers; provision unconditionally.
+#
+# COST GATE — any future *interface* VPC endpoint added to this module
+# (ECR API/DKR, SSM, SSM Messages, EC2 Messages, STS, KMS, Secrets Manager,
+# CloudWatch Logs, Bedrock Runtime, etc.) MUST be gated:
+#
+#     count = var.cost_tier == "dev" ? 0 : 1
+#
+# Interface endpoints are ~$7.30/mo idle per endpoint per AZ plus data processing.
+# A 10-endpoint × 2-AZ deployment sitting idle bleeds ~$146/mo on endpoints
+# alone (~$73/mo for the 1-AZ orphan-VPC variant in PR #151).
+# See docs/cost-model.md and PR #151 for the incident that motivated this
+# convention.
 resource "aws_vpc_endpoint" "dynamodb" {
   vpc_id            = aws_vpc.this.id
   service_name      = "com.amazonaws.${data.aws_region.current.region}.dynamodb"
