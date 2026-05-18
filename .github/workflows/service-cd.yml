@@ -60,7 +60,11 @@ jobs:
           set -euo pipefail
           ECR_URI=$(aws ssm get-parameter --name /catalyst/shared/ecr/catalyst-api/uri --query Parameter.Value --output text)
           REPO_NAME=$(basename "${ECR_URI}")
-          docker build -t ${ECR_URI}:${GITHUB_SHA} services/catalyst-api
+          # Build context is the repo root (not services/catalyst-api) so the
+          # Dockerfile can COPY the bundled L4 composite at
+          # infrastructure/modules/composite/catalyst-app into the image.
+          # Required by #167 (synchronous Terraform-in-Lambda onboard).
+          docker build -t ${ECR_URI}:${GITHUB_SHA} -f services/catalyst-api/Dockerfile .
           docker push ${ECR_URI}:${GITHUB_SHA}
           if ! aws ecr describe-images --repository-name "${REPO_NAME}" --image-ids imageTag=latest >/dev/null 2>&1; then
             echo "Seeding ${ECR_URI}:latest (one-time bootstrap)"
