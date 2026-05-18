@@ -46,11 +46,15 @@ For the actual commands, secret values, and verification at each step, follow **
 
 ## Cost considerations
 
-The network module ships with a `cost_tier` variable (`dev | prod | hipaa`, default `dev`) that gates spend-sensitive add-ons. A 2-AZ VPC sitting idle costs ~$66/month today on NAT gateways alone; future interface VPC endpoints would add ~$7.30/month each per AZ if not gated.
+The network module accepts a `cost_tier` variable (`dev | prod | hipaa`, default `dev`) in `infrastructure/modules/network/variables.tf`. A 2-AZ VPC sitting idle costs ~$73/month today (~$66 NAT + ~$7 public IPv4 attached to the two NAT EIPs, per AWS public-IPv4 pricing in effect since 2024-02-01); future interface VPC endpoints would add ~$7.30/month each per AZ if not gated by `cost_tier`.
 
-- **Demo Mon-Fri auto-teardown stack:** use `cost_tier = "dev"` (the default).
-- **Steady-state production:** set `cost_tier = "prod"`.
-- **HIPAA / regulated workloads:** set `cost_tier = "hipaa"` (adds Network Firewall per ADR-010).
+**Today (demo deployment path):** the root `infrastructure/` Terraform does not yet propagate `cost_tier` into `module.network`, so the default value (`dev`) applies. No operator action is required at the demo level.
+
+**Future (per-tenant deployment path, lands with #168/#167):** when the tenant-onboarding composite becomes the entry point, `cost_tier` is set alongside `compliance_tier`:
+
+- **Demo Mon-Fri auto-teardown stack:** `cost_tier = "dev"` (default).
+- **Steady-state production:** `cost_tier = "prod"`.
+- **HIPAA / regulated workloads:** set `compliance_tier = "hipaa"` on the composite — Network Firewall is wired by the **composite's** `compliance_tier` (per ADR-010), **NOT** by the network module's `cost_tier`. The two variables travel together but answer different questions (cost gate vs. compliance posture).
 
 See [`docs/cost-model.md`](../cost-model.md) for the per-tier dollar table and the PR #151 orphan-VPC incident that motivated the convention.
 
