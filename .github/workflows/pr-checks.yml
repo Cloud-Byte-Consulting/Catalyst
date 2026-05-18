@@ -5,6 +5,43 @@ on:
 permissions:
   contents: read
 jobs:
+  actionlint:
+    # Lint GitHub Actions workflows on every PR that touches .github/workflows/**.
+    # Gated by `paths` at the job level via dorny/paths-filter so unrelated PRs
+    # don't waste a runner. Required-status posture matches python-tests: when
+    # a PR touches workflows, this must pass before merge.
+    #
+    # Kaizen scope (#127): adding the gate. If actionlint flags pre-existing
+    # issues in current workflow files, those are tracked as a separate
+    # follow-up kaizen — not fixed in this PR.
+    runs-on: ubuntu-latest
+    # dorny/paths-filter@v3 calls the listFiles API on the PR to decide
+    # whether to run actionlint. That requires pull-requests:read.
+    # Job-level permissions override the workflow-level default entirely,
+    # so contents:read must be re-declared here.
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            workflows:
+              - '.github/workflows/**'
+      - name: Run actionlint
+        if: steps.changes.outputs.workflows == 'true'
+        uses: raven-actions/actionlint@v2
+        with:
+          version: latest
+          # Advisory mode for the first landing per #127's stated direction
+          # ("the PR is still mergeable — they'll surface as a follow-up issue").
+          # The current workflows have 20 pre-existing shellcheck-style findings
+          # (SC2129, SC2086) tracked in a follow-up kaizen issue. Once those are
+          # cleaned up, flip this to `fail-on-error: true` so the gate actually
+          # gates. Findings are still visible in the run log as annotations.
+          fail-on-error: false
   terraform-quality:
     runs-on: ubuntu-latest
     steps:

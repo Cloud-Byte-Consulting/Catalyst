@@ -93,29 +93,78 @@ jobs:
         # instead of failing. The image has already been pushed to ECR by
         # the previous job, so the operator can now flip
         # CATALYST_LAMBDA_IMAGE_SEEDED=true and re-run terraform.yml.
+        #
+        # No-op vs real failure (kaizen #128): we explicitly probe for
+        # ParameterNotFound and only then emit the ::warning:: + exit 0.
+        # Any other ssm:GetParameter error (e.g. AccessDenied, throttling)
+        # still surfaces as a job failure — exit 0 is reserved for the
+        # bootstrap-dance no-op path described in ADR-006 §Phase-ordering.
         run: |
+          set -uo pipefail
           if aws ssm get-parameter --name /catalyst/shared/lambda/catalyst-api/arn >/dev/null 2>&1; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Lambda not yet provisioned (SSM param /catalyst/shared/lambda/catalyst-api/arn missing)."
-            echo "Cold-start bootstrap dance:"
-            echo "  1. Image is now seeded in ECR (build-and-push step completed)."
-            echo "  2. Set repository variable CATALYST_LAMBDA_IMAGE_SEEDED=true."
-            echo "  3. Re-run terraform.yml on release to provision the Lambda function."
-            echo "  4. Re-run this workflow to update the Lambda with the latest image."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          # Param missing OR call failed — distinguish so we don't mask
+          # an AccessDenied behind the bootstrap-dance no-op.
+          err=$(aws ssm get-parameter --name /catalyst/shared/lambda/catalyst-api/arn 2>&1 >/dev/null || true)
+          if ! echo "${err}" | grep -q ParameterNotFound; then
+            echo "::error::ssm:GetParameter failed for /catalyst/shared/lambda/catalyst-api/arn (not a bootstrap no-op): ${err}"
+            exit 1
+          fi
+          echo "::warning::Lambda runtime not yet provisioned — bootstrap dance no-op (ECR seeded; flip CATALYST_LAMBDA_IMAGE_SEEDED=true and re-run terraform.yml). See ADR-006 §Phase-ordering."
+          {
+            echo "## Lambda cold-start bootstrap dance (no-op)"
+            echo ""
+            echo "The Lambda function is not yet provisioned (SSM param"
+            echo "\`/catalyst/shared/lambda/catalyst-api/arn\` missing). The image has"
+            echo "already been seeded in ECR by the \`build-and-push\` job, so the"
+            echo "deploy step is skipped without failing the workflow."
+            echo ""
+            echo "**Next steps:**"
+            echo "1. Image is now seeded in ECR (build-and-push step completed)."
+            echo "2. Set repository variable \`CATALYST_LAMBDA_IMAGE_SEEDED=true\`."
+            echo "3. Re-run \`terraform.yml\` on \`release\` to provision the Lambda function."
+            echo "4. Re-run this workflow to update the Lambda with the latest image."
+            echo ""
+            echo "See [ADR-006 §Phase-ordering — Bootstrap dance](../blob/release/docs/ADR/ADR-006-cicd-pipeline-architecture.md#bootstrap-dance-seed-first-deploy-second)"
+            echo "(amended by #126; fix #125; root bug #68)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "ready=false" >> "$GITHUB_OUTPUT"
       - name: Check ECS runtime readiness
         id: ecs-ready
         if: env.RUNTIME == 'ecs'
+        # Same no-op-vs-real-failure split as the Lambda step — see comment
+        # there. Bootstrap dance for ECS lands the cluster via terraform.yml
+        # rather than a CATALYST_*_SEEDED flag, but the cold-start ergonomics
+        # are identical: image already in ECR, runtime not yet provisioned.
         run: |
+          set -uo pipefail
           if aws ssm get-parameter --name /catalyst/shared/ecs/cluster/arn >/dev/null 2>&1; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ECS cluster not yet provisioned (SSM param /catalyst/shared/ecs/cluster/arn missing)."
-            echo "Run terraform.yml on release to provision the cluster before deploying the service."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          err=$(aws ssm get-parameter --name /catalyst/shared/ecs/cluster/arn 2>&1 >/dev/null || true)
+          if ! echo "${err}" | grep -q ParameterNotFound; then
+            echo "::error::ssm:GetParameter failed for /catalyst/shared/ecs/cluster/arn (not a bootstrap no-op): ${err}"
+            exit 1
+          fi
+          echo "::warning::ECS runtime not yet provisioned — bootstrap dance no-op (ECR seeded; run terraform.yml on release to provision the cluster). See ADR-006 §Phase-ordering."
+          {
+            echo "## ECS cold-start bootstrap dance (no-op)"
+            echo ""
+            echo "The ECS cluster is not yet provisioned (SSM param"
+            echo "\`/catalyst/shared/ecs/cluster/arn\` missing). The image has already"
+            echo "been seeded in ECR by the \`build-and-push\` job, so the deploy step"
+            echo "is skipped without failing the workflow."
+            echo ""
+            echo "**Next step:** run \`terraform.yml\` on \`release\` to provision the"
+            echo "cluster, then re-run this workflow to roll the service."
+            echo ""
+            echo "See [ADR-006 §Phase-ordering — Bootstrap dance](../blob/release/docs/ADR/ADR-006-cicd-pipeline-architecture.md#bootstrap-dance-seed-first-deploy-second)"
+            echo "(amended by #126; fix #125; root bug #68)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "ready=false" >> "$GITHUB_OUTPUT"
       - name: Deploy lambda
         if: env.RUNTIME == 'lambda' && steps.lambda-ready.outputs.ready == 'true'
         run: |

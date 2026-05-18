@@ -79,6 +79,17 @@ flowchart TD
 
 Phase 2 **must not run on a fresh account** before Phase 1 has completed. `service-cd.yml` enforces this by reading the ECR URI and ECS cluster name from SSM Parameter Store (written by Terraform outputs). If those SSM paths are absent the workflow fails fast with a clear message rather than a partial-deploy error.
 
+#### Bootstrap dance (seed-first, deploy-second)
+
+The strict "fail fast on missing SSM" stance above has one carved-out exception: the **runtime** SSM parameter (`/catalyst/shared/lambda/catalyst-api/arn` or `/catalyst/shared/ecs/cluster/arn`). On a fresh account the Lambda function (or ECS cluster) cannot exist until Terraform creates it; but Terraform's `lambda-service` module bootstraps `image_uri = ${ECR}:latest`, which in turn cannot resolve until `service-cd.yml` has seeded that tag into ECR. That is a chicken-and-egg that aborts on first cold start (see [#68](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/68)).
+
+[PR #125](https://github.com/Cloud-Byte-Consulting/Catalyst/pull/125) resolves the cycle by splitting `service-cd.yml` into two jobs and softening the runtime gate:
+
+1. **`build-and-push`** — **always** runs. Builds the image and pushes both `:${SHA}` and (on first cold start only) `:latest` to ECR. This job has no runtime-readiness precondition, so it can seed ECR before the Lambda function exists.
+2. **`deploy`** — runs after `build-and-push` succeeds. Its readiness check (`Check Lambda runtime readiness` / `Check ECS runtime readiness`) **logs and exits 0** if the runtime SSM parameter is missing, rather than failing the job. The image is now in ECR, so the operator can flip `CATALYST_LAMBDA_IMAGE_SEEDED=true` and re-run `terraform.yml` to provision the runtime; then re-running `service-cd.yml` exercises the steady-state update path.
+
+The cold-start no-op preserves a non-failing pipeline so the seed lands, but it does emit a `::warning::` annotation and a `$GITHUB_STEP_SUMMARY` note (added by [#128](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/128)) so the run is visually distinct from a real successful deploy. A genuine `ssm:GetParameter` permission failure still surfaces as a job error — the no-op path triggers only on `ParameterNotFound`.
+
 ### IAM roles per pipeline
 
 | Role | Scope | Trust condition |
