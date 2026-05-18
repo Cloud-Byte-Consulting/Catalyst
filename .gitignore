@@ -15,3 +15,7 @@ htmlcov/
 *.tfplan
 infrastructure/.terraform.lock.hcl
 infrastructure/modules/**/.terraform.lock.hcl
+
+# Environment configuration (never commit .env with live secrets/values)
+.env
+services/**/.env
