@@ -73,6 +73,41 @@ def _build_auth() -> Any:
     raise SystemExit(f"unknown CATALYST_AUTH value: {strategy}")
 
 
+def generate_presigned_sts_url(
+    *,
+    region: str | None = None,
+    expires_in: int = 60,
+) -> str:
+    """Construct a presigned ``sts:GetCallerIdentity`` URL using the caller's
+    AWS credentials.
+
+    The Catalyst API verifies the caller's identity by fetching this URL
+    (see ``services/catalyst-api/catalyst/identity.py`` and ADR-008). The
+    URL is sent in the ``x-catalyst-identity-url`` request header.
+
+    Tested under ``moto.mock_aws`` — see ``test_catalyst_cli.py``.
+    """
+    try:
+        import boto3
+    except ImportError as exc:  # pragma: no cover - import guard
+        raise SystemExit(
+            f"presigned-sts auth requires boto3: {exc}"
+        ) from exc
+    session = boto3.Session()
+    if session.get_credentials() is None:
+        raise SystemExit("no AWS credentials available for presigned-sts auth")
+    sts = session.client(
+        "sts",
+        region_name=region or session.region_name or os.environ.get("AWS_REGION", "us-east-1"),
+    )
+    return sts.generate_presigned_url(
+        "get_caller_identity",
+        Params={},
+        ExpiresIn=expires_in,
+        HttpMethod="GET",
+    )
+
+
 def _call(method: str, path: str, *, json_body: dict | None = None) -> dict:
     """Single HTTP seam — tests monkeypatch this function."""
     url = f"{_endpoint()}{path}"
@@ -80,10 +115,15 @@ def _call(method: str, path: str, *, json_body: dict | None = None) -> dict:
     if _auth_strategy() == "presigned-sts":
         token = os.environ.get("CATALYST_PRESIGNED_STS_URL")
         if not token:
-            raise SystemExit(
-                "presigned-sts auth requires CATALYST_PRESIGNED_STS_URL"
-            )
-        headers["X-Catalyst-Identity"] = token
+            # Auto-generate when AWS creds are available; surfaces a clear
+            # error when they aren't, instead of silently sending no header.
+            token = generate_presigned_sts_url()
+        # Header name MUST match `services/catalyst-api/catalyst/rbac.py:153`
+        # (`x-catalyst-identity-url`). Earlier versions used a different
+        # name (`X-Catalyst-Identity`); that was a bug — the API expects
+        # the URL itself, not an opaque token, and the header name is
+        # documented in `docs/smoke-tests.md` Tier 3.
+        headers["x-catalyst-identity-url"] = token
     response = requests.request(
         method,
         url,
