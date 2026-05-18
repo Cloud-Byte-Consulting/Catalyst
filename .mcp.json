@@ -19,15 +19,6 @@
       "command": "python",
       "args": [".cursor/skills/intent-judge-shim/intent_judge_mcp_server.py"],
       "env": {}
-    },
-    "catalyst-github-secret-scanning": {
-      "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/",
-      "headers": {
-        "Authorization": "Bearer ${env:GITHUB_MCP_PAT}",
-        "X-MCP-Toolsets": "secret_protection",
-        "X-MCP-Tools": "run_secret_scanning"
-      }
     }
   }
 }
