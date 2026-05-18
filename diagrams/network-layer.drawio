@@ -58,8 +58,8 @@
           <mxGeometry x="340" y="60" width="140" height="60" as="geometry" />
         </mxCell>
 
-        <!-- Private-app subnet a -->
-        <mxCell id="app-a" value="Private-app subnet&#10;10.50.64.0/22" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;strokeColor=#147EBA;fillColor=#F0F8E6;verticalAlign=top;align=left;spacingLeft=30;fontColor=#147EBA;dashed=0;" vertex="1" parent="az-a">
+        <!-- Private subnet a (single private subnet per AZ — matches Terraform private_subnet_cidrs[0]) -->
+        <mxCell id="app-a" value="Private subnet&#10;10.50.10.0/24" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;strokeColor=#147EBA;fillColor=#F0F8E6;verticalAlign=top;align=left;spacingLeft=30;fontColor=#147EBA;dashed=0;" vertex="1" parent="az-a">
           <mxGeometry x="20" y="220" width="500" height="180" as="geometry" />
         </mxCell>
 
@@ -68,8 +68,8 @@
           <mxGeometry x="40" y="80" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <!-- Private-data subnet a -->
-        <mxCell id="data-a" value="Private-data subnet&#10;10.50.128.0/24&#10;(reserved for Aurora — ADR-009 future)" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;strokeColor=#147EBA;fillColor=#FFFAEB;verticalAlign=top;align=left;spacingLeft=30;fontColor=#147EBA;dashed=0;" vertex="1" parent="az-a">
+        <!-- Reserved data-tier subnet a (target state, not in current Terraform — ADR-009 v2 calls for Aurora here) -->
+        <mxCell id="data-a" value="Reserved: data subnet&#10;(ADR-009 v2 target — not in current TF)&#10;Aurora Serverless v2 lands here" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=2;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;strokeColor=#AAB7B8;fillColor=#F5F5F5;verticalAlign=top;align=left;spacingLeft=30;fontColor=#AAB7B8;dashed=8 4;opacity=70;" vertex="1" parent="az-a">
           <mxGeometry x="20" y="420" width="500" height="180" as="geometry" />
         </mxCell>
 
@@ -82,11 +82,20 @@
           <mxGeometry x="20" y="40" width="500" height="160" as="geometry" />
         </mxCell>
 
-        <mxCell id="alb-b" value="ALB target&#10;(AZ-b)" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.application_load_balancer;" vertex="1" parent="pub-b">
+        <!-- NAT Gateway in pub-b (one NAT per public subnet per the network module's for_each = aws_subnet.public) -->
+        <mxCell id="nat-b" value="NAT Gateway" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.nat_gateway;" vertex="1" parent="pub-b">
           <mxGeometry x="40" y="60" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <mxCell id="app-b" value="Private-app subnet&#10;10.50.68.0/22" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;strokeColor=#147EBA;fillColor=#F0F8E6;verticalAlign=top;align=left;spacingLeft=30;fontColor=#147EBA;dashed=0;" vertex="1" parent="az-b">
+        <mxCell id="eip-b" value="EIP" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#8C4FFF;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.elastic_ip_addresses;" vertex="1" parent="pub-b">
+          <mxGeometry x="140" y="60" width="40" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="alb-b-note" value="(same catalyst-alb&#10;cross-zoned to AZ-b)" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#8C4FFF;fontStyle=2;" vertex="1" parent="pub-b">
+          <mxGeometry x="240" y="70" width="160" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="app-b" value="Private subnet&#10;10.50.11.0/24" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;strokeColor=#147EBA;fillColor=#F0F8E6;verticalAlign=top;align=left;spacingLeft=30;fontColor=#147EBA;dashed=0;" vertex="1" parent="az-b">
           <mxGeometry x="20" y="220" width="500" height="180" as="geometry" />
         </mxCell>
 
@@ -94,7 +103,7 @@
           <mxGeometry x="40" y="80" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <mxCell id="data-b" value="Private-data subnet&#10;10.50.129.0/24" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;strokeColor=#147EBA;fillColor=#FFFAEB;verticalAlign=top;align=left;spacingLeft=30;fontColor=#147EBA;dashed=0;" vertex="1" parent="az-b">
+        <mxCell id="data-b" value="Reserved: data subnet&#10;(ADR-009 v2 target — not in current TF)&#10;Aurora Serverless v2 lands here" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=10;fontStyle=2;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;strokeColor=#AAB7B8;fillColor=#F5F5F5;verticalAlign=top;align=left;spacingLeft=30;fontColor=#AAB7B8;dashed=8 4;opacity=70;" vertex="1" parent="az-b">
           <mxGeometry x="20" y="420" width="500" height="180" as="geometry" />
         </mxCell>
 
@@ -103,9 +112,9 @@
           <mxGeometry x="80" y="80" width="60" height="60" as="geometry" />
         </mxCell>
 
-        <!-- VPC Endpoints panel (annotation, sits next to VPC) -->
-        <mxCell id="vpce-panel" value="VPC Endpoints (12 total)&#10;&#10;Gateway endpoints:&#10;  • S3&#10;  • DynamoDB&#10;&#10;Interface endpoints:&#10;  • ECR API + DKR&#10;  • SSM + SSM Messages + EC2 Messages&#10;  • STS&#10;  • KMS&#10;  • Secrets Manager&#10;  • CloudWatch Logs&#10;  • Bedrock Runtime (deferred)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#5A6C7D;align=left;verticalAlign=top;fontSize=11;spacing=8;fontColor=#232F3E;" vertex="1" parent="cloud">
-          <mxGeometry x="980" y="120" width="170" height="240" as="geometry" />
+        <!-- VPC Endpoints panel (annotation, sits next to VPC) — implemented vs target-state per ADR-010 -->
+        <mxCell id="vpce-panel" value="VPC Endpoints&#10;&#10;Implemented today&#10;(modules/network/main.tf):&#10;  • S3 (gateway)&#10;  • DynamoDB (gateway)&#10;&#10;Target state (ADR-010 — not in current TF):&#10;  • ECR API + DKR (interface)&#10;  • SSM + SSM Messages + EC2 Messages&#10;  • STS&#10;  • KMS&#10;  • Secrets Manager&#10;  • CloudWatch Logs&#10;  • Bedrock Runtime (deferred)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#5A6C7D;align=left;verticalAlign=top;fontSize=10;spacing=8;fontColor=#232F3E;" vertex="1" parent="cloud">
+          <mxGeometry x="980" y="100" width="170" height="270" as="geometry" />
         </mxCell>
 
         <!-- Security Groups panel -->
@@ -126,7 +135,7 @@
         <mxCell id="e-alb-lambda-a" value="invoke" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ED7100;fontSize=10;dashed=0;" edge="1" parent="vpc" source="alb" target="lambda-eni-a">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-alb-lambda-b" value="invoke" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ED7100;fontSize=10;" edge="1" parent="vpc" source="alb-b" target="lambda-eni-b">
+        <mxCell id="e-alb-lambda-b" value="invoke (cross-AZ)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#ED7100;fontSize=10;" edge="1" parent="vpc" source="alb" target="lambda-eni-b">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 

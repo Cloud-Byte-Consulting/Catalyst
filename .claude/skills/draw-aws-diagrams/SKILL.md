@@ -58,8 +58,10 @@ AWS Cloud (mxgraph.aws4.group_aws_cloud_alt, stroke #232F3E)
 
 Reasoning: the AWS Groups library doesn't have a dedicated "subnet" shape, so we reuse `group_security_group` (the dashed rectangle) for subnets and color-code by tier:
 - Public subnet: `fillColor=#E6F2F8` (light blue)
-- Private-app subnet: `fillColor=#F0F8E6` (light green)
-- Private-data subnet: `fillColor=#FFFAEB` (light tan)
+- Private subnet: `fillColor=#F0F8E6` (light green) — runtime ENIs (Lambda / ECS tasks)
+- Future / target-state subnet (not in current Terraform): `fillColor=#F5F5F5`, `strokeColor=#AAB7B8`, `dashed=8 4`, `opacity=70`, label prefixed with "Reserved:" — for slots like the ADR-009 v2 data-tier subnet for Aurora
+
+Match the diagram to the implementation: if `infrastructure/modules/network/main.tf` creates one private subnet per AZ via `for_each = aws_subnet.private`, the diagram should show one private subnet per AZ — not separate "private-app" and "private-data" subnets unless both resources actually exist. Always cross-reference `infrastructure/variables.tf` for the canonical CIDR defaults.
 
 **Audience-driven flattening.** When the audience does not need network detail (e.g. the application-layer view targets service developers, not network engineers), collapse the hierarchy into `AWS Cloud → resource` or `AWS Cloud → logical-group → resource`. Skip VPC / AZ / subnet groups in those views — they add noise without adding signal. `diagrams/application-layer.drawio` is the canonical example of this flattening: it uses `lambda-group` as a logical container rather than a network container.
 
@@ -183,7 +185,7 @@ For multi-page files, repeat the `<diagram>` element inside `<mxfile>`.
 ## Authoring a new diagram (Mode A — hand-author)
 
 1. **Identify the audience.** Each Catalyst diagram targets a specific reader (network engineer, service developer, interview panel). Title and subtitle name the audience and the source-of-truth path.
-2. **Pick a page size.** `1400 × 900` for wide views, `1000 × 1200` for vertical flows.
+2. **Pick a page size.** `1400 × 900` for wide views, `1200 × 1280` for vertical-flow views (may extend to `1200 × 1400` when dense legends or worked-example callouts require it — see the canonical Page layout section above for the full convention).
 3. **Draft the group hierarchy first.** AWS Cloud → VPC → AZ → subnet. Place containers with rough geometry; add resources after.
 4. **Add resource icons inside their containers.** Use the verified styles above. Set `parent` to the container ID.
 5. **Add edges.** Source/target reference the resource cell IDs. Use the connector conventions from the table above.
