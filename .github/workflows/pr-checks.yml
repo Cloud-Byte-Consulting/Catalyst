@@ -5,6 +5,30 @@ on:
 permissions:
   contents: read
 jobs:
+  actionlint:
+    # Lint GitHub Actions workflows on every PR that touches .github/workflows/**.
+    # Gated by `paths` at the job level via dorny/paths-filter so unrelated PRs
+    # don't waste a runner. Required-status posture matches python-tests: when
+    # a PR touches workflows, this must pass before merge.
+    #
+    # Kaizen scope (#127): adding the gate. If actionlint flags pre-existing
+    # issues in current workflow files, those are tracked as a separate
+    # follow-up kaizen — not fixed in this PR.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            workflows:
+              - '.github/workflows/**'
+      - name: Run actionlint
+        if: steps.changes.outputs.workflows == 'true'
+        uses: raven-actions/actionlint@v2
+        with:
+          version: latest
+          fail-on-error: true
   terraform-quality:
     runs-on: ubuntu-latest
     steps:
