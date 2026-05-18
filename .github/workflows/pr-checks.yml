@@ -15,6 +15,13 @@ jobs:
     # issues in current workflow files, those are tracked as a separate
     # follow-up kaizen — not fixed in this PR.
     runs-on: ubuntu-latest
+    # dorny/paths-filter@v3 calls the listFiles API on the PR to decide
+    # whether to run actionlint. That requires pull-requests:read.
+    # Job-level permissions override the workflow-level default entirely,
+    # so contents:read must be re-declared here.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
