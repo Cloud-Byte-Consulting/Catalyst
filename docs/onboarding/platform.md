@@ -91,25 +91,32 @@ Adding **new platform-wide AWS resource types** is always a Terraform PR — nev
 2. Attach the minimal inline policy below: `iam:*` scoped to the three Catalyst RBAC groups (`catalyst-owners`, `catalyst-administrators`, `catalyst-viewers`). The full per-group action matrix lives in [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md).
 3. Update `BOOTSTRAP_ADMIN_PRINCIPAL_ARN` (env var, GitHub repo var, and any `.env` file) to that role's ARN and re-run `scripts/bootstrap-aws-account.sh`. The script is idempotent — re-running rotates the trust policy on `catalyst-bootstrap-admin` to the new principal.
 
-**Suggested policy shape** (minimal — see ADR-008 for the full matrix):
+**Suggested policy shape** (matches ADR-008's canonical `CatalystOwnerPolicy`):
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "ManageCatalystRBACGroups",
+      "Sid": "IamGroupManagement",
       "Effect": "Allow",
-      "Action": "iam:*",
+      "Action": [
+        "iam:AddUserToGroup",
+        "iam:RemoveUserFromGroup",
+        "iam:GetGroup",
+        "iam:ListGroupsForUser"
+      ],
       "Resource": [
-        "arn:aws:iam::<account>:group/catalyst-owners",
-        "arn:aws:iam::<account>:group/catalyst-administrators",
-        "arn:aws:iam::<account>:group/catalyst-viewers"
+        "arn:aws:iam::{account}:group/catalyst-owners",
+        "arn:aws:iam::{account}:group/catalyst-administrators",
+        "arn:aws:iam::{account}:group/catalyst-viewers"
       ]
     }
   ]
 }
 ```
+
+This is the same policy ADR-008 attaches to `catalyst-owners`. Listing specific actions (rather than `iam:*`) limits the principal to group-membership management on exactly the three Catalyst RBAC groups — no role creation, no policy authoring, no cross-account trust.
 
 **Follow-up.** A dedicated Terraform module (`infrastructure/modules/iam-breakglass/`) will codify this role + policy so operators don't hand-roll it; that work is tracked as a separate follow-up to #166 and will land once an operator exercises the path end-to-end.
 
