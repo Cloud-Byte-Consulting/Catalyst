@@ -137,6 +137,83 @@ def test_call_attaches_presigned_url_header(monkeypatch, aws_credentials):
 
 
 @mock_aws
+def test_sigv4_build_auth_returns_aws4auth(monkeypatch, aws_credentials):
+    """When CATALYST_AUTH=sigv4, _build_auth() resolves credentials via boto3
+    and returns a requests_aws4auth.AWS4Auth signer (used by requests).
+    """
+    monkeypatch.setenv("CATALYST_AUTH", "sigv4")
+    from requests_aws4auth import AWS4Auth
+    auth = catalyst_cli._build_auth()
+    assert isinstance(auth, AWS4Auth)
+    # AWS4Auth exposes the service and region it was bound to.
+    assert auth.service == "execute-api"
+    assert auth.region == "us-east-1"
+
+
+def test_sigv4_build_auth_raises_without_credentials(monkeypatch):
+    """No AWS creds + sigv4 strategy → SystemExit, never silently no-auth."""
+    monkeypatch.setenv("CATALYST_AUTH", "sigv4")
+    for k in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
+              "AWS_PROFILE", "AWS_DEFAULT_REGION", "AWS_REGION"):
+        monkeypatch.delenv(k, raising=False)
+    import boto3
+    monkeypatch.setattr(boto3.Session, "get_credentials", lambda self: None)
+    with pytest.raises(SystemExit) as exc:
+        catalyst_cli._build_auth()
+    assert "no AWS credentials" in str(exc.value)
+
+
+@mock_aws
+def test_sigv4_build_auth_uses_aws_region_env_fallback(monkeypatch, aws_credentials):
+    """When session has no region, AWS_REGION env is the fallback."""
+    monkeypatch.setenv("AWS_REGION", "ap-southeast-2")
+    monkeypatch.setenv("CATALYST_AUTH", "sigv4")
+    # Force session.region_name to None so the env fallback is exercised.
+    import boto3
+    monkeypatch.setattr(
+        boto3.Session, "region_name", property(lambda self: None)
+    )
+    auth = catalyst_cli._build_auth()
+    assert auth.region == "ap-southeast-2"
+
+
+def test_call_returns_raw_text_for_non_json_response(monkeypatch):
+    """Non-JSON response (e.g. text/plain health probe) returns {"raw": text}
+    instead of attempting json() parse.
+    """
+    monkeypatch.setenv("CATALYST_AUTH", "none")
+
+    class _R:
+        status_code = 200
+        text = "OK"
+        headers = {"content-type": "text/plain"}
+
+        def json(self):  # pragma: no cover - must not be called
+            raise AssertionError("json() should not be called for text/plain")
+
+    monkeypatch.setattr(catalyst_cli.requests, "request", lambda *a, **kw: _R())
+    assert catalyst_cli._call("GET", "/health") == {"raw": "OK"}
+
+
+def test_cli_main_invokes_command_through_knack(monkeypatch):
+    """End-to-end smoke: cli_main wires the command table and dispatches to
+    health_command via knack. We monkeypatch _call to keep the test offline.
+    """
+    monkeypatch.setenv("CATALYST_AUTH", "none")
+    monkeypatch.setenv("CATALYST_API_ENDPOINT", "http://test.local")
+    calls: list[tuple[str, str]] = []
+
+    def _fake_call(method, path, *, json_body=None):
+        calls.append((method, path))
+        return {"status": "ok"}
+
+    monkeypatch.setattr(catalyst_cli, "_call", _fake_call)
+    rc = catalyst_cli.cli_main(["health", "check"])
+    assert rc == 0
+    assert ("GET", "/health") in calls
+
+
+@mock_aws
 def test_call_respects_env_supplied_url(monkeypatch, aws_credentials):
     """When CATALYST_PRESIGNED_STS_URL is set explicitly, the CLI forwards it
     verbatim — does not regenerate. Useful when the caller has already
