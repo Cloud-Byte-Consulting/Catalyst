@@ -26,6 +26,8 @@ All onboarding work tracks under the `type/onboarding` label (created 2026-05-18
 | A tenant / LZ / environment (Track B) | `type/onboarding`, `kind/service`, `tenant/<tenant>`, `env/<env>` |
 | An application service (Track C) | `type/onboarding`, `kind/service`, `tenant/<tenant>`, `env/<env>`, plus construct labels |
 
+> **Placeholder labels need creating per-tenant.** The placeholders `tenant/<tenant>`, `env/<env>`, `project/<project>`, `app/<app>` above are templates — the concrete labels (`tenant/catalyst`, `env/shared`, `project/platform`, `app/idp-platform`, `app/kaizen`, `app/ops-intel`) are the only ones currently registered. Before running `gh issue create` with a new placeholder, create the label first: `gh label create tenant/<your-tenant> --repo Cloud-Byte-Consulting/Catalyst`.
+
 ## Related
 
 - [ADR-012](../ADR/ADR-012-onboarding-experience.md) — the architectural decision

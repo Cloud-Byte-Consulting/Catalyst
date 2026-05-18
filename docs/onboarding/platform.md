@@ -109,7 +109,7 @@ On Windows, the equivalent is `scripts/bootstrap-aws-account.ps1`. The script ha
 
 ## CI validation path
 
-`bootstrap-smoke.yml` runs on PRs touching `scripts/bootstrap-aws-account.*`. For live AWS validation, dispatch it manually with `run_aws_validation: true` and the `Catalyst` environment configured (this is one of the only places we use the GitHub Environment binding — Terraform workflows must not).
+`bootstrap-smoke.yml` runs on PRs touching `scripts/bootstrap-aws-account.*`. For live AWS validation, dispatch it manually with `run_aws_validation: true` and the `Catalyst` environment configured (see [`.github/workflows/bootstrap-smoke.yml:63`](../../.github/workflows/bootstrap-smoke.yml) — this is one of the only places we use the GitHub Environment binding; Terraform workflows MUST NOT per ADR-012).
 
 ## After bootstrap completes — pipeline prerequisites checklist
 

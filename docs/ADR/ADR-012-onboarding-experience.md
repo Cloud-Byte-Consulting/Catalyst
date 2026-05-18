@@ -71,7 +71,7 @@ Repository-scoped GitHub Actions variables and secrets (see `.github/workflows/R
 | `RUNTIME` | 2 | `lambda` (default) or `ecs` per [ADR-009](ADR-009-runtime-strategy.md) |
 | `CATALYST_LAMBDA_IMAGE_SEEDED` | 1b | Gate flipped to `true` after first ECR image push |
 
-**Terraform workflows MUST NOT bind to a GitHub Actions `environment:`** until bootstrap trust policies accept environment-scoped JWT `sub` claims. PR #115 (commit `70214f5`) removed environment binding from `terraform.yml` so `AssumeRoleWithWebIdentity` matches `repo:…:ref:refs/heads/release` and `repo:…:pull_request` subjects provisioned by bootstrap. The `Catalyst` GitHub Environment is reserved for **bootstrap validation** workflows that intentionally use environment-scoped secrets.
+**Terraform workflows MUST NOT bind to a GitHub Actions `environment:`** until bootstrap trust policies accept environment-scoped JWT `sub` claims. PR #115 (commits `4bdde87` consolidation, `70214f5` env-binding drop, `c1de16e` single-source-of-truth) removed environment binding from `terraform.yml` so `AssumeRoleWithWebIdentity` matches `repo:…:ref:refs/heads/release` and `repo:…:pull_request` subjects provisioned by bootstrap. The `Catalyst` GitHub Environment is reserved for **bootstrap validation** workflows (`.github/workflows/bootstrap-smoke.yml:63`) that intentionally use environment-scoped secrets.
 
 ### Division of responsibility
 
@@ -91,7 +91,9 @@ Platform operators validating onboarding from a workstation MUST originate from 
 
 ### Production auth strategy
 
-For Track B and Track C consumers calling the API in production, the CLI auth strategy is **`CATALYST_AUTH=presigned-sts`**, not `sigv4`. The server's `services/catalyst-api/catalyst/rbac.py:153` reads the `x-catalyst-identity-url` header (a presigned `sts:GetCallerIdentity` URL), not a SigV4-signed request to `execute-api`. The CLI's `presigned-sts` strategy auto-generates this URL when AWS credentials are available (added in PR #159 alongside the header-name fix). The legacy `sigv4` strategy in `catalyst_cli.py` is retained for completeness but is not the current production path.
+For Track B and Track C consumers calling the API in production, the CLI auth strategy is **`CATALYST_AUTH=presigned-sts`**. The server's `services/catalyst-api/catalyst/rbac.py:153` reads the `x-catalyst-identity-url` header (a presigned `sts:GetCallerIdentity` URL), not a SigV4-signed request to `execute-api`. The CLI's `presigned-sts` strategy auto-generates this URL when AWS credentials are available (added in PR #159 alongside the header-name fix).
+
+> **Naming asymmetry to note:** the *server-side* mode that reads `x-catalyst-identity-url` is the enum value `CATALYST_AUTH_MODE=sigv4` (`rbac.py:144` — it's the production mode). The *client-side* env var that selects the same strategy is `CATALYST_AUTH=presigned-sts` on the CLI. Both refer to the same presigned-STS verification flow. The CLI also exposes a separate `CATALYST_AUTH=sigv4` strategy that signs the API call with AWS4Auth against `execute-api` — that strategy is retained for completeness but is not how Catalyst (ALB → Lambda) is wired.
 
 ## Consequences
 
@@ -112,7 +114,7 @@ For Track B and Track C consumers calling the API in production, the CLI auth st
 | Console-only account setup | No reproducibility; violates GitOps and the ADR-001 evidence requirement. |
 | One umbrella onboarding doc covering all three audiences | Tried in the original ADR draft. Mixed audiences in one file forces every reader to scan past the other two tracks. Three separate runbooks with one architectural ADR keeps the decision portable and the runbooks audience-focused. |
 | Skip Tier 1 (registration) and infer tenant from onboard payload only | Breaks compliance scoping and RBAC tenant boundaries (ADR-002, ADR-008). |
-| Bearer tokens for onboard API | Rejected in ADR-007 / ADR-008 in favor of SigV4-presigned identity verification. |
+| Bearer tokens for onboard API | Rejected in ADR-007 / ADR-008 in favor of presigned-STS identity verification. |
 | Bind Terraform workflows to a `Catalyst` GitHub Environment | Mutates the OIDC JWT `sub` claim to include `:environment:Catalyst`, which the bootstrap-managed role trust does not accept. PR #115 (commit `70214f5`) documents the trade-off and removes the binding. |
 
 ## Compliance

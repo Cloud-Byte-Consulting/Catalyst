@@ -31,7 +31,7 @@ All three enforce the same RBAC and validation. Pick the one that matches your c
 tenant / env / landing-zone / project / app
 ```
 
-The pattern is enforced by `CONSTRUCT_RE` in `clients/catalyst-cli/catalyst_cli.py:32` and `catalyst/main.py`. All five segments are lowercase alphanumeric + hyphens. Example:
+The pattern is enforced by `CONSTRUCT_RE` in `clients/catalyst-cli/catalyst_cli.py:32` (client-side) and `CONSTRUCT_PATTERN` in `services/catalyst-api/catalyst/constructs.py:6` (server-side). All five segments are lowercase alphanumeric + hyphens. Example:
 
 ```
 cloud-byte/dev/shared/my-project/my-app
