@@ -57,12 +57,31 @@ def test_generate_presigned_sts_url_honors_expires_in(aws_credentials):
 
 @mock_aws
 def test_generate_presigned_sts_url_uses_region(monkeypatch, aws_credentials):
-    """Explicit region overrides the env var; verifies the helper's signature."""
+    """Explicit region is passed to the boto3 STS client.
+
+    We don't assert on the URL's credential scope here: STS global endpoint
+    (sts.amazonaws.com) always signs with us-east-1 regardless of
+    region_name. The test verifies our helper *forwards* the region to
+    boto3 — boto3's signing behavior is upstream and not our contract.
+    """
     monkeypatch.setenv("AWS_REGION", "us-west-2")
+    captured_region: dict = {}
+    import boto3
+    real_client = boto3.Session.client
+
+    def _spy_client(self, service_name, **kwargs):
+        if service_name == "sts":
+            captured_region["region"] = kwargs.get("region_name")
+        return real_client(self, service_name, **kwargs)
+
+    monkeypatch.setattr(boto3.Session, "client", _spy_client)
     url = catalyst_cli.generate_presigned_sts_url(region="eu-west-1")
-    qs = parse_qs(urlparse(url).query)
-    cred = qs.get("X-Amz-Credential", [""])[0]
-    assert "eu-west-1" in cred, f"expected eu-west-1 in credential scope, got {cred!r}"
+    assert captured_region.get("region") == "eu-west-1", (
+        f"helper should forward explicit region to boto3.client(); "
+        f"got region_name={captured_region.get('region')!r}"
+    )
+    # URL itself is still well-formed.
+    assert url.startswith("https://"), url
 
 
 def test_generate_presigned_sts_url_errors_when_no_credentials(monkeypatch):
