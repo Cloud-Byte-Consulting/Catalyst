@@ -108,11 +108,12 @@ jobs:
 
       - name: Terraform init
         run: |
+          # Pass only bucket + region; key and dynamodb_table come from backend.tf
+          # (key = "catalyst/platform.tfstate") to match the path where terraform.yml
+          # applies state. Overriding key here would connect to an empty file.
           terraform -chdir=infrastructure init \
             -backend-config="bucket=${{ steps.backend.outputs.bucket }}" \
-            -backend-config="key=terraform.tfstate" \
             -backend-config="region=${AWS_REGION}" \
-            -backend-config="dynamodb_table=${CATALYST_PREFIX}-terraform-locks" \
             -input=false
 
       - name: Pre-destroy manifest
