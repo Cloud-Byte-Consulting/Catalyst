@@ -9,7 +9,8 @@ Catalyst is an Internal Developer Platform control plane for AWS. This repositor
 - `clients/catalyst-cli/`: Knack-based CLI for invoking Catalyst API endpoints.
 - `.github/workflows/`: CI/CD pipelines for quality checks, plan/apply, runtime deploy, drift detection, and policy validation.
 - `docs/ADR/`: Accepted architectural decisions.
-- `diagrams/`: Architecture source and rendered artifacts.
+- `docs/ai-workflow-narrative.md`: Evidence of the AGENTS.md operating contract — PRs cited, decision logs, peer-review trail.
+- `diagrams/`: Architecture diagrams (mermaid sources, rendered inline by GitHub) — see [Architecture](#architecture) below.
 
 ## Deploy
 
@@ -46,19 +47,29 @@ terraform -chdir=infrastructure validate
 terraform -chdir=infrastructure test
 ```
 
-4. Run API locally:
+Run API locally:
 
 ```bash
 pip install -r services/catalyst-api/requirements.txt
 uvicorn catalyst.main:app --app-dir services/catalyst-api --reload
 ```
 
-5. Run tests:
+Run tests:
 
 ```bash
 pip install -r services/catalyst-api/requirements-dev.txt
 pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-branch --cov-fail-under=85
 ```
+
+## Architecture
+
+Three diagrams cover the system at different cuts. All are committed as markdown with mermaid sources; GitHub renders them inline.
+
+- **[`diagrams/control-plane.md`](./diagrams/control-plane.md)** — request path (caller → ALB → Lambda → DynamoDB/SSM/STS), provisioning tiers (bootstrap vs pipeline), and the phase-ordering sequence enforced by `terraform.yml` + `service-cd.yml`.
+- **[`diagrams/ha.md`](./diagrams/ha.md)** — multi-AZ ECS topology with Aurora Serverless v2, NAT redundancy, and the failure-mode coverage table. This is the scale-out variant of ADR-009; the demo runs Lambda.
+- **[`diagrams/gitops.md`](./diagrams/gitops.md)** — PR → plan comment → review → apply → deploy → andon flow, OIDC role separation per pipeline phase, and the andon-signal pattern where drift becomes a `state/pending` issue.
+
+See also [ADR-001 through ADR-010](./docs/ADR/) for the design decisions these diagrams encode.
 
 ## Runtime configuration
 
