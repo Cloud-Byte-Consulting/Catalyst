@@ -44,14 +44,16 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      AWS_ROLE_PLAN_ARN: ${{ secrets.AWS_ROLE_PLAN_ARN }}
     steps:
       - uses: actions/checkout@v4
       - name: Configure AWS credentials (read-only smoke)
-        if: ${{ secrets.AWS_ROLE_PLAN_ARN != '' }}
+        if: ${{ env.AWS_ROLE_PLAN_ARN != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_PLAN_ARN }}
+          role-to-assume: ${{ env.AWS_ROLE_PLAN_ARN }}
           aws-region: us-west-2
       - name: STS GetCallerIdentity
-        if: ${{ secrets.AWS_ROLE_PLAN_ARN != '' }}
+        if: ${{ env.AWS_ROLE_PLAN_ARN != '' }}
         run: aws sts get-caller-identity
