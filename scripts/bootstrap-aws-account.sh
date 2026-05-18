@@ -180,6 +180,7 @@ emit_apply_iam_scoped_policy() {
         "iam:AttachRolePolicy",
         "iam:DetachRolePolicy",
         "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
         "iam:PassRole"
       ],
       "Resource": [
