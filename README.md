@@ -9,6 +9,7 @@ Catalyst is an Internal Developer Platform control plane for AWS. This repositor
 - `clients/catalyst-cli/`: Knack-based CLI for invoking Catalyst API endpoints.
 - `.github/workflows/`: CI/CD pipelines for quality checks, plan/apply, runtime deploy, drift detection, and policy validation.
 - `docs/ADR/`: Accepted architectural decisions.
+- `docs/onboarding/`: Audience-sliced onboarding runbooks (platform / organisation / application) per [ADR-012](./docs/ADR/ADR-012-onboarding-experience.md).
 - `docs/ai-workflow-narrative.md`: Evidence of the AGENTS.md operating contract — PRs cited, decision logs, peer-review trail.
 - `diagrams/`: Architecture diagrams (mermaid sources, rendered inline by GitHub) — see [Architecture](#architecture) below.
 
@@ -27,9 +28,7 @@ table.
 
 1. Once per account, run the bootstrap script (or trigger
    `bootstrap-smoke.yml` with `run_aws_validation: true, allow_live_changes: true`).
-   **New operator? Start here: [`docs/operator-bootstrap.md`](./docs/operator-bootstrap.md)** —
-   what to gather (AWS auth choice, account-id, admin principal ARN, region), where to get
-   each value, and the full post-run secret/variable setup with verification commands.
+   **New operator? Start here: [`docs/onboarding/`](./docs/onboarding/)** — the three onboarding tracks (platform / organisation / application) per [ADR-012](./docs/ADR/ADR-012-onboarding-experience.md). For the day-0 step-by-step, [`docs/operator-bootstrap.md`](./docs/operator-bootstrap.md) is the canonical sequence (linked from `docs/onboarding/platform.md`).
 2. Configure the `Catalyst` GitHub Actions environment with the variables and
    secrets listed in [`.github/workflows/README.md`](./.github/workflows/README.md)
    (the operator runbook in the previous step walks through this).
