@@ -117,6 +117,34 @@ Because the ALB does not enforce IAM caller identity, the FastAPI application is
 
 ---
 
+### Naming asymmetry between client and server (#171)
+
+The Catalyst auth env vars use different names on the two sides of the wire for the same flow. New operators routinely get confused by this; the asymmetry is intentional history, not a bug.
+
+| Side | Env var | Value selecting the production flow |
+|---|---|---|
+| **Server** (`services/catalyst-api/catalyst/rbac.py:144`) | `CATALYST_AUTH_MODE` | `sigv4` |
+| **Client / CLI** (`clients/catalyst-cli/catalyst_cli.py`) | `CATALYST_AUTH` | `presigned-sts` |
+
+Both refer to the **same** presigned `sts:GetCallerIdentity` URL flow forwarded in the `x-catalyst-identity-url` header (see `rbac.py:153` and `clients/catalyst-cli/catalyst_cli.py:_call`). The CLI has a separate `CATALYST_AUTH=sigv4` strategy that uses AWS4Auth against `execute-api` — that one is retained for completeness but is not how Catalyst (ALB → Lambda) is wired and is not the production path.
+
+**Why the names differ:** the server-side mode predates the CLI rename. The server's enum value `sigv4` reflects the original RBAC design ("SigV4 request signing"). The CLI's strategy was later renamed `presigned-sts` because that's a more accurate description of what the client actually sends — a presigned URL, not a SigV4-signed direct request. Renaming the server-side value to `presigned-sts` would be a breaking change for deployed environments; that work is tracked separately if anyone wants to take it.
+
+**Operator quick reference:**
+
+```
+# Server (Catalyst API runtime):
+CATALYST_AUTH_MODE=sigv4
+
+# Client (Catalyst CLI):
+CATALYST_AUTH=presigned-sts
+# AWS credentials must be available; CLI auto-generates the presigned URL
+```
+
+These are the production settings. Both refer to the same flow.
+
+---
+
 ### Access management endpoint
 
 Only Owners can manage group membership through the API:
