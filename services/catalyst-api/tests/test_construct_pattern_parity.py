@@ -13,7 +13,7 @@ This test fails loudly on drift. It deliberately AST-parses the CLI source
 ``knack``, ``requests``, or ``boto3``. The test only needs the regex literal,
 not the runtime behavior.
 
-Issue #172. Surfaced during peer review of PR #169.
+Issue #172. Surfaced during peer review of PR #165 (peer-review suggestion #2).
 """
 
 from __future__ import annotations
