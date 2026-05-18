@@ -30,8 +30,9 @@ The README follows this section order:
    matters. Three sentences maximum.
 3. **State machine.** The PR lifecycle as a state machine: Open, Review,
    Gate-Check, Merge, Deploy, Observe. One diagram reference and one paragraph.
-4. **Architecture overview.** Link to `diagrams/01-architecture.png` with a
-   brief legend. Do not reproduce the diagram in text.
+4. **Architecture overview.** Link to `diagrams/README.md` (the canonical
+   index of all six diagrams, three Mermaid + three Draw.io) with a brief
+   legend. Do not reproduce the diagrams in text.
 5. **Honda/TPS framing table.** Map Toyota Production System principles to
    Catalyst features:
 

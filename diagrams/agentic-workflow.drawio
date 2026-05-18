@@ -1,0 +1,222 @@
+<mxfile host="app.diagrams.net" type="device" version="24.0.0">
+  <diagram name="agentic-workflow" id="catalyst-agentic">
+    <mxGraphModel dx="1200" dy="1400" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1280" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Catalyst Agentic Workflow — Six-Gate Contract (ADR-011)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Audience: interview panel + future agents. Source of truth: AGENTS.md + CLAUDE.md + docs/ADR/ADR-011-catalyst-agentic-workflow.md + docs/ai-workflow-narrative.md." style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#5A6C7D;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="1120" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Issue State Machine (horizontal swimlane at top) -->
+        <mxCell id="sm-title" value="GitHub Issues State Machine (ADR-001, STATE-MACHINE.md)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="800" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="state-pending" value="state/pending&#10;(created, unclaimed)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7E6;strokeColor=#ED7100;fontSize=11;fontColor=#232F3E;fontStyle=1;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="state-working" value="state/agent-working&#10;(claimed, in progress)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F4FA;strokeColor=#147EBA;fontSize=11;fontColor=#232F3E;fontStyle=1;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="260" y="140" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="state-review" value="phase/review&#10;(PR open)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5E6FF;strokeColor=#8C4FFF;fontSize=11;fontColor=#232F3E;fontStyle=1;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="480" y="140" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="state-done" value="state/done&#10;(merged)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F4EA;strokeColor=#34A853;fontSize=11;fontColor=#232F3E;fontStyle=1;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="700" y="140" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="state-blocked" value="state/blocked-on-human&#10;(agent refused)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#D13212;fontSize=10;fontColor=#232F3E;fontStyle=2;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="920" y="140" width="160" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- State transitions -->
+        <mxCell id="e-pending-working" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#5A6C7D;fontSize=10;endArrow=classic;" edge="1" parent="1" source="state-pending" target="state-working">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-working-review" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#5A6C7D;fontSize=10;endArrow=classic;" edge="1" parent="1" source="state-working" target="state-review">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-review-done" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#5A6C7D;fontSize=10;endArrow=classic;" edge="1" parent="1" source="state-review" target="state-done">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-working-blocked" value="surprise" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#D13212;fontSize=9;fontStyle=2;dashed=1;endArrow=classic;" edge="1" parent="1" source="state-working" target="state-blocked">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Six AGENTS.md gates (numbered) -->
+        <mxCell id="gates-title" value="Six AGENTS.md Gates (codified by ADR-011)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="240" width="800" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="gate-1" value="1. Model Decision Log&#10;### Agent Decision Log on issue&#10;Model + fallback + rationale" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F4FA;strokeColor=#232F3E;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="280" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-2" value="2. RLM Trigger&#10;Artifacts &gt; 50k chars route&#10;through ADR-004 scaffold" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F4FA;strokeColor=#232F3E;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="240" y="280" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-3" value="3. AWS OIDC Only&#10;No long-lived keys (ADR-006)&#10;Enforced by validate_workflows.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F4FA;strokeColor=#232F3E;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="440" y="280" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-4" value="4. Container Security Gate&#10;Trivy HIGH/CRITICAL&#10;SBOM (SPDX 2.3, CycloneDX 1.5)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F4FA;strokeColor=#232F3E;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="640" y="280" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-5" value="5. Pre-PR Peer Review&#10;Sub-agent fork BEFORE gh pr create&#10;Disposition table mandatory" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6F0;strokeColor=#E7157B;fontSize=10;fontColor=#232F3E;fontStyle=1;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="840" y="280" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-6" value="6. Secret Scanning&#10;GitHub MCP gate on any&#10;file/credential addition" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F4FA;strokeColor=#232F3E;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="380" width="180" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Peer-review sub-agent spawn (gate 5 deep-dive) -->
+        <mxCell id="prr-group" value="Pre-PR Peer Review (gate 5 detail)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E7157B;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=12;fontColor=#E7157B;" vertex="1" parent="1">
+          <mxGeometry x="240" y="380" width="780" height="240" as="geometry" />
+        </mxCell>
+
+        <mxCell id="prr-main-agent" value="Implementing agent&#10;(work complete, pre-PR)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F4FA;strokeColor=#147EBA;fontSize=11;fontColor=#232F3E;spacing=8;" vertex="1" parent="prr-group">
+          <mxGeometry x="20" y="40" width="180" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="prr-fork" value="Agent.spawn(subagent_type=&#10;general-purpose,&#10;prompt=peer-review-prompt)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFE6F0;strokeColor=#E7157B;fontSize=10;fontColor=#232F3E;spacing=6;" vertex="1" parent="prr-group">
+          <mxGeometry x="240" y="30" width="180" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="prr-sub" value="Peer-review sub-agent&#10;(independent context window)&#10;Reviews: AC, ADR, security,&#10;coverage, naming" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEEFA;strokeColor=#E7157B;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="prr-group">
+          <mxGeometry x="460" y="30" width="180" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="prr-verdict" value="Verdict + suggestions&#10;APPROVE / APPROVE_WITH_NITS / BLOCK" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FCE6;strokeColor=#34A853;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="prr-group">
+          <mxGeometry x="240" y="140" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="prr-table" value="Disposition table on PR body&#10;ACCEPT items resolved&#10;REJECT items documented" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFAEB;strokeColor=#ED7100;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="prr-group">
+          <mxGeometry x="480" y="140" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Peer-review edges -->
+        <mxCell id="e-main-fork" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#E7157B;fontSize=10;endArrow=classic;" edge="1" parent="prr-group" source="prr-main-agent" target="prr-fork">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-fork-sub" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#E7157B;fontSize=10;endArrow=classic;" edge="1" parent="prr-group" source="prr-fork" target="prr-sub">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sub-verdict" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#E7157B;fontSize=10;endArrow=classic;" edge="1" parent="prr-group" source="prr-sub" target="prr-verdict">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-verdict-table" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#5A6C7D;fontSize=10;endArrow=classic;" edge="1" parent="prr-group" source="prr-verdict" target="prr-table">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- OIDC role separation -->
+        <mxCell id="oidc-title" value="OIDC Role Separation per Phase (ADR-006)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="660" width="800" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="role-plan" value="catalyst-github-plan&#10;(ReadOnlyAccess)&#10;sub: repo:*:pull_request" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0F4;strokeColor=#DD344C;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="700" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="role-apply" value="catalyst-github-apply&#10;(PowerUserAccess + scoped IAM)&#10;sub: ref:refs/heads/release" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0F4;strokeColor=#DD344C;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="240" y="700" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="role-deploy" value="catalyst-github-deploy&#10;(PowerUserAccess)&#10;sub: ref:refs/heads/release" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0F4;strokeColor=#DD344C;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="440" y="700" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="role-drift" value="catalyst-github-drift&#10;(ReadOnlyAccess)&#10;sub: ref:refs/heads/release" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0F4;strokeColor=#DD344C;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="640" y="700" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Workflows wired to roles -->
+        <mxCell id="wf-pr" value="pr-checks.yml + terraform.yml plan job" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#5A6C7D;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="780" width="180" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="wf-apply" value="terraform.yml apply (push to release)" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#5A6C7D;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="240" y="780" width="180" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="wf-deploy" value="service-cd.yml (build + deploy)" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#5A6C7D;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="440" y="780" width="180" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="wf-drift" value="tf-drift.yml (cron 06:00 UTC)" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=9;fontColor=#5A6C7D;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="640" y="780" width="180" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- RLM scaffold -->
+        <mxCell id="rlm" value="RLM Scaffold (ADR-004)&#10;&#10;Trigger: artifact &gt; 50k chars&#10;Used for: long diffs, terraform plans,&#10;CloudWatch exports, multi-file reads&#10;&#10;Scripts: .claude/skills/rlm/rlm_repl.py&#10;Sub-agent: .claude/agents/rlm-subcall.md&#10;&#10;Output: chunk-confidence-tracked synthesis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F8E6;strokeColor=#7AA116;fontSize=10;fontColor=#232F3E;fontStyle=0;spacing=10;align=left;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="840" y="660" width="220" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- Drift andon flow -->
+        <mxCell id="andon-title" value="Drift Andon — Auto-Issue Pattern" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=1;fontColor=#D13212;" vertex="1" parent="1">
+          <mxGeometry x="40" y="870" width="800" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="andon-cron" value="tf-drift.yml runs daily 06:00 UTC&#10;terraform plan -detailed-exitcode" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFAEB;strokeColor=#ED7100;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="40" y="910" width="220" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="andon-detect" value="Exit code 2?&#10;(non-zero diff = drift)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#D13212;fontSize=10;fontColor=#232F3E;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="300" y="910" width="180" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="andon-sns" value="SNS publish&#10;DRIFT_SNS_TOPIC_ARN" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6F0;strokeColor=#E7157B;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="520" y="900" width="160" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="andon-issue" value="gh issue create&#10;state/pending + type/kaizen" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7E6;strokeColor=#ED7100;fontSize=10;fontColor=#232F3E;spacing=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="520" y="950" width="160" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="andon-back" value="Andon edge: drift becomes a tracked issue,&#10;re-enters the state machine at state/pending.&#10;Agent picks it up on next session." style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=10;fillColor=#FFFFFF;strokeColor=#D13212;rounded=1;spacing=8;fontColor=#232F3E;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="720" y="910" width="340" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Andon edges -->
+        <mxCell id="e-cron-detect" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#5A6C7D;fontSize=10;endArrow=classic;" edge="1" parent="1" source="andon-cron" target="andon-detect">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-detect-sns" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#D13212;fontSize=10;endArrow=classic;" edge="1" parent="1" source="andon-detect" target="andon-sns">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-detect-issue" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#D13212;fontSize=10;endArrow=classic;" edge="1" parent="1" source="andon-detect" target="andon-issue">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Andon loop back to state-pending -->
+        <mxCell id="e-andon-back" value="re-enters state machine" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;html=1;strokeColor=#D13212;fontSize=9;fontStyle=2;dashed=1;endArrow=classic;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="andon-issue" target="state-pending">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="20" y="970" />
+              <mxPoint x="20" y="220" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Worked-example callouts -->
+        <mxCell id="example-147" value="Worked example: PR #147&#10;Triage agent hypothesized paths: filter.&#10;Peer-review sub-agent ran actionlint,&#10;returned HIGH-confidence diagnosis on&#10;secrets.* in step-level if: (different,&#10;correct root cause). Gate 5 working." style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=10;fillColor=#FFFAEB;strokeColor=#ED7100;rounded=1;spacing=8;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1020" width="340" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="example-115" value="Worked example: PR #115&#10;Implementing agent discovered mid-flight&#10;that GitHub Environment binding mutates&#10;OIDC JWT sub, breaking bootstrap trust.&#10;Stopped. Posted decision log. Waited for&#10;operator approval before re-scoping.&#10;Designed stop-and-surface, not failure.&#10;(see docs/ai-workflow-narrative.md §PR #115&#10;for the canonical decision-log narrative)" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=10;fillColor=#F0F4FA;strokeColor=#232F3E;rounded=1;spacing=8;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="400" y="1020" width="340" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="example-150" value="Worked example: PR #151 / Issue #150&#10;Phase A operator-execution. Bootstrap&#10;MSYS fix, orphan VPC cleanup ($100/mo&#10;saved), legacy IAM role deletion (gha-apply&#10;had IAMFullAccess). Three surprises,&#10;each surfaced and authorized. Day-1&#10;sequence executed cleanly post-fix." style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=10;fillColor=#F0FCE6;strokeColor=#34A853;rounded=1;spacing=8;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="760" y="1020" width="340" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend" value="Legend  ━━ state transition  ┄┄ surprise / kaizen  ┄┄ andon loop back to state machine  ◇ decision/fork point&#10;Source of truth: AGENTS.md (contract) + CLAUDE.md (guardrails) + ADR-011 (decision record) + docs/ai-workflow-narrative.md (evidence catalog)&#10;Depicted workflows: terraform.yml, service-cd.yml, tf-drift.yml, pr-checks.yml.  Reference only — not depicted: ci-smoke.yml, teardown.yml, teardown-scheduled.yml, validate-policies.yml, bootstrap-smoke.yml" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=10;fillColor=#FFFFFF;strokeColor=#5A6C7D;rounded=1;spacing=8;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1180" width="1120" height="60" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
