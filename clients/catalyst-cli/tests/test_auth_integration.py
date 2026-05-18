@@ -240,7 +240,7 @@ def test_orgs_landing_zones_create_attaches_presigned_url_header(monkeypatch, aw
     catalyst_cli.orgs_landing_zones_create_command(
         tenant="cloud-byte",
         name="shared",
-        account_id="061051223073",
+        account_id="123456789012",
         compliance="standard",
         idempotency_key="lz-integration-001",
     )

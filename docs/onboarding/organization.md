@@ -1,4 +1,4 @@
-# Track B — Organisation / tenant onboarding
+# Track B — Organization / tenant onboarding
 
 **Audience:** Team / lab leader (Owner role per [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md)) registering a new tenant, landing zone, or environment.
 **Outcome:** Construct hierarchy recorded in the Catalyst control plane; environments resolvable; Tier 2 (application) onboarding unblocked.
@@ -17,7 +17,7 @@ If you don't have Owner-group membership, ask a platform engineer to add you via
 
 ## What you'll create
 
-A tenant typically maps 1:1 to an organisation or business unit. Underneath, the hierarchy is:
+A tenant typically maps 1:1 to an organization or business unit. Underneath, the hierarchy is:
 
 ```
 tenant
@@ -47,10 +47,12 @@ The CLI exposes the Tier 1 `orgs` commands directly (added in PR #169 / closes t
 A landing zone scopes IAM, cost, and compliance for a tenant.
 
 ```bash
+# AWS_ACCOUNT_ID comes from your .env (or `aws sts get-caller-identity --query Account --output text`)
+# In CI it pairs with the BOOTSTRAP_AWS_ACCOUNT_ID repo variable
 python clients/catalyst-cli/catalyst_cli.py orgs landing-zones create \
   --tenant cloud-byte \
   --name shared \
-  --account-id 061051223073 \
+  --account-id "$AWS_ACCOUNT_ID" \
   --compliance standard \
   --idempotency-key lz-shared-001
 ```
@@ -93,7 +95,7 @@ python clients/catalyst-cli/catalyst_cli.py orgs applications create \
 ## Step 4 — Verify the hierarchy
 
 ```bash
-python clients/catalyst-cli/catalyst_cli.py orgs get cloud-byte
+python clients/catalyst-cli/catalyst_cli.py orgs get --tenant cloud-byte
 ```
 
 Expected response: JSON with `tenant`, `landing_zones`, `environments`, `applications` arrays reflecting Steps 1-3.
@@ -149,7 +151,7 @@ PRESIGNED_URL=$(python -c "import boto3,os; print(boto3.client('sts', region_nam
 curl -sS -X POST "${CATALYST_API_ENDPOINT}/orgs/cloud-byte/landing-zones" \
   -H "Content-Type: application/json" \
   -H "x-catalyst-identity-url: ${PRESIGNED_URL}" \
-  -d '{"tenant":"cloud-byte","name":"shared","account_id":"061051223073","compliance":"standard","idempotency_key":"lz-shared-001"}'
+  -d "{\"tenant\":\"cloud-byte\",\"name\":\"shared\",\"account_id\":\"${AWS_ACCOUNT_ID}\",\"compliance\":\"standard\",\"idempotency_key\":\"lz-shared-001\"}"
 
 # Environment
 curl -sS -X POST "${CATALYST_API_ENDPOINT}/orgs/cloud-byte/environments" \

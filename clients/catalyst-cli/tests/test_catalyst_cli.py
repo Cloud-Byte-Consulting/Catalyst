@@ -102,7 +102,7 @@ def test_orgs_landing_zones_create_posts_body(fake_call):
     catalyst_cli.orgs_landing_zones_create_command(
         tenant="cloud-byte",
         name="shared",
-        account_id="061051223073",
+        account_id="123456789012",
         compliance="standard",
         idempotency_key="lz-001",
     )
@@ -113,7 +113,7 @@ def test_orgs_landing_zones_create_posts_body(fake_call):
             {
                 "tenant": "cloud-byte",
                 "name": "shared",
-                "account_id": "061051223073",
+                "account_id": "123456789012",
                 "compliance": "standard",
                 "idempotency_key": "lz-001",
             },
@@ -191,6 +191,61 @@ def test_orgs_landing_zones_create_rejects_missing_account(fake_call):
         )
     assert "account_id are required" in str(exc.value) or "required" in str(exc.value)
     assert calls == []
+
+
+def test_orgs_environments_create_rejects_missing_landing_zone(fake_call):
+    calls, _ = fake_call
+    with pytest.raises(SystemExit) as exc:
+        catalyst_cli.orgs_environments_create_command(
+            tenant="cloud-byte", name="dev", landing_zone=""
+        )
+    assert "required" in str(exc.value)
+    assert calls == []
+
+
+def test_orgs_ous_create_rejects_missing_name(fake_call):
+    calls, _ = fake_call
+    with pytest.raises(SystemExit) as exc:
+        catalyst_cli.orgs_ous_create_command(tenant="cloud-byte", name="")
+    assert "required" in str(exc.value)
+    assert calls == []
+
+
+def test_orgs_applications_create_rejects_missing_project(fake_call):
+    calls, _ = fake_call
+    with pytest.raises(SystemExit) as exc:
+        catalyst_cli.orgs_applications_create_command(
+            tenant="cloud-byte", project="", name="my-app"
+        )
+    assert "required" in str(exc.value)
+    assert calls == []
+
+
+def test_orgs_landing_zones_create_surfaces_4xx_detail(monkeypatch):
+    """Gherkin AC scenario 2: CLI surfaces the same 4xx error detail the API
+    returns. Tier 1 orgs commands go through the same _call seam as Tier 2,
+    so a 422 with body.detail propagates verbatim into the SystemExit message.
+    """
+    monkeypatch.setenv("CATALYST_AUTH", "none")
+
+    class _R:
+        status_code = 422
+        text = '{"detail":"unknown landing zone parent"}'
+        headers = {"content-type": "application/json"}
+
+        def json(self):
+            return {"detail": "unknown landing zone parent"}
+
+    monkeypatch.setattr(catalyst_cli.requests, "request", lambda *a, **kw: _R())
+    with pytest.raises(SystemExit) as exc:
+        catalyst_cli.orgs_landing_zones_create_command(
+            tenant="cloud-byte",
+            name="shared",
+            account_id="123456789012",
+        )
+    msg = str(exc.value)
+    assert "request failed: 422" in msg
+    assert "unknown landing zone parent" in msg
 
 
 def test_invalid_construct_raises_before_http(fake_call, monkeypatch):

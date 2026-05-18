@@ -184,7 +184,7 @@ def groups_list_command() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Tier 1 organisation commands (#169 — see docs/onboarding/organisation.md)
+# Tier 1 organization commands (#169 — see docs/onboarding/organization.md)
 # Each wraps an ADR-007 §Tier 1 endpoint. Auth flows through the existing
 # _call seam, so the same presigned-STS header forwarding tests cover these.
 # ---------------------------------------------------------------------------
