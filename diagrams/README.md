@@ -2,16 +2,17 @@
 
 This directory holds the source-of-truth architecture views for Catalyst, sliced by audience and format.
 
-## The six diagrams
+## The seven diagrams
 
 | File | Format | Audience | What it shows |
 |---|---|---|---|
 | [`control-plane.md`](./control-plane.md) | Mermaid | Reviewer / panel | Request path: caller → ALB → Lambda → DynamoDB/SSM/STS; provisioning tiers (bootstrap vs pipeline); phase-ordering sequence enforced by `terraform.yml` + `service-cd.yml` |
 | [`ha.md`](./ha.md) | Mermaid | Site-reliability eng | Multi-AZ ECS topology with Aurora Serverless v2, NAT redundancy, failure-mode coverage. Scale-out variant of ADR-009 (the demo runs Lambda) |
 | [`gitops.md`](./gitops.md) | Mermaid | Platform eng | PR → plan comment → review → apply → deploy → andon flow; OIDC role separation per phase; drift becomes `state/pending` issue |
-| [`network-layer.drawio`](./network-layer.drawio) | Draw.io XML | Cloud / network eng | VPC 10.50.0.0/16, two AZs, public/private-app/private-data subnets, NAT, IGW, EIP, 12 VPC endpoints panel, three security groups, ALB ingress allowlist annotation |
+| [`network-layer.drawio`](./network-layer.drawio) | Draw.io XML | Cloud / network eng | VPC 10.50.0.0/16, two AZs, public + private subnets (matching `infrastructure/variables.tf` defaults), one NAT per AZ, IGW, EIP, VPC endpoints panel split into implemented (S3 + DDB gateway) vs ADR-010 target-state, three security groups, ALB ingress allowlist annotation |
 | [`application-layer.drawio`](./application-layer.drawio) | Draw.io XML | Service developer | ALB → Lambda (Mangum); Lambda → DynamoDB/S3/SSM/Secrets/CloudWatch Logs; SigV4 verification path via STS + IAM `ListGroupsForUser`; dashed alternative to ECS Fargate (`RUNTIME=ecs`) |
 | [`agentic-workflow.drawio`](./agentic-workflow.drawio) | Draw.io XML | Interview panel + future agents | Six AGENTS.md gates (codified by ADR-011); Issues state machine; peer-review sub-agent fork; RLM scaffold trigger; OIDC role separation per phase; drift andon flow with worked-example callouts (PR #147 / #115 / #151) |
+| [`cicd-pipeline.drawio`](./cicd-pipeline.drawio) | Draw.io XML | DevOps / platform eng | All nine `.github/workflows/*.yml` mapped: triggers (PR / push / cron / dispatch) → workflows → quality gates (terraform fmt + validate + TFLint + pytest --cov-fail-under=85) + security gates (tfsec, Checkov, Trivy, gitleaks, OPA conftest, SARIF, SBOM SPDX/CycloneDX) → OIDC role per phase → outcome (PR check suite, plan comment, AWS mutation, deploy, drift issue, teardown) |
 
 ## Format choice — when to use Mermaid vs Draw.io
 
@@ -45,12 +46,12 @@ Every diagram cites at least one ADR. Reverse index:
 | ADR-002 (Construct hierarchy) | `control-plane.md` (implicit) |
 | ADR-003 (Static + ephemeral envs) | `gitops.md` (implicit) |
 | ADR-004 (RLM scaffold) | `agentic-workflow.drawio` |
-| ADR-006 (CI/CD pipeline architecture) | `gitops.md`, `agentic-workflow.drawio` |
+| ADR-006 (CI/CD pipeline architecture) | `gitops.md`, `agentic-workflow.drawio`, `cicd-pipeline.drawio` |
 | ADR-007 (Golden paths) | `application-layer.drawio` |
-| ADR-008 (RBAC + SigV4) | `application-layer.drawio` |
+| ADR-008 (RBAC + SigV4) | `application-layer.drawio`, `cicd-pipeline.drawio` |
 | ADR-009 (Runtime strategy) | `application-layer.drawio`, `network-layer.drawio`, `ha.md` |
 | ADR-010 (Egress control) | `network-layer.drawio` |
-| ADR-011 (Agentic workflow contract) | `agentic-workflow.drawio` |
+| ADR-011 (Agentic workflow contract) | `agentic-workflow.drawio`, `cicd-pipeline.drawio` (gate-3 OIDC + gate-4 container security depicted) |
 
 ## Updating a diagram
 

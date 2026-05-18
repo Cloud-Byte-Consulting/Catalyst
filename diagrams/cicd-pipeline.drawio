@@ -1,0 +1,281 @@
+<mxfile host="app.diagrams.net" type="device" version="24.0.0">
+  <diagram name="cicd-pipeline" id="catalyst-cicd">
+    <mxGraphModel dx="1422" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Catalyst CI/CD Pipeline — GitHub Actions + Vulnerability Scanning + Quality Gates" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1520" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Audience: DevOps / platform engineer. Source of truth: .github/workflows/. Decisions: ADR-006 (CI/CD architecture) + ADR-008 (RBAC) + ADR-011 (agentic workflow contract)." style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#5A6C7D;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="1520" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Trigger lane labels -->
+        <mxCell id="trigger-lane" value="Trigger" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=1;fontColor=#5A6C7D;" vertex="1" parent="1">
+          <mxGeometry x="40" y="100" width="200" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="workflow-lane" value="Workflow + Quality / Security Gates" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=1;fontColor=#5A6C7D;" vertex="1" parent="1">
+          <mxGeometry x="260" y="100" width="700" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="oidc-lane" value="OIDC Role" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=1;fontColor=#5A6C7D;" vertex="1" parent="1">
+          <mxGeometry x="980" y="100" width="200" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="outcome-lane" value="Outcome" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=13;fontStyle=1;fontColor=#5A6C7D;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="100" width="360" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- ============ TRIGGERS ============ -->
+        <mxCell id="trig-pr" value="pull_request → release" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#24292F;strokeColor=#24292F;fontSize=11;fontColor=#FFFFFF;fontStyle=1;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="200" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="trig-push" value="push → release" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1F883D;strokeColor=#1F883D;fontSize=11;fontColor=#FFFFFF;fontStyle=1;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="450" width="200" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="trig-cron" value="schedule (cron)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9A6700;strokeColor=#9A6700;fontSize=11;fontColor=#FFFFFF;fontStyle=1;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="680" width="200" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="trig-dispatch" value="workflow_dispatch (manual)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8250DF;strokeColor=#8250DF;fontSize=11;fontColor=#FFFFFF;fontStyle=1;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="880" width="200" height="36" as="geometry" />
+        </mxCell>
+
+        <!-- ============ PR-CHECKS WORKFLOW (PR-trigger) ============ -->
+        <mxCell id="wf-pr-checks" value="pr-checks.yml — quality + security sweep" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDF4FF;strokeColor=#0969DA;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=12;fontColor=#0969DA;" vertex="1" parent="1">
+          <mxGeometry x="260" y="140" width="700" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="gate-fmt" value="terraform fmt -check&#10;+ validate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAFBE1;strokeColor=#1F883D;fontSize=10;fontColor=#232F3E;spacing=6;align=center;" vertex="1" parent="wf-pr-checks">
+          <mxGeometry x="20" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-tflint" value="TFLint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAFBE1;strokeColor=#1F883D;fontSize=10;fontColor=#232F3E;spacing=6;align=center;" vertex="1" parent="wf-pr-checks">
+          <mxGeometry x="150" y="40" width="80" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-tfsec" value="tfsec&#10;(security)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE9;strokeColor=#CF222E;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=1;" vertex="1" parent="wf-pr-checks">
+          <mxGeometry x="240" y="40" width="80" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-checkov" value="Checkov&#10;(IaC SAST)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE9;strokeColor=#CF222E;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=1;" vertex="1" parent="wf-pr-checks">
+          <mxGeometry x="330" y="40" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-trivy" value="Trivy&#10;(container + filesystem)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE9;strokeColor=#CF222E;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=1;" vertex="1" parent="wf-pr-checks">
+          <mxGeometry x="430" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-gitleaks" value="gitleaks&#10;(secret scan)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE9;strokeColor=#CF222E;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=1;" vertex="1" parent="wf-pr-checks">
+          <mxGeometry x="560" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-pytest" value="pytest --cov-fail-under=85&#10;(unit + integration + API)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAFBE1;strokeColor=#1F883D;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=1;" vertex="1" parent="wf-pr-checks">
+          <mxGeometry x="20" y="100" width="280" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="gate-sarif" value="SARIF upload → GitHub code scanning" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8C5;strokeColor=#9A6700;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=2;" vertex="1" parent="wf-pr-checks">
+          <mxGeometry x="320" y="100" width="360" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- TERRAFORM.YML PLAN (PR-trigger path) -->
+        <mxCell id="wf-tf-plan" value="terraform.yml — plan job (PR path)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDF4FF;strokeColor=#0969DA;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=12;fontColor=#0969DA;" vertex="1" parent="1">
+          <mxGeometry x="260" y="310" width="700" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="step-init" value="terraform init&#10;(S3 backend + DDB lock)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAFBE1;strokeColor=#1F883D;fontSize=10;fontColor=#232F3E;spacing=6;align=center;" vertex="1" parent="wf-tf-plan">
+          <mxGeometry x="20" y="40" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-plan" value="terraform plan&#10;-lock=false (read-only)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAFBE1;strokeColor=#1F883D;fontSize=10;fontColor=#232F3E;spacing=6;align=center;" vertex="1" parent="wf-tf-plan">
+          <mxGeometry x="190" y="40" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-sticky" value="Sticky PR comment&#10;(rendered plan)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8C5;strokeColor=#9A6700;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=2;" vertex="1" parent="wf-tf-plan">
+          <mxGeometry x="360" y="40" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-ci-smoke" value="ci-smoke.yml (peer pipeline)&#10;actionlint + validate_workflows.py&#10;+ OIDC sts:GetCallerIdentity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE9;strokeColor=#CF222E;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=1;" vertex="1" parent="wf-tf-plan">
+          <mxGeometry x="530" y="40" width="160" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- TERRAFORM.YML APPLY (push to release) -->
+        <mxCell id="wf-tf-apply" value="terraform.yml — apply job (push to release)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAFBE1;strokeColor=#1F883D;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=12;fontColor=#1F883D;" vertex="1" parent="1">
+          <mxGeometry x="260" y="450" width="700" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="step-apply" value="terraform apply&#10;-auto-approve&#10;(holds DDB lock)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F883D;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=1;" vertex="1" parent="wf-tf-apply">
+          <mxGeometry x="20" y="40" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-validate-policies" value="validate-policies.yml&#10;conftest verify (OPA)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE9;strokeColor=#CF222E;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=1;" vertex="1" parent="wf-tf-apply">
+          <mxGeometry x="230" y="40" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-bootstrap-smoke" value="bootstrap-smoke.yml&#10;(when bootstrap script touched)&#10;syntax + pytest + optional AWS validate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE9;strokeColor=#CF222E;fontSize=9;fontColor=#232F3E;spacing=6;align=center;fontStyle=1;" vertex="1" parent="wf-tf-apply">
+          <mxGeometry x="440" y="40" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- SERVICE-CD.YML -->
+        <mxCell id="wf-cd" value="service-cd.yml — image build + push + deploy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DAFBE1;strokeColor=#1F883D;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=12;fontColor=#1F883D;" vertex="1" parent="1">
+          <mxGeometry x="260" y="560" width="700" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="step-build" value="docker build&#10;(Lambda base image)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F883D;fontSize=10;fontColor=#232F3E;spacing=6;align=center;" vertex="1" parent="wf-cd">
+          <mxGeometry x="20" y="40" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-trivy-image" value="Trivy image scan&#10;HIGH/CRITICAL gate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE9;strokeColor=#CF222E;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=1;" vertex="1" parent="wf-cd">
+          <mxGeometry x="170" y="40" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-sbom" value="SBOM&#10;SPDX 2.3 + CycloneDX 1.5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8C5;strokeColor=#9A6700;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=2;" vertex="1" parent="wf-cd">
+          <mxGeometry x="320" y="40" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-push-deploy" value="ECR push → deploy&#10;(RUNTIME=lambda|ecs)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1F883D;fontSize=10;fontColor=#232F3E;spacing=6;align=center;" vertex="1" parent="wf-cd">
+          <mxGeometry x="490" y="40" width="180" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- TF-DRIFT -->
+        <mxCell id="wf-drift" value="tf-drift.yml — daily 06:00 UTC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1E5;strokeColor=#9A6700;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=12;fontColor=#9A6700;" vertex="1" parent="1">
+          <mxGeometry x="260" y="680" width="700" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="step-drift-plan" value="terraform plan&#10;-detailed-exitcode&#10;-lock=false" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9A6700;fontSize=10;fontColor=#232F3E;spacing=6;align=center;" vertex="1" parent="wf-drift">
+          <mxGeometry x="20" y="40" width="180" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-drift-detect" value="exit code 2?&#10;(drift detected)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#D13212;fontSize=10;fontColor=#232F3E;spacing=6;" vertex="1" parent="wf-drift">
+          <mxGeometry x="220" y="40" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-drift-issue" value="gh issue create&#10;state/pending + type/kaizen&#10;+ SNS publish" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#D13212;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=1;" vertex="1" parent="wf-drift">
+          <mxGeometry x="400" y="40" width="180" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- TEARDOWN-SCHEDULED -->
+        <mxCell id="wf-td-sched" value="teardown-scheduled.yml — Mon-Fri 22:00 UTC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF1E5;strokeColor=#9A6700;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=12;fontColor=#9A6700;" vertex="1" parent="1">
+          <mxGeometry x="260" y="790" width="700" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="step-td-sched-destroy" value="terraform destroy -auto-approve&#10;(VPC, NAT, ECS, Lambda, ALB, ECR, DDB)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9A6700;fontSize=10;fontColor=#232F3E;spacing=6;align=center;" vertex="1" parent="wf-td-sched">
+          <mxGeometry x="20" y="30" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="step-td-sched-reset" value="Reset CATALYST_LAMBDA_IMAGE_SEEDED=false&#10;Preserves bootstrap tier (IAM, OIDC, S3, DDB lock)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8C5;strokeColor=#9A6700;fontSize=9;fontColor=#232F3E;spacing=6;align=center;fontStyle=2;" vertex="1" parent="wf-td-sched">
+          <mxGeometry x="350" y="30" width="320" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- TEARDOWN (dispatch only) -->
+        <mxCell id="wf-td" value="teardown.yml — human-gated (workflow_dispatch only)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAF0FF;strokeColor=#8250DF;fontSize=12;fontStyle=1;container=1;collapsible=0;verticalAlign=top;align=left;spacingLeft=12;fontColor=#8250DF;" vertex="1" parent="1">
+          <mxGeometry x="260" y="880" width="700" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="step-td-confirm" value="Operator must type&#10;exactly: destroy&#10;(if: guard)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#D13212;fontSize=10;fontColor=#232F3E;spacing=6;fontStyle=1;" vertex="1" parent="wf-td">
+          <mxGeometry x="20" y="40" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-td-destroy" value="terraform destroy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#8250DF;fontSize=10;fontColor=#232F3E;spacing=6;align=center;" vertex="1" parent="wf-td">
+          <mxGeometry x="200" y="40" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="step-td-summary" value="GITHUB_STEP_SUMMARY&#10;(preserved bootstrap tier&#10;+ re-provision path)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8C5;strokeColor=#9A6700;fontSize=10;fontColor=#232F3E;spacing=6;align=center;fontStyle=2;" vertex="1" parent="wf-td">
+          <mxGeometry x="380" y="40" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ============ OIDC ROLES ============ -->
+        <mxCell id="role-plan" value="catalyst-github-plan&#10;ReadOnlyAccess&#10;sub: pull_request" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0F4;strokeColor=#DD344C;fontSize=10;fontColor=#232F3E;spacing=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="140" width="200" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="role-apply" value="catalyst-github-apply&#10;PowerUserAccess + scoped&#10;CatalystApplyIAMScoped&#10;sub: ref:refs/heads/release" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0F4;strokeColor=#DD344C;fontSize=10;fontColor=#232F3E;spacing=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="310" width="200" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="role-deploy" value="catalyst-github-deploy&#10;PowerUserAccess&#10;sub: ref:refs/heads/release" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0F4;strokeColor=#DD344C;fontSize=10;fontColor=#232F3E;spacing=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="560" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="role-drift" value="catalyst-github-drift&#10;ReadOnlyAccess&#10;sub: ref:refs/heads/release&#10;(scheduled/dispatch sub)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0F4;strokeColor=#DD344C;fontSize=10;fontColor=#232F3E;spacing=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="680" width="200" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="role-apply-td" value="catalyst-github-apply&#10;(also teardown)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0F4;strokeColor=#DD344C;fontSize=10;fontColor=#232F3E;spacing=8;align=left;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="980" y="890" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ============ OUTCOMES ============ -->
+        <mxCell id="out-pr-checks" value="PR check suite green&#10;(SARIF on code scanning)&#10;PR mergeable iff all gates pass" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FCE6;strokeColor=#34A853;fontSize=11;fontColor=#232F3E;spacing=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="140" width="360" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="out-plan-comment" value="Sticky PR comment with terraform plan&#10;(review before merge)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FCE6;strokeColor=#34A853;fontSize=11;fontColor=#232F3E;spacing=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="240" width="360" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="out-apply" value="AWS resource mutation&#10;(VPC, ECR, Lambda, ALB, DynamoDB)&#10;state file updated in S3 backend&#10;DynamoDB lock held during apply" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7EE;strokeColor=#ED7100;fontSize=11;fontColor=#232F3E;spacing=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="320" width="360" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="out-deploy" value="ECR :latest + :sha tags updated&#10;Lambda function code published&#10;ALB target health → healthy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7EE;strokeColor=#ED7100;fontSize=11;fontColor=#232F3E;spacing=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="570" width="360" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="out-drift" value="Andon: state/pending issue&#10;+ type/kaizen label&#10;+ SNS notification to operator&#10;Agent picks up on next session" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE9E7;strokeColor=#D13212;fontSize=11;fontColor=#232F3E;spacing=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="690" width="360" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="out-td" value="All Terraform-managed resources destroyed&#10;Bootstrap tier preserved ($0 idle)&#10;Re-provision: gh workflow run terraform.yml" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F4FA;strokeColor=#5A6C7D;fontSize=11;fontColor=#232F3E;spacing=8;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="810" width="360" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ============ EDGES ============ -->
+        <!-- PR trigger -> workflows -->
+        <mxCell id="e-trig-pr-checks" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#24292F;endArrow=classic;" edge="1" parent="1" source="trig-pr" target="wf-pr-checks">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-trig-tf-plan" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#24292F;endArrow=classic;dashed=1;" edge="1" parent="1" source="trig-pr" target="wf-tf-plan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- push -> apply + cd -->
+        <mxCell id="e-trig-tf-apply" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F883D;endArrow=classic;" edge="1" parent="1" source="trig-push" target="wf-tf-apply">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-trig-cd" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F883D;endArrow=classic;" edge="1" parent="1" source="trig-push" target="wf-cd">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- cron -> drift + scheduled teardown -->
+        <mxCell id="e-trig-drift" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#9A6700;endArrow=classic;" edge="1" parent="1" source="trig-cron" target="wf-drift">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-trig-td-sched" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#9A6700;endArrow=classic;" edge="1" parent="1" source="trig-cron" target="wf-td-sched">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- dispatch -> teardown -->
+        <mxCell id="e-trig-td" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#8250DF;endArrow=classic;" edge="1" parent="1" source="trig-dispatch" target="wf-td">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Workflow -> OIDC role -->
+        <mxCell id="e-pr-plan-role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#DD344C;endArrow=classic;fontSize=9;" edge="1" parent="1" source="wf-tf-plan" target="role-plan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-apply-role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#DD344C;endArrow=classic;" edge="1" parent="1" source="wf-tf-apply" target="role-apply">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-cd-role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#DD344C;endArrow=classic;" edge="1" parent="1" source="wf-cd" target="role-deploy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-drift-role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#DD344C;endArrow=classic;" edge="1" parent="1" source="wf-drift" target="role-drift">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-td-sched-role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#DD344C;endArrow=classic;dashed=1;" edge="1" parent="1" source="wf-td-sched" target="role-drift">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-td-role" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#DD344C;endArrow=classic;" edge="1" parent="1" source="wf-td" target="role-apply-td">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Workflow -> Outcome -->
+        <mxCell id="e-pr-out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#34A853;endArrow=classic;" edge="1" parent="1" source="wf-pr-checks" target="out-pr-checks">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-tf-plan-out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#34A853;endArrow=classic;" edge="1" parent="1" source="wf-tf-plan" target="out-plan-comment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-tf-apply-out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;endArrow=classic;" edge="1" parent="1" source="wf-tf-apply" target="out-apply">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-cd-out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#ED7100;endArrow=classic;" edge="1" parent="1" source="wf-cd" target="out-deploy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-drift-out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#D13212;endArrow=classic;" edge="1" parent="1" source="wf-drift" target="out-drift">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-td-out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5A6C7D;endArrow=classic;" edge="1" parent="1" source="wf-td" target="out-td">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-td-sched-out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#5A6C7D;endArrow=classic;dashed=1;" edge="1" parent="1" source="wf-td-sched" target="out-td">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Drift detect -> issue creation -->
+        <mxCell id="e-drift-detect-issue" value="exit code 2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#D13212;endArrow=classic;fontSize=9;fontStyle=2;" edge="1" parent="wf-drift" source="step-drift-detect" target="step-drift-issue">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend" value="Legend  ━━ solid: primary flow  ┄┄ dashed: conditional / dependent / secondary  ◇ decision/gate  &#10;Color: GitHub-blue = PR-trigger workflows  GitHub-green = release-push workflows  GitHub-yellow = scheduled  GitHub-purple = manual dispatch  AWS-red = OIDC role / IAM  AWS-orange = AWS mutation outcome&#10;Security gates (red border): tfsec, Checkov, Trivy, gitleaks, OPA conftest, secret-scanning are BLOCKING — non-zero exit fails the PR check suite per ADR-006&#10;Source of truth: .github/workflows/*.yml + .github/scripts/validate_workflows.py (structural enforcement of OIDC + role-trust contract)&#10;Decisions: ADR-006 (CI/CD pipeline) — ADR-008 (RBAC + SigV4) — ADR-011 (agentic workflow contract, codifying pre-PR gates)" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=10;fillColor=#FFFFFF;strokeColor=#5A6C7D;rounded=1;spacing=8;fontColor=#232F3E;" vertex="1" parent="1">
+          <mxGeometry x="40" y="990" width="1520" height="100" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

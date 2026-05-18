@@ -68,7 +68,7 @@ pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-br
 
 ## Architecture
 
-Six diagrams cover the system at different cuts — three Mermaid (render inline in GitHub) and three Draw.io (open in any Draw.io editor). See **[`diagrams/README.md`](./diagrams/README.md)** for the full index, audience descriptions, and authoring conventions.
+Seven diagrams cover the system at different cuts — three Mermaid (render inline in GitHub) and four Draw.io (open in any Draw.io editor). See **[`diagrams/README.md`](./diagrams/README.md)** for the full index, audience descriptions, and authoring conventions.
 
 GitHub-inline (Mermaid):
 
@@ -78,9 +78,10 @@ GitHub-inline (Mermaid):
 
 Draw.io (open in your IDE plugin or app.diagrams.net):
 
-- **[`diagrams/network-layer.drawio`](./diagrams/network-layer.drawio)** — VPC + subnets + NAT + IGW + 12 VPC endpoints + 3 security groups + ALB ingress allowlist. Audience: cloud / network engineer.
+- **[`diagrams/network-layer.drawio`](./diagrams/network-layer.drawio)** — VPC + subnets + NAT (one per AZ) + IGW + VPC endpoints (implemented vs ADR-010 target) + 3 security groups + ALB ingress allowlist. Audience: cloud / network engineer.
 - **[`diagrams/application-layer.drawio`](./diagrams/application-layer.drawio)** — request path + persistence + SigV4 RBAC + runtime swap to ECS Fargate. Audience: service developer.
 - **[`diagrams/agentic-workflow.drawio`](./diagrams/agentic-workflow.drawio)** — six AGENTS.md gates, Issues state machine, peer-review sub-agent fork, OIDC role separation per phase, drift andon flow. Audience: interview panel + future agents.
+- **[`diagrams/cicd-pipeline.drawio`](./diagrams/cicd-pipeline.drawio)** — all nine GitHub Actions workflows mapped to triggers, quality + security gates (tfsec, Checkov, Trivy, gitleaks, OPA conftest, SARIF + SBOM), OIDC roles per phase, and outcomes. Audience: DevOps / platform engineer.
 
 See also [ADR-001 through ADR-011](./docs/ADR/) for the design decisions these diagrams encode. The Catalyst agentic-workflow operating contract is captured in [ADR-011](./docs/ADR/ADR-011-catalyst-agentic-workflow.md) (citing [`AGENTS.md`](./AGENTS.md) as the source of truth). Authoring conventions for new diagrams live in [`.claude/skills/draw-aws-diagrams/SKILL.md`](./.claude/skills/draw-aws-diagrams/SKILL.md).
 
