@@ -80,6 +80,119 @@ def test_groups_list_calls_iam_groups(fake_call):
     assert calls == [("GET", "/iam/groups", None)]
 
 
+# ---------------------------------------------------------------------------
+# Tier 1 orgs commands (#169)
+# ---------------------------------------------------------------------------
+
+
+def test_orgs_get_calls_correct_path(fake_call):
+    calls, response_map = fake_call
+    response_map[("GET", "/orgs/cloud-byte")] = {
+        "tenant": "cloud-byte",
+        "landing_zones": [],
+        "environments": [],
+    }
+    payload = catalyst_cli.orgs_get_command("cloud-byte")
+    assert calls == [("GET", "/orgs/cloud-byte", None)]
+    assert payload["tenant"] == "cloud-byte"
+
+
+def test_orgs_landing_zones_create_posts_body(fake_call):
+    calls, _ = fake_call
+    catalyst_cli.orgs_landing_zones_create_command(
+        tenant="cloud-byte",
+        name="shared",
+        account_id="061051223073",
+        compliance="standard",
+        idempotency_key="lz-001",
+    )
+    assert calls == [
+        (
+            "POST",
+            "/orgs/cloud-byte/landing-zones",
+            {
+                "tenant": "cloud-byte",
+                "name": "shared",
+                "account_id": "061051223073",
+                "compliance": "standard",
+                "idempotency_key": "lz-001",
+            },
+        )
+    ]
+
+
+def test_orgs_environments_create_posts_body(fake_call):
+    calls, _ = fake_call
+    catalyst_cli.orgs_environments_create_command(
+        tenant="cloud-byte",
+        name="dev",
+        landing_zone="shared",
+        idempotency_key="env-dev-001",
+    )
+    assert calls == [
+        (
+            "POST",
+            "/orgs/cloud-byte/environments",
+            {
+                "tenant": "cloud-byte",
+                "name": "dev",
+                "landing_zone": "shared",
+                "idempotency_key": "env-dev-001",
+            },
+        )
+    ]
+
+
+def test_orgs_ous_create_posts_body(fake_call):
+    calls, _ = fake_call
+    catalyst_cli.orgs_ous_create_command(
+        tenant="cloud-byte", name="engineering"
+    )
+    assert calls == [
+        ("POST", "/orgs/cloud-byte/ous", {"tenant": "cloud-byte", "name": "engineering"})
+    ]
+
+
+def test_orgs_applications_create_posts_body(fake_call):
+    calls, _ = fake_call
+    catalyst_cli.orgs_applications_create_command(
+        tenant="cloud-byte",
+        project="my-project",
+        name="my-app",
+        idempotency_key="app-001",
+    )
+    assert calls == [
+        (
+            "POST",
+            "/orgs/cloud-byte/applications",
+            {
+                "tenant": "cloud-byte",
+                "project": "my-project",
+                "name": "my-app",
+                "idempotency_key": "app-001",
+            },
+        )
+    ]
+
+
+def test_orgs_get_rejects_empty_tenant(fake_call):
+    calls, _ = fake_call
+    with pytest.raises(SystemExit) as exc:
+        catalyst_cli.orgs_get_command("")
+    assert "tenant is required" in str(exc.value)
+    assert calls == []
+
+
+def test_orgs_landing_zones_create_rejects_missing_account(fake_call):
+    calls, _ = fake_call
+    with pytest.raises(SystemExit) as exc:
+        catalyst_cli.orgs_landing_zones_create_command(
+            tenant="cloud-byte", name="shared", account_id=""
+        )
+    assert "account_id are required" in str(exc.value) or "required" in str(exc.value)
+    assert calls == []
+
+
 def test_invalid_construct_raises_before_http(fake_call, monkeypatch):
     calls, _ = fake_call
     with pytest.raises(SystemExit) as exc:

@@ -40,26 +40,19 @@ $env:AWS_REGION            = "us-east-1"
 # AWS credentials must already be active (aws sts get-caller-identity)
 ```
 
-> **Note:** The Catalyst CLI does **not yet expose** Tier 1 `orgs` commands. Until those land, call the Tier 1 endpoints with curl + the AWS SDK's presigned URL pattern, or use the `catalyst-api` GitHub Action. The examples below use curl with the same `x-catalyst-identity-url` header pattern the CLI uses.
+The CLI exposes the Tier 1 `orgs` commands directly (added in PR #169 / closes that). The examples below use the CLI as the primary path; curl equivalents are in the [Alternatives appendix](#alternatives-curl-against-the-api) for environments where the CLI isn't available.
 
 ## Step 1 — Register a landing zone
 
 A landing zone scopes IAM, cost, and compliance for a tenant.
 
 ```bash
-# Generate the presigned STS URL (one-liner using boto3)
-PRESIGNED_URL=$(python -c "import boto3,os; print(boto3.client('sts', region_name=os.environ['AWS_REGION']).generate_presigned_url('get_caller_identity', Params={}, ExpiresIn=60, HttpMethod='GET'))")
-
-curl -sS -X POST "${CATALYST_API_ENDPOINT}/orgs/cloud-byte/landing-zones" \
-  -H "Content-Type: application/json" \
-  -H "x-catalyst-identity-url: ${PRESIGNED_URL}" \
-  -d '{
-    "tenant": "cloud-byte",
-    "name": "shared",
-    "account_id": "061051223073",
-    "compliance": "standard",
-    "idempotency_key": "lz-shared-001"
-  }'
+python clients/catalyst-cli/catalyst_cli.py orgs landing-zones create \
+  --tenant cloud-byte \
+  --name shared \
+  --account-id 061051223073 \
+  --compliance standard \
+  --idempotency-key lz-shared-001
 ```
 
 Expected response: 201 with `landing_zone_id`, `construct_address` (`cloud-byte/shared`), and `status: provisioned`.
@@ -67,17 +60,11 @@ Expected response: 201 with `landing_zone_id`, `construct_address` (`cloud-byte/
 ## Step 2 — Register an environment
 
 ```bash
-PRESIGNED_URL=$(python -c "import boto3,os; print(boto3.client('sts', region_name=os.environ['AWS_REGION']).generate_presigned_url('get_caller_identity', Params={}, ExpiresIn=60, HttpMethod='GET'))")
-
-curl -sS -X POST "${CATALYST_API_ENDPOINT}/orgs/cloud-byte/environments" \
-  -H "Content-Type: application/json" \
-  -H "x-catalyst-identity-url: ${PRESIGNED_URL}" \
-  -d '{
-    "tenant": "cloud-byte",
-    "name": "dev",
-    "landing_zone": "shared",
-    "idempotency_key": "env-dev-001"
-  }'
+python clients/catalyst-cli/catalyst_cli.py orgs environments create \
+  --tenant cloud-byte \
+  --name dev \
+  --landing-zone shared \
+  --idempotency-key env-dev-001
 ```
 
 The environment write also seeds shared SSM paths under `/catalyst/{tenant}/{env}/` that Track C reads when provisioning per-app resources.
@@ -87,31 +74,26 @@ The environment write also seeds shared SSM paths under `/catalyst/{tenant}/{env
 For multi-OU topologies:
 
 ```bash
-curl -sS -X POST "${CATALYST_API_ENDPOINT}/orgs/cloud-byte/ous" \
-  -H "Content-Type: application/json" \
-  -H "x-catalyst-identity-url: ${PRESIGNED_URL}" \
-  -d '{"tenant":"cloud-byte","name":"engineering","idempotency_key":"ou-eng-001"}'
+python clients/catalyst-cli/catalyst_cli.py orgs ous create \
+  --tenant cloud-byte \
+  --name engineering \
+  --idempotency-key ou-eng-001
 ```
 
 For pre-catalog application entries (without a runtime yet):
 
 ```bash
-curl -sS -X POST "${CATALYST_API_ENDPOINT}/orgs/cloud-byte/applications" \
-  -H "Content-Type: application/json" \
-  -H "x-catalyst-identity-url: ${PRESIGNED_URL}" \
-  -d '{
-    "tenant": "cloud-byte",
-    "project": "my-project",
-    "name": "my-app",
-    "idempotency_key": "app-my-app-001"
-  }'
+python clients/catalyst-cli/catalyst_cli.py orgs applications create \
+  --tenant cloud-byte \
+  --project my-project \
+  --name my-app \
+  --idempotency-key app-my-app-001
 ```
 
 ## Step 4 — Verify the hierarchy
 
 ```bash
-curl -sS "${CATALYST_API_ENDPOINT}/orgs/cloud-byte" \
-  -H "x-catalyst-identity-url: ${PRESIGNED_URL}"
+python clients/catalyst-cli/catalyst_cli.py orgs get cloud-byte
 ```
 
 Expected response: JSON with `tenant`, `landing_zones`, `environments`, `applications` arrays reflecting Steps 1-3.
@@ -154,6 +136,33 @@ Scenario: Owner registers a new tenant + environment
 ## Next track
 
 Once the hierarchy is in place, hand off to [`application.md`](./application.md) for Track C (per-app runtime resources).
+
+## Alternatives — curl against the API
+
+Use these only if the CLI is unavailable in your environment. Both approaches hit the same endpoints with the same `x-catalyst-identity-url` header pattern; the CLI just packages the boto3 presigning + HTTP call.
+
+```bash
+# Generate the presigned STS URL (one-liner using boto3)
+PRESIGNED_URL=$(python -c "import boto3,os; print(boto3.client('sts', region_name=os.environ['AWS_REGION']).generate_presigned_url('get_caller_identity', Params={}, ExpiresIn=60, HttpMethod='GET'))")
+
+# Landing zone
+curl -sS -X POST "${CATALYST_API_ENDPOINT}/orgs/cloud-byte/landing-zones" \
+  -H "Content-Type: application/json" \
+  -H "x-catalyst-identity-url: ${PRESIGNED_URL}" \
+  -d '{"tenant":"cloud-byte","name":"shared","account_id":"061051223073","compliance":"standard","idempotency_key":"lz-shared-001"}'
+
+# Environment
+curl -sS -X POST "${CATALYST_API_ENDPOINT}/orgs/cloud-byte/environments" \
+  -H "Content-Type: application/json" \
+  -H "x-catalyst-identity-url: ${PRESIGNED_URL}" \
+  -d '{"tenant":"cloud-byte","name":"dev","landing_zone":"shared","idempotency_key":"env-dev-001"}'
+
+# Verify
+curl -sS "${CATALYST_API_ENDPOINT}/orgs/cloud-byte" \
+  -H "x-catalyst-identity-url: ${PRESIGNED_URL}"
+```
+
+The presigned URL expires in 60 seconds by default; regenerate per request batch.
 
 ## Related
 
