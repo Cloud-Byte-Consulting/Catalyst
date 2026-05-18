@@ -67,14 +67,16 @@ terraform {
 }
 ```
 
-The caller — `tf-plan`/`tf-apply` GitHub Actions for L1/L2/L3, the onboard Lambda for L4 — emits the per-call backend config:
+The caller — `tf-plan`/`tf-apply` GitHub Actions for L1/L2/L3, the onboard Lambda for L4 — emits the per-call backend config.
+
+> As of 2026-05-18, Catalyst uses native S3 state locking — `dynamodb_table` is deprecated in favor of `use_lockfile = true`. The existing DynamoDB lock table is retained for one release as a safety net; a separate cleanup PR will remove it.
 
 ```bash
 terraform init \
   -backend-config="bucket=${CATALYST_STATE_BUCKET}" \
   -backend-config="key=catalyst/tenants/${TENANT}/environments/${ENV}/apps/${APP}.tfstate" \
   -backend-config="region=${AWS_REGION}" \
-  -backend-config="dynamodb_table=${CATALYST_LOCK_TABLE}"
+  -backend-config="use_lockfile=true"
 ```
 
 This keeps the committed Terraform tier-agnostic and lets the API mint new L4 state keys without a commit. The CI pipelines and the onboard Lambda are the only producers of backend-config strings; they reference these tier templates rather than hard-coding keys.
