@@ -103,7 +103,7 @@ For Track B and Track C consumers calling the API in production, the CLI auth st
 - **Audit trail via `type/onboarding` issues** links human approval to automated runs (ADR-001, STATE-MACHINE.md).
 - **Dual documentation surface** — this ADR + the three runbooks + `.github/workflows/README.md` must stay aligned. The ADR is the canonical decision record; runbooks are the operating manuals.
 - **Day-0 `account:root` as `BOOTSTRAP_ADMIN_PRINCIPAL_ARN`** is convenient but must be narrowed immediately after bootstrap. The runbook flags this explicitly.
-- **Service onboard latency remains high** until async / Terraform-backed provisioning replaces the v1 stub responses (ADR-007 consequences track this).
+- **Service onboard latency remains high** until async / Terraform-backed provisioning replaces the v1 stub responses (ADR-007 consequences track this; the v2 sync-vs-async decision is recorded in [ADR-014](ADR-014-services-onboard-provisioning-mode.md)).
 - **The agentic workflow ADR ([ADR-011](ADR-011-catalyst-agentic-workflow.md))** governs *how Catalyst itself is built*; this ADR governs *how users come into Catalyst*. They are orthogonal and both apply.
 
 ## Alternatives considered

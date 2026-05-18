@@ -155,7 +155,7 @@ The application reads config from SSM at runtime. No secrets are passed through 
 - Idempotent writes make CI/CD pipelines safe to retry without manual cleanup.
 
 **Negative / trade-offs**
-- `POST /services/onboard` is slow (Terraform-backed provisioning takes 2–5 minutes). Callers must poll `GET /services/{construct_address}` or accept an async 202 response pattern.
+- `POST /services/onboard` is slow (Terraform-backed provisioning takes 2–5 minutes). Callers must poll `GET /services/{construct_address}` or accept an async 202 response pattern. The sync-vs-async architecture choice for the v2 implementation is captured in [ADR-014](ADR-014-services-onboard-provisioning-mode.md).
 - The approved `service_type` enumeration limits flexibility — teams with unusual patterns (e.g. gRPC services, sidecar meshes) cannot self-serve and must engage the platform team.
 - Account vending in Tier 1 (`POST /orgs/{tenant}/landing-zones`) depends on AFT or pre-created accounts. The API cannot create AWS accounts itself; it registers and configures them.
 
