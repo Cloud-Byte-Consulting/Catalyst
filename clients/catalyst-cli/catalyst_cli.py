@@ -29,6 +29,10 @@ import requests
 from knack import CLI, CLICommandsLoader
 from knack.commands import CommandGroup
 
+# The regex below is duplicated server-side as `CONSTRUCT_PATTERN` in
+# `services/catalyst-api/catalyst/constructs.py`. Parity is enforced by
+# `services/catalyst-api/tests/test_construct_pattern_parity.py` (#172).
+# If you change this pattern, update the server in the same PR.
 CONSTRUCT_RE = re.compile(
     r"^[a-z0-9-]+/[a-z0-9-]+/[a-z0-9-]+/[a-z0-9-]+/[a-z0-9-]+$"
 )

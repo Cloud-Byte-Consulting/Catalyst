@@ -1,3 +1,11 @@
+"""Construct-address validation for the Catalyst API.
+
+The regex below is duplicated client-side in
+``clients/catalyst-cli/catalyst_cli.py`` as ``CONSTRUCT_RE``. Parity is
+enforced by ``services/catalyst-api/tests/test_construct_pattern_parity.py``
+(#172). If you change this pattern, update the CLI in the same PR.
+"""
+
 import re
 
 from pydantic import BaseModel, Field, field_validator
