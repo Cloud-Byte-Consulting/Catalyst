@@ -34,6 +34,47 @@ All three groups are provisioned by Terraform in `modules/iam/` (TF-7, sub-issue
 
 ---
 
+### Tenant-scoped groups (no project)
+
+Beyond the three global groups above, Catalyst also recognises **tenant-scoped IAM groups** that narrow a role to a single tenant without further narrowing it to a specific project. These are provisioned per-tenant by [`modules/composite/tenant-onboarding/`](../../infrastructure/modules/composite/tenant-onboarding/README.md) (#168).
+
+**Shape:** `catalyst-{tenant}--{role}` — **2 segments**, **double-hyphen** separator. The role vocabulary mirrors the global groups so the mental model extends cleanly:
+
+| Group name | Effective role | Scope |
+|---|---|---|
+| `catalyst-{tenant}--owners` | Owner — only within `{tenant}` | All projects/applications under that tenant |
+| `catalyst-{tenant}--administrators` | Administrator — only within `{tenant}` | All projects/applications under that tenant |
+| `catalyst-{tenant}--viewers` | Viewer — only within `{tenant}` | All projects/applications under that tenant |
+
+**Parser behaviour** (`services/catalyst-api/catalyst/rbac.py::_parse_scoped_group`):
+
+The parser recognises three shapes, evaluated in this precedence:
+
+| Shape | Example | Returned scope tuple |
+|---|---|---|
+| 3-segment modern | `catalyst-cloud-byte--payments--admins` | `("cloud-byte", "payments")` |
+| 3-segment legacy (pre-2026-05-15 migration) | `catalyst-cloud-byte-payments-admins` | `("cloud-byte", "payments")` |
+| **2-segment tenant-wide (new)** | `catalyst-acme--owners` | `("acme", "*")` |
+
+The `"*"` sentinel (exposed as `rbac.TENANT_WIDE_PROJECT`) is interpreted by `can_read_scope` as matching **any project** within the tenant. Tenant-only reads (where the caller doesn't supply a project) also succeed, identically to the 3-segment forms.
+
+**Subtle precedence rule.** The 3-segment role vocabulary (`admins` / `operators` / `viewers`) shares `viewers` with the 2-segment vocabulary (`owners` / `administrators` / `viewers`). The parser therefore checks the 3-segment branch first; if the suffix matches but the body has no project segment (no `--` after stripping the trailing `--{role}`), it falls through to the 2-segment branch rather than rejecting outright. Concretely:
+
+- `catalyst-acme--billing--viewers` → 3-segment, `("acme", "billing")`.
+- `catalyst-acme--viewers` → 2-segment, `("acme", "*")`. (Falls through from the 3-segment branch.)
+- `catalyst-acme--admins` → returns `None`. `admins` is a 3-segment-only role; the 2-segment branch never claims it.
+- `catalyst-acme--owners` → 2-segment, `("acme", "*")`. `owners` is a 2-segment-only role.
+
+**When to use which shape:**
+
+- Use **3-segment** (`catalyst-{tenant}--{project}--{role}`) when access must be narrowed to a specific project — e.g. a team-lead role for one product line within a multi-product tenant.
+- Use **2-segment** (`catalyst-{tenant}--{role}`) when the operator should have the role across **every** project in the tenant. This is the common case for tenant platform leads and lab leaders, who don't want to manage one group per project.
+- Use the **global** groups (`catalyst-owners` / etc.) only for cross-tenant roles — typically the Catalyst platform team itself.
+
+**Terraform resource.** The 2-segment groups are not provisioned in `modules/iam/`; they are emitted per-tenant by `modules/composite/tenant-onboarding/`. Membership is managed via the same `POST /iam/groups/{group}/members` endpoint as the global groups, or via Terraform PR for GitOps-style auditable access changes.
+
+---
+
 ### Permission matrix
 
 | Endpoint | Owner | Administrator | Viewer |

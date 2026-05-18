@@ -166,6 +166,10 @@ curl -sS "${CATALYST_API_ENDPOINT}/orgs/cloud-byte" \
 
 The presigned URL expires in 60 seconds by default; regenerate per request batch.
 
+## Future Terraform path
+
+The curl + CLI flow above is the **bootstrap** path. Once a tenant's IAM groups, SSM tree, and per-env VPCs are stable, the equivalent provisioning is available declaratively via [`infrastructure/modules/composite/tenant-onboarding/`](../../infrastructure/modules/composite/tenant-onboarding/README.md) (#168). That composite emits the same SSM parameters under `/catalyst/{tenant}/{env}/`, the tenant-scoped IAM groups described in [ADR-008 § Tenant-scoped groups (no project)](../ADR/ADR-008-catalyst-api-rbac.md#tenant-scoped-groups-no-project), and conditionally applies AWS Network Firewall per [ADR-010](../ADR/ADR-010-egress-control.md). The Terraform path is the eventual long-term home for Tier 1 onboarding; the API flow above remains supported for pilot tenants and demo flows.
+
 ## Related
 
 - [ADR-007](../ADR/ADR-007-catalyst-api-golden-paths.md) — Tier 1 endpoint contract

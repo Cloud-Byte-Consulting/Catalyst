@@ -57,20 +57,57 @@ def _cache_ttl() -> timedelta:
         return _DEFAULT_CACHE_TTL
 
 
+#: Sentinel project value used by tenant-wide scopes — see ADR-008 section
+#: "Tenant-scoped groups (no project)". ``can_read_scope`` treats this as
+#: matching any project within the tenant.
+TENANT_WIDE_PROJECT = "*"
+
+
 def _parse_scoped_group(group: str) -> tuple[str, str] | None:
+    """Parse a Catalyst-scoped IAM group name.
+
+    Recognised shapes (most specific first):
+
+    1. ``catalyst-{tenant}--{project}--{role}`` (modern 3-segment scoped form)
+       — role ∈ {admins, operators, viewers}. Returns ``(tenant, project)``.
+    2. ``catalyst-{tenant}-{project}-{role}`` (legacy single-hyphen 3-segment
+       form, retained for backward compatibility per the 2026-05-15 migration
+       note) — role ∈ {admins, operators, viewers}. Returns ``(tenant, project)``.
+    3. ``catalyst-{tenant}--{role}`` (2-segment tenant-wide form, ADR-008
+       "Tenant-scoped groups (no project)") — role ∈ {owners, administrators,
+       viewers}. Returns ``(tenant, "*")`` where ``"*"`` is the
+       :data:`TENANT_WIDE_PROJECT` sentinel.
+
+    Returns ``None`` for any other input. The 2-segment tenant-wide form
+    deliberately uses a distinct role vocabulary (``owners`` / ``administrators``
+    / ``viewers``, mirroring the global ``catalyst-owners`` / etc. groups)
+    so the parser can distinguish a malformed 3-segment group (e.g.
+    ``catalyst-acme--admins`` with a missing project segment) from a
+    well-formed tenant-wide one — the former returns ``None``, the latter
+    is not a legal value because ``admins`` is not in the tenant-wide role set.
+    """
+
     if not group.startswith("catalyst-"):
         return None
 
+    # 1: 3-segment modern form ``catalyst-{tenant}--{project}--{role}``.
+    # Role vocabulary here is the project-scoped vocabulary: admins / operators /
+    # viewers. Note ``viewers`` ALSO appears in the tenant-wide role vocabulary
+    # below, so this branch deliberately falls through (rather than returning
+    # ``None``) when the role suffix matches but the body has no ``--`` — the
+    # 2-segment branch may then claim it.
     for role in ("admins", "operators", "viewers"):
         modern_suffix = f"--{role}"
         if group.endswith(modern_suffix):
             body = group[len("catalyst-") : -len(modern_suffix)]
-            if "--" not in body:
+            if "--" in body:
+                tenant, project = body.split("--", 1)
+                if tenant and project:
+                    return (tenant, project)
                 return None
-            tenant, project = body.split("--", 1)
-            if tenant and project:
-                return (tenant, project)
-            return None
+            # else: no project segment — let the 2-segment branch try this
+            # group below (e.g. ``catalyst-acme--viewers`` is tenant-wide).
+            break
 
         legacy_suffix = f"-{role}"
         if group.endswith(legacy_suffix):
@@ -81,6 +118,23 @@ def _parse_scoped_group(group: str) -> tuple[str, str] | None:
             if tenant and project:
                 return (tenant, project)
             return None
+
+    # 2: 2-segment tenant-wide form ``catalyst-{tenant}--{role}`` per ADR-008
+    # "Tenant-scoped groups (no project)". Role vocabulary mirrors the global
+    # groups (owners / administrators / viewers) so operators can mentally
+    # extend ``catalyst-owners`` -> ``catalyst-acme--owners`` for the
+    # tenant-narrowed equivalent.
+    for role in ("owners", "administrators", "viewers"):
+        tenant_wide_suffix = f"--{role}"
+        if group.endswith(tenant_wide_suffix):
+            tenant = group[len("catalyst-") : -len(tenant_wide_suffix)]
+            # Reject empty tenant and reject tenants containing the ``--``
+            # delimiter (which would have been a 3-segment form already
+            # claimed by branch 1).
+            if tenant and "--" not in tenant:
+                return (tenant, TENANT_WIDE_PROJECT)
+            return None
+
     return None
 
 
@@ -133,7 +187,14 @@ def require_write(access: AccessContext, tier: str) -> None:
 def can_read_scope(access: AccessContext, tenant: str, project: str | None = None) -> bool:
     if access.role in {"owner", "administrator", "viewer"}:
         return True
-    return any(t == tenant and (project is None or p == project) for t, p in access.scopes)
+    # Tenant-wide scopes ((tenant, "*"), produced by 2-segment groups —
+    # ADR-008 "Tenant-scoped groups (no project)") match any project within
+    # the tenant. The existing 3-segment forms continue to match exactly.
+    return any(
+        t == tenant
+        and (project is None or p == project or p == TENANT_WIDE_PROJECT)
+        for t, p in access.scopes
+    )
 
 
 async def access_dependency(request: Request) -> AccessContext:
