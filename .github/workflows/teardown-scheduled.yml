@@ -130,8 +130,121 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Terraform destroy
+        id: destroy
         run: |
           terraform -chdir=infrastructure destroy -auto-approve -input=false
+
+      - name: Orphan role sweep (best-effort)
+        # Runs on both success and failure paths so a clean destroy still gets a
+        # "no orphans found" notice, but destructive aws-cli calls only fire when
+        # actual orphan catalyst-* roles exist outside the bootstrap allowlist.
+        # Skipped only if the destroy step itself never ran (e.g. earlier step failed).
+        if: always() && steps.destroy.conclusion != 'skipped'
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+
+          # Bootstrap-tier roles that must NEVER be swept. These are owned by
+          # scripts/bootstrap-aws-account.sh and live outside Terraform state.
+          BOOTSTRAP_ALLOWLIST=(
+            "catalyst-github-plan"
+            "catalyst-github-apply"
+            "catalyst-github-deploy"
+            "catalyst-github-drift"
+            "catalyst-bootstrap-admin"
+          )
+
+          echo "::group::Enumerating catalyst-* IAM roles"
+          CANDIDATES=$(aws iam list-roles \
+            --query "Roles[?starts_with(RoleName, 'catalyst-')].RoleName" \
+            --output text 2>/dev/null || true)
+          echo "Candidates: ${CANDIDATES:-(none)}"
+          echo "::endgroup::"
+
+          DELETED=()
+          FAILED=()
+
+          for role in ${CANDIDATES}; do
+            skip=0
+            for allowed in "${BOOTSTRAP_ALLOWLIST[@]}"; do
+              if [ "${role}" = "${allowed}" ]; then
+                skip=1
+                break
+              fi
+            done
+            if [ "${skip}" -eq 1 ]; then
+              echo "Skipping bootstrap-tier role: ${role}"
+              continue
+            fi
+
+            echo "::group::Sweeping orphan role: ${role}"
+
+            # Detach managed policies.
+            MANAGED=$(aws iam list-attached-role-policies \
+              --role-name "${role}" \
+              --query 'AttachedPolicies[].PolicyArn' \
+              --output text 2>&1) || {
+              echo "::warning::list-attached-role-policies failed for ${role}: ${MANAGED}"
+              MANAGED=""
+            }
+            for arn in ${MANAGED}; do
+              if ! aws iam detach-role-policy --role-name "${role}" --policy-arn "${arn}" 2>err.log; then
+                echo "::warning::detach-role-policy failed for ${role} <- ${arn}: $(cat err.log)"
+              fi
+              rm -f err.log
+            done
+
+            # Delete inline policies.
+            INLINE=$(aws iam list-role-policies \
+              --role-name "${role}" \
+              --query 'PolicyNames[]' \
+              --output text 2>&1) || {
+              echo "::warning::list-role-policies failed for ${role}: ${INLINE}"
+              INLINE=""
+            }
+            for pname in ${INLINE}; do
+              if ! aws iam delete-role-policy --role-name "${role}" --policy-name "${pname}" 2>err.log; then
+                echo "::warning::delete-role-policy failed for ${role} <- ${pname}: $(cat err.log)"
+              fi
+              rm -f err.log
+            done
+
+            # Delete the role itself.
+            if aws iam delete-role --role-name "${role}" 2>err.log; then
+              echo "Deleted ${role}."
+              DELETED+=("${role}")
+            else
+              echo "::warning::delete-role failed for ${role}: $(cat err.log)"
+              FAILED+=("${role}")
+            fi
+            rm -f err.log
+            echo "::endgroup::"
+          done
+
+          echo "## Orphan IAM role sweep" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${#DELETED[@]}" -eq 0 ] && [ "${#FAILED[@]}" -eq 0 ]; then
+            echo "::notice::No orphan catalyst-* roles found."
+            echo "Result: **clean destroy** (no orphan catalyst-* roles found)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            if [ "${#DELETED[@]}" -gt 0 ]; then
+              echo "::notice::Orphan sweep removed: ${DELETED[*]}"
+              echo "Result: **destroy + sweep**." >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "**Deleted orphan roles:**" >> "$GITHUB_STEP_SUMMARY"
+              for r in "${DELETED[@]}"; do
+                echo "- \`${r}\`" >> "$GITHUB_STEP_SUMMARY"
+              done
+            fi
+            if [ "${#FAILED[@]}" -gt 0 ]; then
+              echo "::warning::Orphan sweep could not delete: ${FAILED[*]}"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "**Could not delete (manual cleanup required):**" >> "$GITHUB_STEP_SUMMARY"
+              for r in "${FAILED[@]}"; do
+                echo "- \`${r}\`" >> "$GITHUB_STEP_SUMMARY"
+              done
+            fi
+          fi
 
       - name: Reset lambda image-seeded flag
         if: success()
