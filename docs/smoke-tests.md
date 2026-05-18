@@ -91,6 +91,32 @@ awscurl --service execute-api --region us-east-1 "http://$albDns/v1/applications
 | ECR `list-images` returns empty | `service-cd.yml` never built a real image | Trigger `service-cd.yml` with `runtime=lambda` |
 | DynamoDB table missing | Bootstrap was rolled back or never completed | Re-run `scripts/bootstrap-aws-account.sh` (idempotent) |
 
+## Programmatic CLI smoke (alternative to Tier 2 curl path)
+
+The Catalyst CLI ships an opt-in pytest live-smoke suite that exercises
+the same endpoints as the Tier 2 curl commands but with pytest's
+fixture infrastructure and assertion introspection. Useful as a single
+command pre-demo or post-deploy.
+
+```powershell
+$env:CATALYST_API_ENDPOINT = "http://$albDns"
+pytest -m live clients/catalyst-cli/tests -v
+```
+
+The suite auto-skips when `CATALYST_API_ENDPOINT` is unset, so the
+default `pytest clients/catalyst-cli/tests` invocation (used in CI)
+stays hermetic. Tests:
+
+| Test | Verifies |
+|---|---|
+| `test_live_health_returns_status_ok` | GET /health returns `{"status":"ok"}` |
+| `test_live_catalog_returns_canonical_resources` | GET /catalog count matches `services/catalyst-api/catalyst/catalog.py` `RESOURCE_CATALOG` |
+| `test_live_services_status_invalid_address_rejected` | CLI pre-flight rejects malformed construct addresses before HTTP |
+| `test_live_render_round_trips_health` | `render()` helper produces stable JSON for live data |
+
+The CLI test suite is gated at **80% coverage** in CI (`--cov-fail-under=80`);
+see `.github/workflows/pr-checks.yml` cli-tests job.
+
 ## CI smoke
 
 `ci-smoke.yml` runs on every PR touching `.github/**` and on manual dispatch.
