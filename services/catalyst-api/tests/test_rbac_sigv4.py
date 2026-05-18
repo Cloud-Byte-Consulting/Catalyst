@@ -95,9 +95,12 @@ def test_sigv4_path_caches_group_lookup_per_caller() -> None:
 
 def test_sigv4_path_with_no_groups_returns_403_on_writes() -> None:
     app.state.group_lookup = lambda arn: []
+    # Using OUs (not environments) keeps this test focused on the RBAC
+    # path — environments now require a referenced landing_zone and would
+    # otherwise fail on body validation before RBAC ever runs.
     response = _client().post(
-        "/orgs/cloud-byte/environments",
-        json={"tenant": "cloud-byte", "name": "prod"},
+        "/orgs/cloud-byte/ous",
+        json={"tenant": "cloud-byte", "name": "platform-ou"},
         headers={"x-catalyst-identity-url": "https://sts.us-west-2.amazonaws.com/?x=1"},
     )
     assert response.status_code == 403

@@ -10,7 +10,10 @@ from pydantic import ValidationError
 from .catalog import RESOURCE_CATALOG
 from .constructs import ConstructAddress
 from .models import (
-    OrgWriteRequest,
+    ApplicationCreateRequest,
+    EnvironmentCreateRequest,
+    LandingZoneCreateRequest,
+    OuCreateRequest,
     ProductDeploymentRecord,
     ProductDeploymentRequest,
     ServiceConfigRequest,
@@ -71,7 +74,7 @@ def catalog(access: AccessContext = Depends(access_dependency)) -> dict:
 @app.post("/orgs/{tenant}/ous")
 def create_ou(
     tenant: str,
-    request: OrgWriteRequest,
+    request: OuCreateRequest,
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
@@ -83,37 +86,99 @@ def create_ou(
 @app.post("/orgs/{tenant}/landing-zones")
 def create_landing_zone(
     tenant: str,
-    request: OrgWriteRequest,
+    request: LandingZoneCreateRequest,
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
+    """Register a landing zone and return the #169 Gherkin AC payload.
+
+    Response shape per scenario 1: ``landing_zone_id``, ``construct_address``,
+    ``status: provisioned`` — plus the legacy ``landing_zone`` name field
+    that existing callers already consume.
+    """
+
     require_write(access, "tier1")
-    repo.append_org_record(tenant, "landing_zones", request.name)
-    return {"tenant": tenant, "landing_zone": request.name, "correlation_id": _correlation_id()}
+    repo.append_org_record(
+        tenant,
+        "landing_zones",
+        request.name,
+        attributes={
+            "account_id": request.account_id,
+            "compliance": request.compliance,
+        },
+    )
+    landing_zone_id = f"{tenant}/{request.name}"
+    return {
+        "tenant": tenant,
+        "landing_zone": request.name,
+        "landing_zone_id": landing_zone_id,
+        "construct_address": landing_zone_id,
+        "account_id": request.account_id,
+        "compliance": request.compliance,
+        "status": "provisioned",
+        "correlation_id": _correlation_id(),
+    }
 
 
 @app.post("/orgs/{tenant}/environments")
 def create_environment(
     tenant: str,
-    request: OrgWriteRequest,
+    request: EnvironmentCreateRequest,
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
+    """Register an environment under an existing landing zone.
+
+    Validates that ``request.landing_zone`` resolves to a previously
+    registered LZ on the same tenant — per #169 Gherkin scenario 3 the
+    response is 422 with ``detail`` mentioning "unknown landing zone" when
+    the reference does not exist.
+    """
+
     require_write(access, "tier1")
-    repo.append_org_record(tenant, "environments", request.name)
-    return {"tenant": tenant, "environment": request.name, "correlation_id": _correlation_id()}
+    org = repo.get_organization(tenant)
+    known_lzs = {lz["name"] for lz in org.get("landing_zones", [])}
+    if request.landing_zone not in known_lzs:
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown landing zone: {request.landing_zone}",
+        )
+    repo.append_org_record(
+        tenant,
+        "environments",
+        request.name,
+        attributes={"landing_zone": request.landing_zone},
+    )
+    return {
+        "tenant": tenant,
+        "environment": request.name,
+        "environment_id": f"{tenant}/{request.landing_zone}/{request.name}",
+        "landing_zone": request.landing_zone,
+        "status": "provisioned",
+        "correlation_id": _correlation_id(),
+    }
 
 
 @app.post("/orgs/{tenant}/applications")
 def create_application(
     tenant: str,
-    request: OrgWriteRequest,
+    request: ApplicationCreateRequest,
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
     require_write(access, "tier1")
-    repo.append_org_record(tenant, "applications", request.name)
-    return {"tenant": tenant, "application": request.name, "correlation_id": _correlation_id()}
+    repo.append_org_record(
+        tenant,
+        "applications",
+        request.name,
+        attributes={"project": request.project},
+    )
+    return {
+        "tenant": tenant,
+        "application": request.name,
+        "project": request.project,
+        "correlation_id": _correlation_id(),
+    }
 
 
 @app.get("/orgs/{tenant}")

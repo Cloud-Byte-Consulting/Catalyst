@@ -53,7 +53,13 @@ class Repository(ABC):
         pass
 
     @abstractmethod
-    def append_org_record(self, tenant: str, kind: str, name: str) -> None:
+    def append_org_record(
+        self,
+        tenant: str,
+        kind: str,
+        name: str,
+        attributes: dict[str, Any] | None = None,
+    ) -> None:
         pass
 
     @abstractmethod
@@ -122,13 +128,26 @@ class InMemoryRepository(Repository):
     def put_idempotent(self, key: str, payload: dict) -> None:
         self.idempotency[key] = payload
 
-    def append_org_record(self, tenant: str, kind: str, name: str) -> None:
+    def append_org_record(
+        self,
+        tenant: str,
+        kind: str,
+        name: str,
+        attributes: dict[str, Any] | None = None,
+    ) -> None:
         if kind not in _ORG_KINDS:
             raise ValueError(f"unknown org kind: {kind}")
         self.organizations.setdefault(tenant, _empty_org_structure())
-        self.organizations[tenant][kind].append(
-            {"name": name, "created_at": self.now().isoformat()}
-        )
+        record: dict[str, Any] = {"name": name, "created_at": self.now().isoformat()}
+        if attributes:
+            # explicit fields take precedence over caller-supplied keys with
+            # the same name (so an attacker-supplied ``created_at`` cannot
+            # rewrite history)
+            for key, value in attributes.items():
+                if key in {"name", "created_at"}:
+                    continue
+                record[key] = value
+        self.organizations[tenant][kind].append(record)
 
     def get_organization(self, tenant: str) -> dict:
         return self.organizations.get(tenant, {})
@@ -279,7 +298,13 @@ class DynamoDBRepository(Repository):
             }
         )
 
-    def append_org_record(self, tenant: str, kind: str, name: str) -> None:
+    def append_org_record(
+        self,
+        tenant: str,
+        kind: str,
+        name: str,
+        attributes: dict[str, Any] | None = None,
+    ) -> None:
         if kind not in _ORG_KINDS:
             raise ValueError(f"unknown org kind: {kind}")
         item = self._get(_PK_ORG + tenant, "STRUCT") or {
@@ -288,7 +313,13 @@ class DynamoDBRepository(Repository):
             **_empty_org_structure(),
         }
         item.setdefault(kind, [])
-        item[kind].append({"name": name, "created_at": self.now().isoformat()})
+        record: dict[str, Any] = {"name": name, "created_at": self.now().isoformat()}
+        if attributes:
+            for key, value in attributes.items():
+                if key in {"name", "created_at"}:
+                    continue
+                record[key] = value
+        item[kind].append(record)
         self._put(item)
 
     def get_organization(self, tenant: str) -> dict:
