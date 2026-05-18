@@ -1,7 +1,9 @@
 # ADR-006 — CI/CD pipeline architecture for Catalyst
 
 **Status**: Accepted · 2026-05-14
-**Related**: [ADR-001](ADR-001-github-issues-as-state-machine.md) · [ADR-002](ADR-002-construct-hierarchy.md) · [ADR-007](ADR-007-catalyst-api-golden-paths.md) · [ADR-009](ADR-009-runtime-strategy.md) · [ADR-010](ADR-010-egress-control.md) · [docs/rlm-integration-guide.md](../rlm-integration-guide.md)
+**Related**: [ADR-001](ADR-001-github-issues-as-state-machine.md) · [ADR-002](ADR-002-construct-hierarchy.md) · [ADR-007](ADR-007-catalyst-api-golden-paths.md) · [ADR-009](ADR-009-runtime-strategy.md) · [ADR-010](ADR-010-egress-control.md) · [ADR-015](ADR-015-terraform-state-partitioning.md) · [docs/rlm-integration-guide.md](../rlm-integration-guide.md)
+
+> **State-key generation**: the `terraform.yml`, `service-cd.yml`, and `tf-drift.yml` workflows below assume the single-key backend (`catalyst/platform.tfstate`). [ADR-015](ADR-015-terraform-state-partitioning.md) commits the platform to a four-tier state-key hierarchy; pipelines that target L2/L3/L4 generate their backend keys at apply time via `-backend-config="key=…"`. The migration is captured as a deferred follow-up in ADR-015 §Deferred.
 
 ---
 

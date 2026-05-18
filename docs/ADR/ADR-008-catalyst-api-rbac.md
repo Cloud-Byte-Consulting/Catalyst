@@ -137,6 +137,8 @@ Owners need no special AWS permissions to call the Catalyst API (enforcement is 
 
 No additional AWS API permissions are required. Group membership alone determines what the Catalyst API authorises. These policies are empty (`"Statement": []`) in v1; additive permissions (e.g. read-only CloudWatch access for Administrators) can be added as operational needs arise without changing the RBAC model.
 
+> **Tenant-scoped state-bucket policy (ABAC anchor)**: tenant-scoped groups (the two-segment `catalyst-{tenant}--{role}` form) get an `s3:*` policy on the state-bucket scoped to `arn:…:catalyst/tenants/${aws:PrincipalTag/Tenant}/*` per [ADR-015](ADR-015-terraform-state-partitioning.md). The state-key prefix is the canonical ABAC anchor — every tenant-scoped principal can only read/write its own L2/L3/L4 keys. The global groups (`catalyst-owners`, `catalyst-administrators`, `catalyst-viewers`) retain platform-wide access at L1 and full read across all tenants.
+
 ---
 
 ### API-side enforcement (primary and only gate)
