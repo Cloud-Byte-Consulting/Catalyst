@@ -7,10 +7,17 @@ Uses Microsoft `knack` per AGENTS.md.
 
 `CATALYST_AUTH` selects the auth path:
   - `none` (default for tests / public endpoints)
-  - `sigv4` — sign the API call with SigV4 against `execute-api`
-  - `presigned-sts` — attach an `X-Amz-Security-Token` style presigned STS
-    GetCallerIdentity URL header (consumed by the SigV4 RBAC path in
-    `services/catalyst-api`, see ADR-008)
+  - `sigv4` — sign the API call with SigV4 against `execute-api` (NOT the
+    Catalyst production path; retained for completeness)
+  - `presigned-sts` — attach a presigned STS GetCallerIdentity URL in the
+    `x-catalyst-identity-url` header (consumed by the RBAC path in
+    `services/catalyst-api/catalyst/rbac.py:163`, see ADR-008)
+
+**Naming asymmetry note (#171):** the production `presigned-sts` strategy
+here corresponds to **server-side `CATALYST_AUTH_MODE=sigv4`**. The
+asymmetry is historical — the server-side mode predates the CLI rename.
+Both env vars refer to the same presigned-STS-URL flow. See ADR-008 §
+"Naming asymmetry between client and server" for the full rationale.
 
 The HTTP layer is centralized in `_call` so tests can monkeypatch a single
 seam.
@@ -122,7 +129,7 @@ def _call(method: str, path: str, *, json_body: dict | None = None) -> dict:
             # Auto-generate when AWS creds are available; surfaces a clear
             # error when they aren't, instead of silently sending no header.
             token = generate_presigned_sts_url()
-        # Header name MUST match `services/catalyst-api/catalyst/rbac.py:153`
+        # Header name MUST match `services/catalyst-api/catalyst/rbac.py:163`
         # (`x-catalyst-identity-url`). Earlier versions used a different
         # name (`X-Catalyst-Identity`); that was a bug — the API expects
         # the URL itself, not an opaque token, and the header name is

@@ -13,6 +13,16 @@ The API supports two resolution modes, selected by ``CATALYST_AUTH_MODE``:
   resolve their groups. The result is cached per-process for the configured
   TTL so steady-state traffic does not hit STS/IAM on every request.
 
+  **Naming asymmetry note (#171):** the *client* side selects this same
+  flow via ``CATALYST_AUTH=presigned-sts`` (CLI env var; see
+  ``clients/catalyst-cli/catalyst_cli.py``). The server-side value is
+  ``CATALYST_AUTH_MODE=sigv4`` because the original RBAC design named
+  the mode after the underlying signature scheme. Both env vars refer
+  to the same presigned-STS-URL flow forwarded in the
+  ``x-catalyst-identity-url`` header. See ADR-008 § "Naming asymmetry
+  between client and server" for the full rationale and operator
+  quick-reference.
+
 Group naming follows ADR-008 and the migration note at
 ``docs/migrations/2026-05-15-rbac-scoped-group-delimiter.md`` —
 ``catalyst-{tenant}--{project}--{role}``, with backward compatibility for
