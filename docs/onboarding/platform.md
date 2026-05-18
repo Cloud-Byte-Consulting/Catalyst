@@ -81,6 +81,38 @@ See [`docs/cost-model.md`](../cost-model.md) for the per-tier dollar table and t
 
 Adding **new platform-wide AWS resource types** is always a Terraform PR — never an extension to the bootstrap script.
 
+## Narrowing the bootstrap-admin principal
+
+**Why this matters.** [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md) assumes the bootstrap admin is a **scoped IAM principal**, not the account root. Leaving `BOOTSTRAP_ADMIN_PRINCIPAL_ARN=arn:aws:iam::<account>:root` in place after day-0 means any compromise of root credentials is also a compromise of the Catalyst RBAC plane. `scripts/bootstrap-aws-account.sh` will emit a `[WARN]` (non-blocking) when it detects an `account:root` principal so operators can't silently ship that posture into production.
+
+**What to do post-bootstrap.**
+
+1. Create a dedicated break-glass IAM role in the same account — e.g. `catalyst-bootstrap-breakglass` — assumable only by your identity-provider's break-glass group, with MFA required.
+2. Attach the minimal inline policy below: `iam:*` scoped to the three Catalyst RBAC groups (`catalyst-owners`, `catalyst-administrators`, `catalyst-viewers`). The full per-group action matrix lives in [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md).
+3. Update `BOOTSTRAP_ADMIN_PRINCIPAL_ARN` (env var, GitHub repo var, and any `.env` file) to that role's ARN and re-run `scripts/bootstrap-aws-account.sh`. The script is idempotent — re-running rotates the trust policy on `catalyst-bootstrap-admin` to the new principal.
+
+**Suggested policy shape** (minimal — see ADR-008 for the full matrix):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ManageCatalystRBACGroups",
+      "Effect": "Allow",
+      "Action": "iam:*",
+      "Resource": [
+        "arn:aws:iam::<account>:group/catalyst-owners",
+        "arn:aws:iam::<account>:group/catalyst-administrators",
+        "arn:aws:iam::<account>:group/catalyst-viewers"
+      ]
+    }
+  ]
+}
+```
+
+**Follow-up.** A dedicated Terraform module (`infrastructure/modules/iam-breakglass/`) will codify this role + policy so operators don't hand-roll it; that work is tracked as a separate follow-up to #166 and will land once an operator exercises the path end-to-end.
+
 ## Local validation (no AWS calls)
 
 Before pushing infra changes, run these locally:

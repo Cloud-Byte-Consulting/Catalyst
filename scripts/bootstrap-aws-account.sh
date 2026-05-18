@@ -459,6 +459,20 @@ validate_bootstrap_admin_principal() {
   if [[ "$principal_account" != "$AWS_ACCOUNT_ID" ]]; then
     warn "BOOTSTRAP_ADMIN_PRINCIPAL_ARN is in account ${principal_account} but AWS_ACCOUNT_ID is ${AWS_ACCOUNT_ID} (cross-account trust). Ensure this is intentional."
   fi
+
+  # ADR-008 / issue #166: the bootstrap admin should be a scoped IAM role
+  # (iam:* on the three Catalyst groups only), not account:root. Non-blocking
+  # so day-0 operators can still proceed, but we surface the production debt
+  # so it cannot be silently left in place.
+  if [[ "$BOOTSTRAP_ADMIN_PRINCIPAL_ARN" =~ ^arn:aws:iam::[0-9]+:root$ ]]; then
+    warn "BOOTSTRAP_ADMIN_PRINCIPAL_ARN is account:root (${BOOTSTRAP_ADMIN_PRINCIPAL_ARN})."
+    warn "  ADR-008 (RBAC) requires the bootstrap admin to be a scoped IAM role,"
+    warn "  not the account root. Day-0 use is tolerated, but before any"
+    warn "  production traffic replace this with a dedicated break-glass role"
+    warn "  that holds iam:* on the catalyst-{owners,administrators,viewers} groups only."
+    warn "  Guidance: docs/onboarding/platform.md § Narrowing the bootstrap-admin principal"
+    warn "  Decision:  docs/ADR/ADR-008-catalyst-api-rbac.md"
+  fi
 }
 
 emit_github_actions_runner_policy() {
