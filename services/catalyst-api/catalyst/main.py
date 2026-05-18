@@ -36,6 +36,26 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Catalyst API")
 
 
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    """Thread ``X-Correlation-ID`` through every response, including errors.
+
+    The per-handler ``correlation_id_dependency`` already sets the
+    response header on success paths, but when a handler raises
+    ``HTTPException`` FastAPI builds a fresh response from scratch — so
+    the dependency-set header is lost. This middleware re-applies it
+    unconditionally using the same id rule (request header if present,
+    UUIDv4 otherwise) so a single id threads every response, success or
+    failure.
+    """
+
+    correlation_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
+    request.state.correlation_id = correlation_id
+    response = await call_next(request)
+    response.headers["X-Correlation-ID"] = correlation_id
+    return response
+
+
 def repo_dependency() -> Repository:
     return get_repository()
 
@@ -66,17 +86,18 @@ def correlation_id_dependency(
     request: Request,
     x_correlation_id: str | None = Header(default=None, alias="X-Correlation-ID"),
 ) -> str:
-    """Return the per-request correlation id, generating one if missing.
+    """Return the per-request correlation id used by the handler.
 
-    Also sets the ``X-Correlation-ID`` response header so clients can
-    retrieve the id without parsing the JSON body — useful when the body
-    is a streaming or empty response.
+    ``correlation_id_middleware`` runs first and stashes the canonical id
+    on ``request.state.correlation_id`` — we re-use that here so the
+    middleware and the handler always agree on the id (otherwise a fresh
+    UUID would be minted twice and the response header would disagree
+    with the body).
     """
 
-    correlation_id = x_correlation_id or str(uuid.uuid4())
+    cached = getattr(request.state, "correlation_id", None)
+    correlation_id = cached or x_correlation_id or str(uuid.uuid4())
     response.headers["X-Correlation-ID"] = correlation_id
-    # Stash on request.state so handlers (and any future middleware) can
-    # log it without re-resolving the dependency.
     request.state.correlation_id = correlation_id
     return correlation_id
 
