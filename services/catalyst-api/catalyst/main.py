@@ -17,6 +17,7 @@ from .models import (
     ServiceDeployRequest,
     ServiceOnboardRequest,
 )
+from .onboard import provision_app
 from .rbac import AccessContext, access_dependency, can_read_scope, require_write
 from .repository import Repository, get_repository
 
@@ -133,17 +134,45 @@ def onboard_service(
     access: AccessContext = Depends(access_dependency),
     repo: Repository = Depends(repo_dependency),
 ) -> dict:
+    """Tier 2 onboard: synchronously provision per-app AWS resources via Terraform.
+
+    Replaces the v1 stubbed-ARN handler with the real ``terraform apply``
+    flow committed in ADR-014. The L4 backend key is generated per
+    invocation following ADR-015's state-key hierarchy
+    (``catalyst/tenants/{tenant}/environments/{env}/apps/{app}.tfstate``)
+    inside ``provision_app``.
+
+    Idempotency continues to flow through the existing
+    ``_idempotent_response`` wrapper — first call drives the Terraform
+    apply, replay returns the cached payload without re-invoking
+    ``provision_app`` (so Terraform's own S3-state convergence is only
+    exercised on the first call within the 24h idempotency window).
+    """
+
     require_write(access, "tier2")
     construct = _parse_construct(request.construct_address)
+    cached = repo.get_idempotent(request.idempotency_key)
+    if cached is not None:
+        response.headers["X-Idempotent-Replay"] = "true"
+        return cached
     repo.init_service(construct.value)
-    tenant, _, _, project, app_name = construct.value.split("/")
+    correlation_id = _correlation_id()
+    result = provision_app(
+        construct.value,
+        idempotency_key=request.idempotency_key,
+        correlation_id=correlation_id,
+        service_type=request.service_type,
+    )
     payload = {
-        "construct_address": construct.value,
-        "ecr_uri": f"123456789012.dkr.ecr.us-west-2.amazonaws.com/{tenant}-{project}-{app_name}",
-        "service_url": f"https://{tenant}-{project}-{app_name}.catalyst.internal",
-        "task_role_arn": f"arn:aws:iam::123456789012:role/{tenant}-{project}-{app_name}-task",
+        "construct_address": result.construct_address,
+        "ecr_uri": result.ecr_uri,
+        "execution_role_arn": result.execution_role_arn,
+        "log_group_name": result.log_group_name,
+        "alb_listener_rule_arn": result.alb_listener_rule_arn,
+        "catalog_record_key": result.catalog_record_key,
+        "state_key": result.state_key,
         "status": "provisioned",
-        "correlation_id": _correlation_id(),
+        "correlation_id": correlation_id,
     }
     return _idempotent_response(repo, request.idempotency_key, payload, response)
 
