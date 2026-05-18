@@ -150,51 +150,47 @@ gh issue edit <issue#> --repo Cloud-Byte-Consulting/Catalyst \
 
 If the issue lacks a `state/*` label entirely, add the appropriate one. If it carries both `state/pending` and one of the active states (drift from a previous triage), drop `state/pending`.
 
-#### 7b. Linked branch (GitHub Development panel)
+#### 7b. Branch named on the tracking issue
 
-GitHub's "Development" panel on each issue shows linked branches and PRs. The PR is auto-linked via `Closes #N` in the PR body, but **the branch itself needs an explicit link** via the `createLinkedBranch` GraphQL mutation. Triage is the right place to enforce this because if a branch was created outside `gh issue develop` (e.g. an agent's `git switch -c <name>`), it won't have been auto-linked.
+A reader opening the issue should be able to find the working branch without guessing the naming convention or clicking through to the PR. Two mechanisms exist; both are documented here because GitHub's native primitive only covers half the cases.
 
-Why it matters: a reader opening the issue should see the branch in the sidebar, not have to derive it from the naming convention or click through to the PR. Especially useful while the branch exists but the PR hasn't been opened yet (draft state), and during long-running implementation work.
+**GitHub's native `linkedBranches` (Development panel)** — useful but limited:
+
+| When the branch is created via … | Behavior |
+|---|---|
+| `gh issue develop <issue#> --base release --name <branch>` | Branch + link created together. Appears in the Development panel automatically. **Preferred for new work.** |
+| `git switch -c <branch>` in an agent worktree | No link. The branch is on origin but the issue's `linkedBranches` collection stays empty. |
+| `gh pr create` referencing `Closes #N` | The PR is linked, the branch is **not**. Clicking through the PR shows the branch — indirect navigation. |
+
+The `createLinkedBranch` GraphQL mutation is a *create* operation, not a *link* operation — passing the oid + name of an existing branch returns `linkedBranch: null` (silent noop). There is no API to retroactively link an already-existing branch to an issue as of 2026-05-18; only the web UI's "Link a branch" dropdown does that, and it has no CLI/MCP equivalent.
+
+**Catalyst convention — Decision Log carries the branch name (always works):**
+
+Every Decision Log posted to a tracking issue MUST name the branch explicitly:
+
+```markdown
+**Contract:**
+- Branch from `origin/release` as `<branch-name>`
+- ...
+```
+
+This is the navigable artifact regardless of GitHub's Development-panel state. Triage verifies the branch name appears in *some* comment on the issue; if not (drift from an older convention or a branch renamed mid-flight), the skill posts a one-line clarifying comment:
 
 ```bash
-REPO_OWNER=Cloud-Byte-Consulting
-REPO_NAME=Catalyst
 ISSUE_NUM=<issue#>
 BRANCH=<branch-name>
 
-ISSUE_ID=$(gh issue view "$ISSUE_NUM" --repo "$REPO_OWNER/$REPO_NAME" --json id --jq .id)
-
-BRANCH_ID=$(gh api graphql -f query='
-query($owner:String!, $repo:String!, $ref:String!) {
-  repository(owner:$owner, name:$repo) {
-    ref(qualifiedName:$ref) { id }
-  }
-}' -F owner="$REPO_OWNER" -F repo="$REPO_NAME" -F ref="refs/heads/$BRANCH" \
-  --jq '.data.repository.ref.id')
-
-ALREADY=$(gh api graphql -f query='
-query($owner:String!, $repo:String!, $n:Int!) {
-  repository(owner:$owner, name:$repo) {
-    issue(number:$n) {
-      linkedBranches(first:10) { nodes { ref { name } } }
-    }
-  }
-}' -F owner="$REPO_OWNER" -F repo="$REPO_NAME" -F n="$ISSUE_NUM" \
-  --jq ".data.repository.issue.linkedBranches.nodes[].ref.name" | grep -Fx "$BRANCH" || true)
-
-if [[ -z "$ALREADY" ]]; then
-  gh api graphql -f query='
-  mutation($issueId:ID!, $branchId:ID!) {
-    createLinkedBranch(input:{issueId:$issueId, branchId:$branchId}) {
-      linkedBranch { id }
-    }
-  }' -F issueId="$ISSUE_ID" -F branchId="$BRANCH_ID"
+if ! gh issue view "$ISSUE_NUM" --repo Cloud-Byte-Consulting/Catalyst --json comments,body \
+     --jq ".body + \"\n\" + ([.comments[].body] | join(\"\n\"))" \
+     | grep -Fq "$BRANCH"; then
+  gh issue comment "$ISSUE_NUM" --repo Cloud-Byte-Consulting/Catalyst \
+    --body "Working branch: \`$BRANCH\` (PR: <pr-url>). Recorded by /pr-review-triage so the branch is discoverable from this issue."
 fi
 ```
 
-**For future branches**, the cleaner pattern is `gh issue develop <issue#> --base release --branch-name <branch>` — creates the branch *and* links it in one step. The post-hoc `createLinkedBranch` mutation exists for when branches are created via `git switch -c` (the agent-worktree default).
+**For future branches**, prefer `gh issue develop` upfront so both mechanisms light up — the branch lands in the Development panel AND the agent's Decision Log mentions it by name.
 
-After the PR merges and the branch is auto-deleted, the linked-branch record falls off automatically. No cleanup needed.
+After the PR merges and the branch is auto-deleted, both mechanisms decay gracefully: GitHub drops the linked-branch record automatically, and the Decision Log comment stays as a historical record of where the work happened.
 
 ### 8. Stop
 
@@ -209,7 +205,7 @@ The skill always:
 - Pushes commits if any fixes applied
 - Leaves a single trail-end summary comment
 - Synchronizes the tracking issue's `state/*` label (step 7a)
-- Links the branch to the tracking issue if not already (step 7b)
+- Ensures the working branch is named in the issue (step 7b) — `gh issue develop` upfront when possible, otherwise a Decision-Log-style comment
 - Reports back to the user with the merge readiness state
 
 ## Anti-patterns
