@@ -62,22 +62,42 @@ curl "http://$albDns/health"
 # OpenAPI spec
 curl "http://$albDns/openapi.json" | jq '.info.title'
 
-# Catalog list (unauthenticated demo endpoint)
-curl "http://$albDns/catalog/products" | jq '.products | length'
+# Resource catalog (unauthenticated when CATALYST_AUTH_MODE=headers)
+curl "http://$albDns/catalog" | jq '.resources | length'
 ```
 
 Expected: `{"status":"ok"}` on `/health`, a non-empty title from `/openapi.json`,
-and a numeric product count from `/catalog/products`.
+and a numeric resource count from `/catalog` (12 entries match the canonical
+`RESOURCE_CATALOG` in `services/catalyst-api/catalyst/catalog.py`).
 
 ## Tier 3 — Golden-path validation (authenticated, optional)
 
-The full Tier 2 service-lifecycle path requires SigV4-signed requests under
-`CATALYST_AUTH_MODE=sigv4`. Skip for interview demos; useful before a release.
+When `CATALYST_AUTH_MODE=sigv4`, the API verifies callers via a presigned
+`sts:GetCallerIdentity` URL passed in the `x-catalyst-identity-url` header
+(see `services/catalyst-api/catalyst/identity.py` and ADR-008). The caller
+generates the presigned URL with their AWS credentials; the API fetches it
+to confirm the caller's IAM identity, then resolves the caller's RBAC role
+via `iam:ListGroupsForUser`.
+
+Skip for interview demos; useful before a release.
 
 ```powershell
-# Smoke a signed request with awscurl (pip install awscurl)
-awscurl --service execute-api --region us-east-1 "http://$albDns/v1/applications" -X GET
+# Generate a presigned GetCallerIdentity URL (requires AWS credentials set in env)
+$region = "us-east-1"
+$presignedUrl = aws sts get-caller-identity --output json --debug 2>&1 |
+    Select-String "Making request for OperationModel" |
+    ForEach-Object { $_.ToString() }   # see identity.py for the canonical helper
+
+# Hit a real route (use any Tier 1 / Tier 2 path from main.py — e.g. GET /orgs/{tenant})
+curl -H "x-catalyst-identity-url: $presignedUrl" "http://$albDns/orgs/catalyst"
 ```
+
+The canonical caller is `clients/catalyst-cli/` (which constructs the
+presigned URL via boto3's `generate_presigned_url`) or the GitHub Action
+in `.github/actions/catalyst-api/`. Hand-crafting the presigned URL with
+awscurl + STS is not directly supported because awscurl signs the target
+URL itself rather than producing a presigned STS URL to forward; use the
+CLI or Action for end-to-end verification.
 
 ## Failure triage
 
