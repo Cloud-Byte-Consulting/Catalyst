@@ -62,4 +62,4 @@ jobs:
           pip install -r clients/catalyst-cli/requirements.txt
           pip install -r clients/catalyst-cli/requirements-dev.txt
       - name: Run CLI tests
-        run: pytest clients/catalyst-cli/tests -v
+        run: pytest clients/catalyst-cli/tests -v --cov=catalyst_cli --cov-branch --cov-fail-under=80 --cov-report=term-missing
