@@ -62,9 +62,23 @@ uvicorn catalyst.main:app --app-dir services/catalyst-api --reload
 Run tests:
 
 ```bash
+# API service (gate: 85% coverage)
 pip install -r services/catalyst-api/requirements-dev.txt
 pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-branch --cov-fail-under=85
+
+# CLI client (gate: 80% coverage; live tests opt-in via -m live)
+pip install -r clients/catalyst-cli/requirements-dev.txt
+pytest clients/catalyst-cli/tests -m 'not live' --cov=catalyst_cli --cov-branch --cov-fail-under=80
 ```
+
+CLI live-stack smoke (opt-in, runs against a deployed Catalyst ALB):
+
+```bash
+export CATALYST_API_ENDPOINT="http://catalyst-alb-XXXX.us-east-1.elb.amazonaws.com"
+pytest -m live clients/catalyst-cli/tests -v
+```
+
+See [`docs/smoke-tests.md`](./docs/smoke-tests.md) for the full smoke-test runbook (curl + pytest paths).
 
 ## Architecture
 
