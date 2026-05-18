@@ -54,6 +54,20 @@ The original CICD-11 issue conflated *unblocking* scheduled drift detection with
 
 This is the "the spec is wrong, the agent says so" pattern. Agents do not bend code to match a wrong spec. They surface the inconsistency.
 
+### Issue #150 — Phase A operator-execution under contract
+
+The Phase A operator-execution session is the highest-stakes example of the contract holding up under real AWS pressure. The agent ran `scripts/bootstrap-aws-account.sh` end-to-end against account 061051223073 with the operator present. Three distinct surprises surfaced; each was handled per ADR-011 rather than power-through:
+
+1. **Bootstrap script failed twice on the same Windows host** — first on `file:///tmp/...` URIs that aws.exe can't read, then on `--path /` rewritten by MSYS to a Windows path. The agent did not edit blindly; it inspected the script, located the two distinct path-conversion points, applied minimal targeted patches (cygpath + MSYS_NO_PATHCONV), and re-ran to verify idempotency. Both fixes are no-ops on Linux CI.
+
+2. **Orphan VPC stack discovered** — a previous teardown had partially-applied, leaving a complete VPC with 6 subnets, NAT, 12 VPC endpoints, IGW, EIP, and 3 security groups in AWS but no longer in Terraform state. The agent inventoried the resources, calculated the idle cost (~$100/month from NAT + interface endpoints), and asked the operator for explicit deletion authorization via `AskUserQuestion` rather than assume the cleanup was implied. Each destructive call ran one at a time with explicit description; the auto-mode classifier blocked the batch operation initially, which is the system working as designed.
+
+3. **Legacy IAM roles with excessive permissions** — `catalyst-gha-apply` (created 7 days earlier under the old naming convention) had `IAMFullAccess`, `PowerUserAccess`, and `ReadOnlyAccess` attached. Not in Terraform state, not referenced by any current workflow. The agent flagged this as attack surface, asked for cleanup authorization, and deleted both legacy roles (apply + plan) after the operator confirmed.
+
+The day-1 sequence from `docs/operator-bootstrap.md` §Step 7 then executed cleanly: terraform.yml apply 1 → service-cd.yml image push → flip `CATALYST_LAMBDA_IMAGE_SEEDED=true` → terraform.yml apply 2. Lambda target group reports healthy. The session produced three new committed docs (`docs/smoke-tests.md`, `docs/demo-script.md`, `docs/ADR/ADR-011-catalyst-agentic-workflow.md`) and one script patch (`scripts/bootstrap-aws-account.sh` MSYS fix) — all landed via this single PR under the same six-gate contract the ADR codifies.
+
+This is the contract producing the artifact it requires: an audit-grade trail of three distinct surprises, each surfaced and authorized rather than power-through, with every destructive action explicitly confirmed and every change traceable to a commit.
+
 ## Issue tracking conventions
 
 Every issue follows Context + Scope (In/Out) + Gherkin Acceptance Criteria. State machine labels:

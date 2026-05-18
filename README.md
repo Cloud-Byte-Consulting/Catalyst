@@ -38,6 +38,8 @@ table.
 4. Merge to `release`; the same `terraform.yml` workflow runs `apply` against
    the bootstrap-managed apply role. `tf-drift.yml` runs nightly.
 
+Once the stack is up, run the [smoke-test runbook](./docs/smoke-tests.md) to verify Lambda + ALB are healthy. For the interview-panel walkthrough, see the [6-minute demo script](./docs/demo-script.md).
+
 For local sanity checks (no AWS calls):
 
 ```bash
@@ -51,6 +53,9 @@ Run API locally:
 
 ```bash
 pip install -r services/catalyst-api/requirements.txt
+# Copy .env.example to .env and fill in values (see services/catalyst-api/.env.example)
+cp services/catalyst-api/.env.example services/catalyst-api/.env
+# Edit .env with your local configuration
 uvicorn catalyst.main:app --app-dir services/catalyst-api --reload
 ```
 
@@ -69,7 +74,7 @@ Three diagrams cover the system at different cuts. All are committed as markdown
 - **[`diagrams/ha.md`](./diagrams/ha.md)** — multi-AZ ECS topology with Aurora Serverless v2, NAT redundancy, and the failure-mode coverage table. This is the scale-out variant of ADR-009; the demo runs Lambda.
 - **[`diagrams/gitops.md`](./diagrams/gitops.md)** — PR → plan comment → review → apply → deploy → andon flow, OIDC role separation per pipeline phase, and the andon-signal pattern where drift becomes a `state/pending` issue.
 
-See also [ADR-001 through ADR-010](./docs/ADR/) for the design decisions these diagrams encode.
+See also [ADR-001 through ADR-011](./docs/ADR/) for the design decisions these diagrams encode. The Catalyst agentic-workflow operating contract is captured in [ADR-011](./docs/ADR/ADR-011-catalyst-agentic-workflow.md) (citing [`AGENTS.md`](./AGENTS.md) as the source of truth).
 
 ## Runtime configuration
 

@@ -6,6 +6,16 @@
 
 set -euo pipefail
 
+# Prevent Git Bash / MSYS from translating Unix-style arguments like "/" into
+# Windows paths when calling native binaries (aws.exe). Without this, IAM
+# `--path /` becomes the MSYS root path and AWS rejects it as invalid.
+# Paired with `cygpath -w` in create_temp_file() below so trust-policy files
+# referenced via `file://...` use Windows paths aws.exe can resolve.
+# All MSYS/cygpath logic is a no-op on Linux CI (env vars ignored, cygpath
+# missing so the conditional falls through to the original mktemp path).
+export MSYS_NO_PATHCONV=1
+export MSYS2_ARG_CONV_EXCL='*'
+
 SCRIPT_NAME="$(basename "$0")"
 DRY_RUN=false
 PRINT_GITHUB_ACTIONS_RUNNER_POLICY=false
@@ -369,6 +379,10 @@ create_temp_file() {
   local file_path
   file_path="$(mktemp)"
   printf '%s\n' "$2" >"$file_path"
+  # On Git Bash / MSYS, convert to a Windows path so native aws.exe can read it.
+  if command -v cygpath >/dev/null 2>&1; then
+    file_path="$(cygpath -w "$file_path")"
+  fi
   eval "$1='$file_path'"
 }
 
