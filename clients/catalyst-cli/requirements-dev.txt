@@ -1,4 +1,5 @@
 -r requirements.txt
--r requirements.txt
 pytest
 pytest-cov
+moto[sts,iam]>=5.0.0
+boto3>=1.34.0

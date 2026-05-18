@@ -105,17 +105,30 @@ def test_auth_strategy_unknown_raises(monkeypatch):
     assert "unknown CATALYST_AUTH" in str(exc.value)
 
 
-def test_presigned_sts_requires_token(monkeypatch):
+def test_presigned_sts_requires_credentials_when_token_absent(monkeypatch):
+    """When CATALYST_PRESIGNED_STS_URL is unset, the CLI auto-generates via
+    boto3. If no AWS credentials are available either, it fails clean —
+    surfacing a precise error rather than silently sending no auth header.
+    """
     monkeypatch.setenv("CATALYST_AUTH", "presigned-sts")
     monkeypatch.delenv("CATALYST_PRESIGNED_STS_URL", raising=False)
+    # Clear any AWS creds in the test environment to force the no-creds path.
+    for k in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
+              "AWS_PROFILE", "AWS_DEFAULT_REGION", "AWS_REGION"):
+        monkeypatch.delenv(k, raising=False)
+    # Force the boto3 credential chain to return None deterministically
+    # (some operator machines have an aws-cli `login_session` profile that
+    # otherwise raises MissingDependencyException from botocore).
+    import boto3
+    monkeypatch.setattr(boto3.Session, "get_credentials", lambda self: None)
 
     def _fake_request(method, url, **kwargs):
-        raise AssertionError("HTTP request must not happen when token missing")
+        raise AssertionError("HTTP request must not happen when creds missing")
 
     monkeypatch.setattr(catalyst_cli.requests, "request", _fake_request)
     with pytest.raises(SystemExit) as exc:
         catalyst_cli._call("GET", "/health")
-    assert "presigned-sts auth requires CATALYST_PRESIGNED_STS_URL" in str(exc.value)
+    assert "no AWS credentials" in str(exc.value)
 
 
 def test_render_emits_stable_json():
