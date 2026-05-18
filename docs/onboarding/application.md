@@ -111,7 +111,40 @@ jobs:
 python clients/catalyst-cli/catalyst_cli.py services status cloud-byte/dev/shared/my-project/my-app
 ```
 
-Expected response: 200 with `construct_address`, `service_type`, `status`, and resource ARNs (which may be stubbed in v1; see [ADR-007](../ADR/ADR-007-catalyst-api-golden-paths.md) §Consequences).
+Expected response: 200 with `construct_address`, `status=provisioned`, real `ecr_uri` / `execution_role_arn` / `log_group_name` / `alb_listener_rule_arn` / `catalog_record_key`, plus `state_key` (the L4 Terraform state path) and `correlation_id`. See the "Real provisioning (v2)" section below for the shape of those fields.
+
+## Real provisioning (v2)
+
+Starting with #167, `POST /services/onboard` no longer returns stubbed ARNs. The handler synchronously runs `terraform init` + `terraform apply` against the **catalyst-app L4 composite** ([`infrastructure/modules/composite/catalyst-app/`](../../infrastructure/modules/composite/catalyst-app/)) — one per-app Terraform state file at `catalyst/tenants/{tenant}/environments/{env}/apps/{app}.tfstate` per [ADR-015](../ADR/ADR-015-terraform-state-partitioning.md) §State-key convention.
+
+What gets provisioned per onboard (from the L4 composite):
+
+| Resource | Naming / shape |
+|---|---|
+| ECR repository | `{tenant}-{project}-{app}` with scan-on-push + IMMUTABLE tags |
+| Execution role | Lambda (`web-service`, `worker`) or ECS task (`batch`) role with CloudWatch Logs write |
+| CloudWatch log group | `/aws/catalyst/{tenant}/{env}/{project}/{app}` (30-day retention) |
+| ALB listener rule | only for `service_type=web-service`; routes `/{tenant}/{env}/{project}/{app}/*` |
+| Catalog row | DynamoDB `APP#{construct_address}|META` row in `catalyst-platform-state` |
+
+### Expected wall-clock and timeouts
+
+The synchronous apply takes **2-5 minutes p50** end-to-end ([ADR-014](../ADR/ADR-014-services-onboard-provisioning-mode.md) §Option comparison). The handler runs inside the API Lambda, which is bounded by AWS Lambda's **15-minute hard cap** ([ADR-009](../ADR/ADR-009-runtime-strategy.md)). Callers MUST set a request timeout of at least 15 minutes (the CLI default extension is documented at `clients/catalyst-cli/`).
+
+If the apply exceeds the internal subprocess timeout (13 min for `terraform apply`), the handler returns 500 with `terraform_apply_timeout correlation_id=…` — grep CloudWatch for that correlation id to find the structured log line and the partial apply log.
+
+### Idempotency
+
+`idempotency_key` continues to work exactly as [ADR-007](../ADR/ADR-007-catalyst-api-golden-paths.md) describes — replay within 24h returns the cached response with `X-Idempotent-Replay: true`. The first call runs Terraform; subsequent replays skip the subprocess entirely and return the cached ARNs. Terraform's own S3-state convergence keeps AWS-side resources consistent on first call.
+
+### Observability
+
+Every invocation emits:
+
+- A CloudWatch custom metric in namespace `Catalyst/Onboard` (metric `OnboardDuration`, unit `Milliseconds`, dimensions `Endpoint=services_onboard` + `Result=success|failure`) — the source of truth for the [ADR-014](../ADR/ADR-014-services-onboard-provisioning-mode.md) §Deferred v3 trip-wire alarm.
+- A structured log line with `endpoint=services_onboard`, `correlation_id`, and `state_key` (the L4 backend key) — required by [ADR-014](../ADR/ADR-014-services-onboard-provisioning-mode.md) + [ADR-015](../ADR/ADR-015-terraform-state-partitioning.md) §Compliance.
+
+The L4 state lives at the path printed in the `state_key` response field; the Lambda execution role has read/write IAM scoped to that key prefix only.
 
 ## Post-onboard lifecycle
 

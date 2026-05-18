@@ -252,13 +252,19 @@ Each PR in this plan follows the same ADR-011 / AGENTS.md gates:
 
 The plan is complete when:
 
-1. Issues #166-#172 are all closed (via merge of their respective PRs)
-2. `docs/cost-model.md` exists (from #170)
-3. `docs/onboarding/organisation.md` no longer has the curl workaround section (from #169)
-4. `docs/ADR/ADR-008-catalyst-api-rbac.md` has the naming-asymmetry section (from #171)
-5. The construct-regex parity test runs in CI (from #172)
-6. `POST /services/onboard` returns real ARNs (from #167 + #168)
-7. `BOOTSTRAP_ADMIN_PRINCIPAL_ARN` on the demo account points at a non-root role (from #166 — operator action after the code change ships)
+1. [ ] Issues #166-#172 are all closed (via merge of their respective PRs)
+2. [x] `docs/cost-model.md` exists (from #170) — landed in PR #185
+3. [x] `docs/onboarding/organisation.md` no longer has the curl workaround section (from #169) — landed in PR #178
+4. [x] `docs/ADR/ADR-008-catalyst-api-rbac.md` has the naming-asymmetry section (from #171) — landed in PR #180
+5. [x] The construct-regex parity test runs in CI (from #172) — landed in PR #179
+6. [x] `POST /services/onboard` returns real ARNs (from #167 + #168) — landed in PRs #186 (#168) + this PR (#167)
+7. [ ] `BOOTSTRAP_ADMIN_PRINCIPAL_ARN` on the demo account points at a non-root role (from #166 — operator action after the code change ships)
+
+**Phase status as of this PR:**
+
+- [x] **Phase 1 — Quick wins** complete (#169, #171, #172)
+- [x] **Phase 2 — Tenant-onboarding feature track** complete (#168, #170, #167)
+- [ ] **Phase 3 — Security hardening** outstanding (#166)
 
 Update this section as issues close. When all seven boxes are checked, close #173 and archive the plan.
 
