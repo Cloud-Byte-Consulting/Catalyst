@@ -1,4 +1,14 @@
-<!-- AUTO-GENERATED from agents/checkov-expert.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
+---
+name: checkov-expert
+description: Checkov expert — diagnoses failing Checkov runs, writes suppressions correctly, and tunes the policy set. Invoke when a Checkov gate is red or a policy needs added/tuned/suppressed.
+model: sonnet
+tools: [Read, Grep, Glob, Bash]
+---
+
+<!-- This file is a Claude Code subagent adapter for the canonical persona at agents/checkov-expert.md. The persona body is included verbatim below so a Claude Code session sees the same content a Cursor session does at .cursor/agents/checkov-expert.md. -->
+
+<!-- BEGIN canonical agents/checkov-expert.md -->
+
 ---
 name: checkov-expert
 description: >-

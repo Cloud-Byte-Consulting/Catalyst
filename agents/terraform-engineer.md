@@ -1,4 +1,3 @@
-<!-- AUTO-GENERATED from agents/terraform-engineer.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
 ---
 name: terraform-engineer
 description: >-

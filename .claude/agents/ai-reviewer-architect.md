@@ -1,4 +1,14 @@
-<!-- AUTO-GENERATED from agents/ai-reviewer-architect.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
+---
+name: ai-reviewer-architect
+description: AI-native development workflow architect — Bedrock Claude integration for production multi-agent code review with safety guarantees. Invoke for AI-reviewer pipeline design, Bedrock Converse contracts, or multi-agent review safety questions.
+model: opus
+tools: [Read, Grep, Glob, Bash]
+---
+
+<!-- This file is a Claude Code subagent adapter for the canonical persona at agents/ai-reviewer-architect.md. The persona body is included verbatim below so a Claude Code session sees the same content a Cursor session does at .cursor/agents/ai-reviewer-architect.md. -->
+
+<!-- BEGIN canonical agents/ai-reviewer-architect.md -->
+
 ---
 name: ai-reviewer-architect
 description: >-

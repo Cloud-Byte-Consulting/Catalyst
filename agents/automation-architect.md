@@ -1,4 +1,3 @@
-<!-- AUTO-GENERATED from agents/automation-architect.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
 ---
 name: automation-architect
 description: >-

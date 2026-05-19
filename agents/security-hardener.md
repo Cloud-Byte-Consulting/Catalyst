@@ -1,4 +1,3 @@
-<!-- AUTO-GENERATED from agents/security-hardener.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
 # security-hardener
 
 > **Vendored from**: `platform-catalyst/.cursor/agents/security-hardener.md` (BittahCriminal/platform-catalyst, BSD-3-Clause).

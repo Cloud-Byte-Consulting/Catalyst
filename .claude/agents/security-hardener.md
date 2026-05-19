@@ -1,4 +1,14 @@
-<!-- AUTO-GENERATED from agents/security-hardener.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
+---
+name: security-hardener
+description: AWS security posture engineer — zero-trust architecture, secrets rotation, IAM least-privilege, HIPAA controls, container hardening, GitHub MCP secret scanning. Invoke for any security review or hardening question.
+model: opus
+tools: [Read, Grep, Glob, Bash]
+---
+
+<!-- This file is a Claude Code subagent adapter for the canonical persona at agents/security-hardener.md. The persona body is included verbatim below so a Claude Code session sees the same content a Cursor session does at .cursor/agents/security-hardener.md. -->
+
+<!-- BEGIN canonical agents/security-hardener.md -->
+
 # security-hardener
 
 > **Vendored from**: `platform-catalyst/.cursor/agents/security-hardener.md` (BittahCriminal/platform-catalyst, BSD-3-Clause).

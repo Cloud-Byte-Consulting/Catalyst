@@ -1,4 +1,3 @@
-<!-- AUTO-GENERATED from agents/platform-engineering-architect.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
 ---
 name: platform-engineering-architect
 description: >-

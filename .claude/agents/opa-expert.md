@@ -1,4 +1,14 @@
-<!-- AUTO-GENERATED from agents/opa-expert.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
+---
+name: opa-expert
+description: OPA / Rego policy expert — troubleshoots broken policy gates, writes new rules, and reasons about admission-control behavior. Invoke when an OPA decision is wrong or a new rule needs authoring.
+model: sonnet
+tools: [Read, Grep, Glob, Bash]
+---
+
+<!-- This file is a Claude Code subagent adapter for the canonical persona at agents/opa-expert.md. The persona body is included verbatim below so a Claude Code session sees the same content a Cursor session does at .cursor/agents/opa-expert.md. -->
+
+<!-- BEGIN canonical agents/opa-expert.md -->
+
 ---
 name: opa-expert
 description: >-

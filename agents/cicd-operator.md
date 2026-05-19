@@ -1,4 +1,3 @@
-<!-- AUTO-GENERATED from agents/cicd-operator.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
 ---
 name: cicd-operator
 description: >

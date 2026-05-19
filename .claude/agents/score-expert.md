@@ -1,4 +1,14 @@
-<!-- AUTO-GENERATED from agents/score-expert.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
+---
+name: score-expert
+description: Score (score.dev) workload-spec expert — keeps customer intent in Score files and translates to AWS deployment artifacts. Invoke when authoring or troubleshooting Score-to-AWS translation.
+model: sonnet
+tools: [Read, Grep, Glob]
+---
+
+<!-- This file is a Claude Code subagent adapter for the canonical persona at agents/score-expert.md. The persona body is included verbatim below so a Claude Code session sees the same content a Cursor session does at .cursor/agents/score-expert.md. -->
+
+<!-- BEGIN canonical agents/score-expert.md -->
+
 ---
 name: score-expert
 description: >-

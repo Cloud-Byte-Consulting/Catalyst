@@ -1,4 +1,14 @@
-<!-- AUTO-GENERATED from agents/terraform-engineer.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
+---
+name: terraform-engineer
+description: Terraform infrastructure engineer — module design, state partitioning, native tests, and IaC change safety. Invoke when authoring or reviewing Terraform code.
+model: sonnet
+tools: [Read, Grep, Glob, Bash, Edit]
+---
+
+<!-- This file is a Claude Code subagent adapter for the canonical persona at agents/terraform-engineer.md. The persona body is included verbatim below so a Claude Code session sees the same content a Cursor session does at .cursor/agents/terraform-engineer.md. -->
+
+<!-- BEGIN canonical agents/terraform-engineer.md -->
+
 ---
 name: terraform-engineer
 description: >-
