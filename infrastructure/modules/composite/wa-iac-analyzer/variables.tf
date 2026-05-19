@@ -47,3 +47,59 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# ---------------------------------------------------------------------------
+# Security-contract inputs (issue #284, stacked on #283).
+#
+# These three variables encode the security choices the Phase 1 implementer
+# MUST make explicitly. Defaults are deliberately "deny" / "empty" so that
+# silent broadening is impossible — to enable Bedrock invoke, a model ARN
+# must be passed; to allow unauthenticated reads, the operator must flip
+# `allow_unauthenticated_read = true` knowing the #284 Scenario 2 gherkin
+# acceptance rejects that posture for internet-facing ALBs.
+# ---------------------------------------------------------------------------
+
+variable "bedrock_model_arns" {
+  description = <<-EOT
+    Bedrock model ARNs that the analyzer's ECS task role may invoke (via
+    `bedrock:InvokeModel` + `bedrock:InvokeModelWithResponseStream`). The
+    least-privilege policy document in `iam.tf` scopes Bedrock access to
+    EXACTLY this list — no wildcards. Default is empty, which means the
+    Bedrock statement is OMITTED from the task-role policy entirely (see
+    `iam.tf` §"Bedrock"). Phase 1 implementation must pass at least one
+    ARN, e.g.
+    `arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0`.
+    Per ADR-023 §Phase 1.
+  EOT
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for a in var.bedrock_model_arns : can(regex("^arn:aws[a-z0-9-]*:bedrock:", a))])
+    error_message = "Every bedrock_model_arns entry must be a Bedrock ARN (start with arn:aws[...]:bedrock:)."
+  }
+}
+
+variable "cognito_user_pool_existing_id" {
+  description = <<-EOT
+    Optional ID of a pre-existing Cognito user pool to FEDERATE the analyzer
+    against (Catalyst SSO path). If empty, the Phase 1 implementation stands
+    up a DEDICATED pool per `cognito.tf` §"User-pool shape". Federation is
+    preferred when a Catalyst SSO pool exists — see README §"Security
+    contract" §Federation decision.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "allow_unauthenticated_read" {
+  description = <<-EOT
+    Hard switch to permit unauthenticated GETs on read-only analyzer UI
+    routes. Default `false` is the only posture accepted by #284 Scenario
+    2 ("Unauthenticated UI access is blocked"). Flipping to `true` is an
+    explicit operator opt-in for internal-ALB-only deployments and MUST be
+    paired with an internal ALB (NOT internet-facing). ADR-008 / ADR-010.
+  EOT
+  type        = bool
+  default     = false
+}
