@@ -26,3 +26,17 @@ output "component_tag" {
   description = "The catalyst:component tag value applied to every analyzer resource once Phase 1 implementation lands. Available at scaffold stage as a structural contract."
   value       = local.component_tags["catalyst:component"]
 }
+
+# ---------------------------------------------------------------------------
+# Phase 1 observability outputs (#285).
+# ---------------------------------------------------------------------------
+
+output "log_group_name" {
+  description = "CloudWatch log group name receiving the analyzer ECS task logs. Real when the module is enabled; null when the root flag is false (this module is never instantiated under count = 0)."
+  value       = aws_cloudwatch_log_group.analyzer.name
+}
+
+output "dashboard_arn" {
+  description = "ARN of the analyzer operator dashboard. Real when the module is enabled; null when the root flag is false."
+  value       = aws_cloudwatch_dashboard.analyzer.dashboard_arn
+}
