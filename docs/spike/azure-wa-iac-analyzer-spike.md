@@ -195,7 +195,7 @@ variable "enable_wa_azure_iac_analyzer" {
 ```
 
 This slot is **declared, not implemented** by this spike. The corresponding
-AWS slot is `var.enable_wa_iac_analyzer` (per ADR-023 in-flight on #281).
+AWS slot is `var.enable_wa_aws_iac_analyzer` (per ADR-023 in-flight on #281).
 
 Construct-address labels for future Azure work, aligned with Catalyst's
 existing label scheme:
