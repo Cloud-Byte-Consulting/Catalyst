@@ -47,3 +47,54 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# ---------------------------------------------------------------------------
+# Phase 1 observability inputs (#285).
+#
+# All defaults preserve the zero-impact contract: empty strings cause alarm
+# dimensions / actions to fall back to no-op behaviour, and the root-level
+# `count = var.enable_wa_aws_iac_analyzer ? 1 : 0` keeps the whole module
+# dormant by default. See observability.tf for per-alarm rationale.
+# ---------------------------------------------------------------------------
+
+variable "sns_topic_arn" {
+  description = "ARN of the shared `catalyst-alerts` SNS topic (modules/observability, #63) to receive analyzer alarms. When empty, alarms still declare but `alarm_actions = []` — the alarm is observable in the console but does not page. Mirrors the #235 ECS-autoscaling topic-ARN-via-variable pattern."
+  type        = string
+  default     = ""
+}
+
+variable "log_retention_days" {
+  description = "Retention in days for the analyzer ECS task log group. Defaults to 30 per ADR-015 §Log retention."
+  type        = number
+  default     = 30
+}
+
+variable "log_group_kms_key_arn" {
+  description = "Optional KMS CMK ARN encrypting the analyzer log group (ADR-016 artifact-key pattern). When empty, the AWS-owned CloudWatch Logs key is used so the scaffold remains zero-impact before the CMK lands."
+  type        = string
+  default     = ""
+}
+
+variable "alb_arn_suffix" {
+  description = "ARN suffix of the analyzer ALB (the `LoadBalancer` dimension on AWS/ApplicationELB metrics). Populated by the Phase 1 implementer once the ALB exists; empty at scaffold stage."
+  type        = string
+  default     = ""
+}
+
+variable "ecs_cluster_name" {
+  description = "ECS cluster name hosting the analyzer service. Populated by the Phase 1 implementer; empty at scaffold stage."
+  type        = string
+  default     = ""
+}
+
+variable "ecs_service_name" {
+  description = "ECS service name running the analyzer. Populated by the Phase 1 implementer; empty at scaffold stage."
+  type        = string
+  default     = ""
+}
+
+variable "dynamodb_table_name" {
+  description = "DynamoDB table name backing the analyzer (review state + history). Populated by the Phase 1 implementer; empty at scaffold stage."
+  type        = string
+  default     = ""
+}
