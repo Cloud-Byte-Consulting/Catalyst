@@ -117,6 +117,16 @@ stays hermetic. Tests:
 The CLI test suite is gated at **80% coverage** in CI (`--cov-fail-under=80`);
 see `.github/workflows/pr-checks.yml` cli-tests job.
 
+## End-to-end regression suite
+
+For the full six-journey regression suite (Track A operator bootstrap,
+Track B tenant register, Track C app onboard, idempotency, RBAC, auth
+modes) see [`docs/e2e-testing.md`](./e2e-testing.md). That suite runs
+in mock mode on every PR via `pr-checks.yml` and can be re-pointed at
+a live stack via `CATALYST_E2E_LIVE=1 + CATALYST_API_ENDPOINT=...`,
+giving the same coverage as the curl probes above with assertion
+introspection instead of jq parsing.
+
 ## CI smoke
 
 `ci-smoke.yml` runs on every PR touching `.github/**` and on manual dispatch.

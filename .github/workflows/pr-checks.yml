@@ -84,9 +84,21 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install deps
-        run: pip install -r services/catalyst-api/requirements-dev.txt
-      - name: Run pytest
+        # The e2e suite imports both the API and the CLI (journey 06
+        # drives the client-side presigned-STS flow), so install the
+        # CLI dev requirements alongside the API dev requirements.
+        run: |
+          pip install -r services/catalyst-api/requirements-dev.txt
+          pip install -r clients/catalyst-cli/requirements.txt
+          pip install -r clients/catalyst-cli/requirements-dev.txt
+      - name: Run API unit pytest
         run: pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-branch --cov-fail-under=85
+      - name: Run e2e regression suite (mock mode, #207)
+        # Mock mode only — CATALYST_E2E_LIVE is intentionally unset so
+        # the suite runs against the in-process FastAPI TestClient. The
+        # live-mode invocation lives in ci-smoke.yml behind a manual
+        # dispatch input. See docs/e2e-testing.md.
+        run: pytest tests/e2e/ -v
   cursor-config:
     runs-on: ubuntu-latest
     steps:
