@@ -23,8 +23,6 @@ is monkeypatched per test to a fake that returns a deterministic
 
 from __future__ import annotations
 
-import os
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
