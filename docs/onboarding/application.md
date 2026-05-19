@@ -158,6 +158,33 @@ Once onboard succeeds, the construct address unlocks three additional Tier 2 ope
 
 Application deploy pipelines from your app repo SHOULD use the deploy OIDC role and reference the construct address in run labels and tracking issues — never long-lived AWS keys.
 
+## Error contract
+
+Every API response — success or failure — carries a `correlation_id` and an `X-Correlation-ID` response header. Clients SHOULD send their own `X-Correlation-ID` request header (UUIDv4) so a single id threads the CLI / Action invocation → API handler → CloudWatch logs; the server generates one if absent.
+
+Error responses share a single body shape — `{error, correlation_id, detail}` under FastAPI's `detail` field:
+
+```json
+{"detail": {"error": "ValidationFailure", "correlation_id": "0e8…", "detail": "unknown landing zone: shared"}}
+```
+
+The `error` field is the stable class name (parseable by clients); `detail` is a short, hand-curated, safe-to-display message. Raw exception text (which may contain ARNs or credential fragments) is never returned — it lives only in structured CloudWatch logs, joined by `correlation_id`.
+
+Status-code matrix (#61, see [`catalyst/errors.py`](../../services/catalyst-api/catalyst/errors.py)):
+
+| Status | Class | When |
+|---|---|---|
+| 400 | `BadRequest` | Malformed body that FastAPI rejects pre-handler |
+| 401 | `Unauthorized` | Auth missing or invalid (`rbac.access_dependency`) |
+| 403 | `Forbidden` | Caller authenticated but lacks the required scope |
+| 404 | `ResourceNotFound` | Construct address / product key has no record |
+| 409 | `IdempotencyConflict` | Same `idempotency_key` reused with a different payload |
+| 422 | `ValidationFailure` / `ValidationError` | Pydantic or semantic validation failed |
+| 503 | `RepositoryFailure` / `AWSTransientFailure` | DynamoDB throttling or transient AWS failure — back off and retry |
+| 500 | `InternalServerError` | Unexpected; file a bug citing the `correlation_id` |
+
+Server-side retry/backoff for 503 is tracked as a follow-up kaizen; for now the client owns the retry clock.
+
 ## RBAC matrix (Tier 2, per [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md))
 
 | Operation | Owner | Administrator | Viewer |
