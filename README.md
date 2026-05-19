@@ -2,6 +2,18 @@
 
 Catalyst is an Internal Developer Platform control plane for AWS. This repository contains deployable infrastructure modules, a FastAPI control-plane service, CI/CD workflows, and interface artifacts (CLI + GitHub Action).
 
+## Get started
+
+Onboarding into Catalyst is **three audience-sliced tracks** ([ADR-012](./docs/ADR/ADR-012-onboarding-experience.md)). Pick the one that matches your role:
+
+| Track | Audience | Runbook | Outcome |
+|---|---|---|---|
+| **A — Platform** | Cloud / platform engineering | [`docs/onboarding/platform.md`](./docs/onboarding/platform.md) | Fresh AWS account ready for GitOps; Catalyst API reachable from allowlisted networks |
+| **B — Organization** | Team / lab leaders (Owners) | [`docs/onboarding/organization.md`](./docs/onboarding/organization.md) | Tenant hierarchy registered (OUs, landing zones, environments) |
+| **C — Application** | Application teams (Administrators) | [`docs/onboarding/application.md`](./docs/onboarding/application.md) | App onboarded onto an existing tenant via `POST /services/onboard` |
+
+The index at [`docs/onboarding/README.md`](./docs/onboarding/README.md) explains the cross-track sequencing.
+
 ## Repository layout
 
 - `infrastructure/`: Terraform modules and tests for backend, network, IAM, runtime, and security controls.

@@ -179,6 +179,10 @@ terraform apply
 
 Re-apply whenever the contract changes (e.g. when [#200](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/200) flips `actionlint` to required).
 
+## Dependency updates
+
+Dependabot is wired for `github-actions`, `pip` (api + cli), and `docker` via [`.github/dependabot.yml`](../../.github/dependabot.yml); the alert dashboard at <https://github.com/Cloud-Byte-Consulting/Catalyst/security/dependabot> is the operator's source of truth for outstanding vulnerabilities.
+
 ## After bootstrap completes — pipeline prerequisites checklist
 
 1. **Set repository variables:** `BOOTSTRAP_AWS_ACCOUNT_ID`, `BOOTSTRAP_AWS_REGION`, `BOOTSTRAP_GITHUB_REPOSITORY`, `BOOTSTRAP_ADMIN_PRINCIPAL_ARN`, optional `BOOTSTRAP_CATALYST_PREFIX`, `CATALYST_API_INGRESS_ALLOWLIST`.
