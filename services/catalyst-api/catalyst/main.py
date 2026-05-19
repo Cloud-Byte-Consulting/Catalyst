@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Callable
@@ -27,6 +28,15 @@ from .models import (
     ServiceDeployRequest,
     ServiceOnboardRequest,
 )
+from .observability import (
+    caller_arn_var,
+    correlation_id_var,
+    endpoint_template,
+    endpoint_var,
+    metrics,
+    request_var,
+    tenant_var,
+)
 from .onboard import provision_app
 from .rbac import AccessContext, access_dependency, can_read_scope, require_write
 from .repository import Repository, get_repository
@@ -34,6 +44,24 @@ from .repository import Repository, get_repository
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Catalyst API")
+
+
+# ---------------------------------------------------------------------------
+# Middleware registration (#60).
+#
+# FastAPI/Starlette middleware order: the LAST-added middleware runs
+# FIRST on the request path (i.e. wraps every other middleware). We
+# want the order on the wire to be:
+#
+#     request  -> observability_middleware -> correlation_id_middleware -> handler
+#     response <- observability_middleware <- correlation_id_middleware <- handler
+#
+# So we add ``correlation_id_middleware`` FIRST (innermost) and
+# ``observability_middleware`` SECOND (outermost). That way the
+# observability layer can read ``request.state.correlation_id`` (set
+# by the inner middleware) on the way out, and a single id threads
+# every metric + log line.
+# ---------------------------------------------------------------------------
 
 
 @app.middleware("http")
@@ -54,6 +82,180 @@ async def correlation_id_middleware(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Correlation-ID"] = correlation_id
     return response
+
+
+@app.middleware("http")
+async def observability_middleware(request: Request, call_next):
+    """Per-request metrics + structured log emission (#60).
+
+    Wraps every request — including those that fail with HTTPException
+    via FastAPI's exception handler. For each request we:
+
+        1. Compute the cardinality-bounded endpoint template (so a
+           construct-address URL collapses to ``/services/{addr}``
+           instead of exploding the CloudWatch dimension cap).
+        2. Set the contextvars that :class:`JSONFormatter` reads so any
+           ``logger.info(...)`` call inside the handler picks up the
+           threaded fields.
+        3. Call the downstream handler chain.
+        4. Emit ``RequestCount`` + ``RequestDuration``.
+        5. If ``status_code >= 400``, emit ``ErrorCount`` with the
+           ``error_class`` set by :func:`catalyst.errors.to_http_exception`
+           (falls back to a status-derived name if unset, which can
+           happen for paths that raise a bare ``HTTPException`` without
+           going through the boundary translator).
+        6. Emit a ``request_complete`` structured log line.
+
+    This middleware runs OUTSIDE ``correlation_id_middleware`` on the
+    request path (added second per FastAPI's last-added-first-run rule)
+    so the correlation id set by the inner middleware is visible on the
+    response side here.
+
+    Per #60: the Onboard-specific ``Catalyst/Onboard:OnboardDuration``
+    metric stays as a load-bearing trip-wire — this generic
+    ``Catalyst/API:RequestDuration`` fires alongside it for the same
+    invocation, giving operators BOTH the Onboard-specific dimension
+    and the generic per-endpoint duration in one alarm-able place.
+    """
+
+    method = request.method
+    endpoint = endpoint_template(request.url.path)
+    # Stash the resolved endpoint on request.state too so any code path
+    # that walks the request (e.g. a future audit hook) can read it
+    # without re-doing the template resolution.
+    request.state.endpoint = endpoint
+
+    # Populate the contextvars the JSON formatter reads. The correlation
+    # id will have been set by ``correlation_id_middleware`` (which runs
+    # before us on the request path); ``caller_arn`` may not be set yet
+    # (it's resolved inside the rbac dependency at handler time), but
+    # we set it from the request header eagerly so the request_complete
+    # log line carries it for every request.
+    correlation_id = getattr(request.state, "correlation_id", None) or (
+        request.headers.get("X-Correlation-ID")
+    )
+    caller_arn = request.headers.get("x-caller-arn") or None
+
+    endpoint_token = endpoint_var.set(endpoint)
+    cid_token = correlation_id_var.set(correlation_id)
+    arn_token = caller_arn_var.set(caller_arn)
+    tenant_token = tenant_var.set(_extract_tenant_from_path(request.url.path))
+    # Stash the current Request on a contextvar so ``to_http_exception``
+    # can populate ``request.state.error_class`` even when the handler
+    # raises without plumbing the request through. Reset under finally
+    # below.
+    request_token = request_var.set(request)
+
+    start = time.perf_counter()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        duration_ms = (time.perf_counter() - start) * 1000.0
+
+        # Per-request metric emissions. Each call is internally
+        # swallow-on-failure so a CloudWatch outage cannot break the
+        # request path — observability is best-effort.
+        metrics.request_count(endpoint, method, status_code)
+        metrics.request_duration(endpoint, method, duration_ms)
+        if status_code >= 400:
+            error_class = _resolve_error_class(request, status_code)
+            metrics.error_count(endpoint, method, error_class)
+
+        # Structured log line. Emitted at INFO for 2xx/3xx, WARNING for
+        # 4xx (client-side miss), ERROR for 5xx (server-side fault) so
+        # an operator filtering by level in CloudWatch Logs Insights
+        # sees the same severity distinction the existing handler-side
+        # logs use.
+        log_level = logging.INFO
+        if status_code >= 500:
+            log_level = logging.ERROR
+        elif status_code >= 400:
+            log_level = logging.WARNING
+
+        logger.log(
+            log_level,
+            "request_complete",
+            extra={
+                "endpoint": endpoint,
+                "method": method,
+                "status_code": status_code,
+                "duration_ms": round(duration_ms, 3),
+                "correlation_id": correlation_id,
+                "caller_arn": caller_arn,
+            },
+        )
+
+        # Reset the contextvars so the next request on this asyncio
+        # task starts clean. The reset MUST happen even on the
+        # exception path, hence the ``finally`` placement.
+        endpoint_var.reset(endpoint_token)
+        correlation_id_var.reset(cid_token)
+        caller_arn_var.reset(arn_token)
+        tenant_var.reset(tenant_token)
+        request_var.reset(request_token)
+
+
+def _resolve_error_class(request: Request, status_code: int) -> str:
+    """Return the error-class dimension value for ``ErrorCount``.
+
+    Preference order:
+
+        1. ``request.state.error_class`` — set by
+           :func:`catalyst.errors.to_http_exception` when the error went
+           through the boundary translator. This is the same class name
+           that appears in the response body's ``error`` field.
+        2. A status-derived name (``ValidationError`` for 422,
+           ``Forbidden`` for 403, etc.) for paths that raise a bare
+           ``HTTPException`` (e.g. FastAPI's own Pydantic 422 handler
+           which never touches our translator).
+        3. ``"Unknown"`` as a last-resort sentinel so the metric still
+           fires with a bounded dimension value.
+    """
+
+    state = getattr(request, "state", None)
+    if state is not None:
+        explicit = getattr(state, "error_class", None)
+        if isinstance(explicit, str) and explicit:
+            return explicit
+
+    # Inline copy of errors._http_status_to_error_name — duplicated here
+    # to avoid a runtime import in the hot middleware path.
+    return {
+        400: "BadRequest",
+        401: "Unauthorized",
+        403: "Forbidden",
+        404: "ResourceNotFound",
+        409: "IdempotencyConflict",
+        422: "ValidationError",
+        429: "TooManyRequests",
+        500: "InternalServerError",
+        503: "RepositoryFailure",
+    }.get(status_code, "Unknown")
+
+
+def _extract_tenant_from_path(path: str) -> str | None:
+    """Pull the ``{tenant}`` segment out of a path when present.
+
+    Used by the structured-log threading so a log line emitted inside a
+    handler that operates on a known tenant carries the tenant id even
+    if the handler itself didn't think to add it. Returns ``None`` for
+    routes that don't have a tenant segment (e.g. ``/health``,
+    ``/catalog``, ``/services/onboard`` — the last carries a tenant
+    inside the construct address body, not the path).
+    """
+
+    if not path:
+        return None
+    parts = path.lstrip("/").split("/")
+    if len(parts) >= 2 and parts[0] == "orgs":
+        return parts[1]
+    if len(parts) >= 2 and parts[0] == "products" and parts[1] != "deploy":
+        # /products/{tenant}/{project}/{app}
+        return parts[1]
+    return None
 
 
 def repo_dependency() -> Repository:
@@ -115,7 +317,9 @@ def _idempotent_response(
     return payload
 
 
-def _parse_construct(value: str, correlation_id: str) -> ConstructAddress:
+def _parse_construct(
+    value: str, correlation_id: str, request: Request | None = None
+) -> ConstructAddress:
     """Parse + validate a construct address, raising the canonical 422 on miss."""
 
     try:
@@ -127,6 +331,7 @@ def _parse_construct(value: str, correlation_id: str) -> ConstructAddress:
                 context={"raw": value, "pydantic": str(exc)},
             ),
             correlation_id,
+            request=request,
         ) from exc
 
 
@@ -134,6 +339,7 @@ def _safe_call(
     correlation_id: str,
     fn: Callable[..., object],
     *args: object,
+    request: Request | None = None,
     **kwargs: object,
 ):
     """Invoke ``fn(*args, **kwargs)`` inside the canonical error boundary.
@@ -144,6 +350,14 @@ def _safe_call(
     handlers funnel AWS-side calls through this helper so the error
     shape is uniform without sprinkling try/except across every
     function body.
+
+    The optional ``request`` parameter (keyword-only) is forwarded to
+    :func:`to_http_exception` so the chosen error-class name lands on
+    ``request.state.error_class`` — the observability middleware (#60)
+    reads that to tag ``ErrorCount`` with the canonical class name.
+    Existing call sites that omit ``request`` continue to work; the
+    error-class dimension falls back to a status-derived name in that
+    case.
     """
 
     try:
@@ -160,7 +374,7 @@ def _safe_call(
                 "error_class": type(exc).__name__,
             },
         )
-        raise to_http_exception(exc, correlation_id) from exc
+        raise to_http_exception(exc, correlation_id, request=request) from exc
 
 
 @app.get("/health")
