@@ -8,21 +8,58 @@ operating contract. Six minutes with a 0:45 closing buffer (5:15–6:00).
 
 Assumes a fresh operator machine. Do this **once** before the 5-minute checklist below.
 
+### 1. Copy the template
+
 ```bash
-# bash / WSL / macOS
-cp .env.example .env                          # then edit .env to fill creds
-aws sso login --profile <profile>             # or set static keys per .env.example
-aws sts get-caller-identity                   # must succeed before continuing
+cp .env.example .env       # bash / WSL / macOS — then edit .env to fill creds
+```
+
+```powershell
+Copy-Item .env.example .env   # PowerShell — then edit .env to fill creds
+```
+
+### 2. Load the variables into the current shell session
+
+`.env` files use bare `KEY=value` lines, so plain `source .env` does **not** export the values in bash (assignments without `export` stay local to the sourced scope). The `set -a` / `set +a` pair auto-exports every assignment in between. PowerShell needs an explicit parser since `Set-Item env:NAME value` does not read dotenv format.
+
+```bash
+# bash / WSL / macOS / git-bash
+set -a
+source .env
+set +a
 ```
 
 ```powershell
 # PowerShell (Windows)
-Copy-Item .env.example .env                   # then edit .env to fill creds
-aws sso login --profile <profile>             # or set static keys per .env.example
+Get-Content .env | Where-Object { $_ -match '^[A-Z]' -and $_ -notmatch '^\s*#' } | ForEach-Object {
+    $name, $value = $_ -split '=', 2
+    $value = $value.Trim('"').Trim("'")
+    Set-Item -Path "env:$name" -Value $value
+}
+```
+
+```fish
+# Fish (if any operator prefers it)
+for line in (grep -v '^\s*#' .env | grep -v '^\s*$')
+    set -gx (string split -m1 = $line)
+end
+```
+
+> Gotcha — PowerShell env vars set this way **do not survive a new pwsh window**. Operators who close + reopen the terminal must re-run the loader.
+
+### 3. Authenticate to AWS
+
+```bash
+aws sso login --profile $AWS_PROFILE          # if .env provides AWS_PROFILE
 aws sts get-caller-identity                   # must succeed before continuing
 ```
 
-If `aws sts get-caller-identity` fails, stop and fix creds — the checklist below assumes a valid caller identity.
+```powershell
+aws sso login --profile $env:AWS_PROFILE      # PowerShell variant
+aws sts get-caller-identity
+```
+
+If `aws sts get-caller-identity` fails with `Unable to locate credentials`: either `.env` is missing `AWS_PROFILE` / `AWS_ACCESS_KEY_ID`, or the SSO session expired — re-run `aws sso login` and reload `.env`. If it fails with `expired token`: re-run `aws sso login`. The checklist below assumes a valid caller identity.
 
 ## Pre-demo checklist (5 min before)
 
