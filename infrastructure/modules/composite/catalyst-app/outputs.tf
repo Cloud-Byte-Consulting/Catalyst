@@ -51,3 +51,31 @@ output "ecs_task_role_arn" {
   description = "ARN of the ECS task role (DynamoDB + SSM + CloudWatch metrics). Null when enable_ecs_runtime = false."
   value       = try(module.ecs_runtime[0].ecs_task_role_arn, null)
 }
+
+# ---------------------------------------------------------------------------
+# #230 — ECS autoscaling outputs.
+#
+# Null when enable_ecs_autoscaling = false. Wired so runbooks + the
+# operator-verification commands in docs/onboarding/platform.md
+# §Autoscaling can discover the App Autoscaling target + policy ARNs.
+# ---------------------------------------------------------------------------
+
+output "ecs_autoscaling_target_resource_id" {
+  description = "App Autoscaling resource_id (`service/<cluster>/<service>`) the target was registered against. Null when enable_ecs_autoscaling = false."
+  value       = try(module.ecs_autoscaling[0].target_resource_id, null)
+}
+
+output "ecs_autoscaling_cpu_policy_arn" {
+  description = "ARN of the CPU target-tracking scaling policy. Null when enable_ecs_autoscaling = false."
+  value       = try(module.ecs_autoscaling[0].cpu_policy_arn, null)
+}
+
+output "ecs_autoscaling_request_count_policy_arn" {
+  description = "ARN of the ALBRequestCountPerTarget scaling policy. Null when enable_ecs_autoscaling = false."
+  value       = try(module.ecs_autoscaling[0].request_count_policy_arn, null)
+}
+
+output "ecs_autoscaling_alarm_arns" {
+  description = "ARNs of the supplemental CloudWatch alarms emitted by the autoscaling module. Empty list when enable_ecs_autoscaling = false or supplemental alarms are disabled."
+  value       = try(module.ecs_autoscaling[0].alarm_arns, [])
+}

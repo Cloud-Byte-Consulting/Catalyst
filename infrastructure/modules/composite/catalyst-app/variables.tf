@@ -156,3 +156,76 @@ variable "ecs_container_extra_env" {
   }))
   default = []
 }
+
+# ---------------------------------------------------------------------------
+# #230 — ECS autoscaling inputs (independently gated of enable_ecs_runtime
+# because the ECS service is provisioned by the CD pipeline that consumes
+# the #62 task definition — at composite-apply time the service may not yet
+# exist; see the module wiring in main.tf for the rationale).
+# ---------------------------------------------------------------------------
+
+variable "enable_ecs_autoscaling" {
+  description = "Opt-in: when true, registers an App Autoscaling target on the running ECS service via modules/ecs-autoscaling. Requires the four cluster/service/ALB/TG identifier vars below to be set."
+  type        = bool
+  default     = false
+}
+
+variable "ecs_autoscaling_cluster_name" {
+  description = "ECS cluster name the service runs in. Required when enable_ecs_autoscaling = true."
+  type        = string
+  default     = ""
+}
+
+variable "ecs_autoscaling_service_name" {
+  description = "ECS service name to scale. Required when enable_ecs_autoscaling = true."
+  type        = string
+  default     = ""
+}
+
+variable "ecs_autoscaling_alb_arn_suffix" {
+  description = "ARN suffix of the ALB fronting the service (the `app/<alb-name>/<hex>` portion of the ALB ARN). Required when enable_ecs_autoscaling = true (the ALBRequestCountPerTarget metric cannot be addressed without it)."
+  type        = string
+  default     = ""
+}
+
+variable "ecs_autoscaling_target_group_arn_suffix" {
+  description = "ARN suffix of the ALB target group the service is registered with (the `targetgroup/<tg-name>/<hex>` portion). Required when enable_ecs_autoscaling = true."
+  type        = string
+  default     = ""
+}
+
+variable "ecs_autoscaling_sns_topic_arn" {
+  description = "ARN of the shared `catalyst-alerts` SNS topic from #63. When non-empty, the autoscaling module emits supplemental CloudWatch alarms (CPU sustained-high, RPT sustained-high, at-max-capacity) wired to this topic. When empty, only the AWS-managed target-tracking alarms exist (and they are NOT routed to SNS — operator visibility is limited)."
+  type        = string
+  default     = ""
+}
+
+variable "ecs_autoscaling_min_capacity" {
+  description = "Minimum ECS task count the autoscaling target will hold the service at. Default 1 (cost-optimized for demo per ADR-018); production with HA requirements should set to >= 2."
+  type        = number
+  default     = 1
+}
+
+variable "ecs_autoscaling_max_capacity" {
+  description = "Maximum ECS task count the autoscaling target will scale up to. Default 6 per ADR-018."
+  type        = number
+  default     = 6
+}
+
+variable "ecs_autoscaling_cpu_target_value" {
+  description = "Target average CPU utilization (%) for the ECSServiceAverageCPUUtilization target-tracking policy."
+  type        = number
+  default     = 60
+}
+
+variable "ecs_autoscaling_rpt_target_value" {
+  description = "Target requests-per-task for the ALBRequestCountPerTarget target-tracking policy."
+  type        = number
+  default     = 50
+}
+
+variable "ecs_autoscaling_enable_supplemental_alarms" {
+  description = "When true (default), emit supplemental CloudWatch alarms (CPU high, RPT high, at-max-capacity) wired to ecs_autoscaling_sns_topic_arn. Set to false to skip alarm emission entirely."
+  type        = bool
+  default     = true
+}
