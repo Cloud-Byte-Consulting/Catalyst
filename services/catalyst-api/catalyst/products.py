@@ -469,4 +469,82 @@ def deploy_product(
         created_at=datetime.now(timezone.utc).isoformat(),
     )
 
+    # Dual-write to Aurora (best-effort, #229 / ADR-019). DynamoDB above
+    # is the source of truth; the RDS write is a secondary read path
+    # that backs `GET /deployment-history`. Failure here MUST NOT roll
+    # back DynamoDB — we log a warning + emit a `RDSWriteFailure` metric
+    # so an operator can spot RDS-side issues without breaking the
+    # primary deploy flow. The repo getter returns None when Aurora
+    # isn't wired (CATALYST_AURORA_ENDPOINT unset), in which case the
+    # dual-write is a no-op.
+    _dual_write_rds(
+        product_id=product_id,
+        deployment_id=deployment_id,
+        construct_address=onboard_result.construct_address,
+        tenant=tenant,
+        caller_arn=access.caller_arn or "",
+        correlation_id=correlation_id,
+    )
+
     return payload
+
+
+def _dual_write_rds(
+    *,
+    product_id: str,
+    deployment_id: str,
+    construct_address: str,
+    tenant: str,
+    caller_arn: str,
+    correlation_id: str,
+) -> None:
+    """Best-effort INSERT to Aurora's deployment_history table (#229).
+
+    Pulled into a helper so :func:`deploy_product` stays narrow and tests
+    can monkeypatch one symbol to drive the failure branch. Failures are
+    swallowed (logged + metric emitted) — the DynamoDB write is the
+    source of truth.
+    """
+
+    try:
+        from .rds_repository import get_rds_repository
+
+        rds_repo = get_rds_repository()
+        if rds_repo is None:
+            # Aurora not wired — nothing to do. This is the steady-state
+            # for callers that haven't flipped `enable_aurora_serverless`
+            # on the composite, so don't log loudly.
+            return
+        rds_repo.record_deployment(
+            deployment_id=deployment_id,
+            product_id=product_id,
+            tenant=tenant,
+            construct_address=construct_address,
+            caller_arn=caller_arn,
+        )
+    except Exception as exc:  # noqa: BLE001 - dual-write MUST NOT raise
+        logger.warning(
+            "rds_dual_write_failed",
+            extra={
+                "correlation_id": correlation_id,
+                "product_id": product_id,
+                "deployment_id": deployment_id,
+                "error_class": type(exc).__name__,
+            },
+        )
+        # Best-effort metric — observability MUST NOT raise on its own
+        # failure either, so wrap in its own try/except.
+        try:
+            from .observability import metrics
+
+            metrics._put(  # noqa: SLF001 - intentional cross-module hook
+                "RDSWriteFailure",
+                1,
+                "Count",
+                [
+                    {"Name": "ProductId", "Value": product_id},
+                    {"Name": "ErrorClass", "Value": type(exc).__name__},
+                ],
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("rds_write_failure_metric_emit_failed", exc_info=True)

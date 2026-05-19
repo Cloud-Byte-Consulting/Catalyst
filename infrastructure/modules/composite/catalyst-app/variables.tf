@@ -118,3 +118,55 @@ variable "kms_admin_role_arn" {
     error_message = "kms_admin_role_arn must be a full IAM role ARN."
   }
 }
+
+# ---------------------------------------------------------------------------
+# Aurora Serverless v2 — opt-in inputs (ADR-019 / issue #229).
+#
+# All inputs default to "off / empty" so the composite remains
+# backward-compatible: an existing caller that doesn't set
+# `enable_aurora_serverless = true` provisions zero RDS resources.
+# Pattern mirrors the `enable_ecs_runtime` / `enable_ecs_autoscaling`
+# gating established by #62 / #230.
+# ---------------------------------------------------------------------------
+
+variable "enable_aurora_serverless" {
+  description = "When true, provision a per-app Aurora Serverless v2 (PostgreSQL) cluster and attach the IAM `rds-db:connect` policy to the runtime exec role. Default false keeps DynamoDB-only callers unaffected."
+  type        = bool
+  default     = false
+}
+
+variable "aurora_vpc_id" {
+  description = "VPC ID that hosts the Aurora cluster (passed to `modules/aurora-serverless`). Required when `enable_aurora_serverless = true`; ignored otherwise."
+  type        = string
+  default     = ""
+}
+
+variable "aurora_private_subnet_ids" {
+  description = "Private subnet IDs (>=2 AZs) used by the Aurora DB subnet group. Required when `enable_aurora_serverless = true`."
+  type        = list(string)
+  default     = []
+}
+
+variable "aurora_consumer_security_group_ids" {
+  description = "Security group IDs (ECS task SG, Lambda VPC SG) allowed to reach the cluster on 5432. Required when `enable_aurora_serverless = true`."
+  type        = list(string)
+  default     = []
+}
+
+variable "aurora_engine_version" {
+  description = "Aurora PostgreSQL engine version (16.x family); forwarded to `modules/aurora-serverless`."
+  type        = string
+  default     = "16.4"
+}
+
+variable "aurora_min_capacity" {
+  description = "Minimum Aurora Serverless v2 ACU; forwarded to `modules/aurora-serverless`."
+  type        = number
+  default     = 0.5
+}
+
+variable "aurora_max_capacity" {
+  description = "Maximum Aurora Serverless v2 ACU; forwarded to `modules/aurora-serverless`."
+  type        = number
+  default     = 2
+}

@@ -245,3 +245,77 @@ resource "aws_dynamodb_table_item" "catalog" {
     tier              = { S = "L4" }
   })
 }
+
+# ---------------------------------------------------------------------------
+# Aurora Serverless v2 (ADR-019 / issue #229) — OPT-IN.
+#
+# Provisioned only when `var.enable_aurora_serverless = true`. Pattern
+# mirrors the gated `enable_ecs_runtime` block from #62 / #230 — callers
+# that don't need RDS keep DynamoDB-only persistence and pay zero cost.
+#
+# Resource encryption uses the per-app `module.kms.data_key_arn`
+# (catalyst_data_key from ADR-016) so a single key revocation blackholes
+# the entire app's data plane (DynamoDB + Aurora).
+#
+# CONFLICT-AVOIDANCE NOTE: this block is APPENDED after the existing
+# resources to minimise diff against the parallel #62 / #230 work that
+# touches the same file (per the same convention used by #228).
+# ---------------------------------------------------------------------------
+
+data "aws_caller_identity" "aurora_consumer" {
+  count = var.enable_aurora_serverless ? 1 : 0
+}
+
+data "aws_region" "aurora_consumer" {
+  count = var.enable_aurora_serverless ? 1 : 0
+}
+
+module "aurora" {
+  count = var.enable_aurora_serverless ? 1 : 0
+
+  source = "../../aurora-serverless"
+
+  name                        = local.resource_name
+  vpc_id                      = var.aurora_vpc_id
+  private_subnet_ids          = var.aurora_private_subnet_ids
+  consumer_security_group_ids = var.aurora_consumer_security_group_ids
+  kms_key_arn                 = module.kms.data_key_arn
+  engine_version              = var.aurora_engine_version
+  min_capacity                = var.aurora_min_capacity
+  max_capacity                = var.aurora_max_capacity
+
+  tags = {
+    "catalyst:construct" = local.construct_address
+    "catalyst:tenant"    = var.tenant
+    "catalyst:project"   = var.project
+    "catalyst:app"       = var.app
+    "catalyst:tier"      = "L4"
+  }
+}
+
+# Attach the `rds-db:connect` IAM policy on the runtime exec role so the
+# app can authenticate to Aurora as the IAM-mapped `catalyst_app` role via
+# RDS IAM auth tokens. Resource ARN shape per the AWS docs:
+#   arn:aws:rds-db:{region}:{account}:dbuser:{cluster_resource_id}/{db_user}
+data "aws_iam_policy_document" "aurora_connect" {
+  count = var.enable_aurora_serverless ? 1 : 0
+
+  statement {
+    sid    = "AllowRDSIamAuth"
+    effect = "Allow"
+    actions = [
+      "rds-db:connect",
+    ]
+    resources = [
+      "arn:aws:rds-db:${data.aws_region.aurora_consumer[0].region}:${data.aws_caller_identity.aurora_consumer[0].account_id}:dbuser:${module.aurora[0].cluster_resource_id}/${module.aurora[0].app_db_user}",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "aurora_connect" {
+  count = var.enable_aurora_serverless ? 1 : 0
+
+  name   = "${local.resource_name}-aurora-connect"
+  role   = aws_iam_role.exec.id
+  policy = data.aws_iam_policy_document.aurora_connect[0].json
+}
