@@ -18,30 +18,26 @@ variable "required_status_checks" {
   type        = list(string)
   description = <<-EOT
     Required CI status-check contexts that must pass before a PR can merge into
-    the protected branch. The default is the canonical Catalyst green set
-    confirmed from recent merged PRs against `release`:
+    the protected branch. The default is a single context: `test-summary`.
 
-      - python-tests
-      - cli-tests
-      - Analyze (python)      # CodeQL job display name
-      - terraform-quality
-      - Terraform              # plan job from terraform.yml
-      - cursor-config
-      - conftest
-      - workflow-structure
+    `test-summary` is a fan-in aggregator job in `.github/workflows/pr-checks.yml`
+    (added by #208) that `needs:` every conditional component-test job
+    (python-tests, cli-tests, terraform-quality, cursor-config,
+    workflow-structure, conftest, bootstrap-script-tests, actionlint,
+    e2e-tests) and runs `if: always()`. It treats `skipped` upstream jobs as
+    pass (the path-filter intentionally excluded that component for the PR)
+    and fails when any upstream reports `failure` or `cancelled`.
 
-    `actionlint` is intentionally excluded — it is advisory today (post-#198)
-    and will be added once #200 flips it to `fail-on-error: true`.
+    Pinning the required-status set to this single aggregator is what allows
+    a doc-only PR (where every component test skips) to still merge — the
+    previous canonical 8-context green set blocked that case. See ADR-006
+    §"Path-filtered component tests" and #208 for the full rationale.
+
+    Override only when a future workflow surface needs an out-of-band
+    required check that doesn't fan into `test-summary`.
   EOT
   default = [
-    "python-tests",
-    "cli-tests",
-    "Analyze (python)",
-    "terraform-quality",
-    "Terraform",
-    "cursor-config",
-    "conftest",
-    "workflow-structure",
+    "test-summary",
   ]
 }
 

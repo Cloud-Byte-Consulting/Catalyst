@@ -52,9 +52,19 @@ run "branch_protection_module_plans" {
     error_message = "the protected branch must not be deletable"
   }
 
+  # Post-#208: the required-status set is a single fan-in `test-summary`
+  # aggregator. The 8-context green set is no longer enforced at the
+  # branch-protection layer — `test-summary` itself `needs:` every component
+  # job and fans their results into one signal. See ADR-006
+  # §"Path-filtered component tests".
   assert {
-    condition     = length(github_branch_protection.this.required_status_checks[0].contexts) >= 8
-    error_message = "default required_status_checks must cover the canonical green set (>= 8 contexts)"
+    condition     = length(github_branch_protection.this.required_status_checks[0].contexts) == 1
+    error_message = "default required_status_checks must be a single context (`test-summary`) post-#208"
+  }
+
+  assert {
+    condition     = github_branch_protection.this.required_status_checks[0].contexts == toset(["test-summary"])
+    error_message = "default required_status_checks must be exactly [\"test-summary\"] post-#208"
   }
 
   assert {
@@ -73,12 +83,12 @@ run "branch_protection_module_plans" {
   }
 
   assert {
-    condition     = contains(github_branch_protection.this.required_status_checks[0].contexts, "python-tests")
-    error_message = "required_status_checks must include the python-tests context"
+    condition     = contains(github_branch_protection.this.required_status_checks[0].contexts, "test-summary")
+    error_message = "required_status_checks must include the test-summary aggregator context"
   }
 
   assert {
-    condition     = !contains(github_branch_protection.this.required_status_checks[0].contexts, "actionlint")
-    error_message = "actionlint must NOT be required until #200 lands"
+    condition     = !contains(github_branch_protection.this.required_status_checks[0].contexts, "python-tests")
+    error_message = "python-tests is no longer a direct required context post-#208 (it fans into test-summary instead)"
   }
 }
