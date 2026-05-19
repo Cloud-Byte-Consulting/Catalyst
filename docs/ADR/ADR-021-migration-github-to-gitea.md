@@ -1,10 +1,10 @@
-# ADR-017 — Migration from GitHub to self-hosted Gitea
+# ADR-021 — Migration from GitHub to self-hosted Gitea
 
 **Status**: Proposed (placeholder) · 2026-05-18
 
 > **Placeholder — design sessions required before Accepted.** GitHub remains the **current source of truth** for Catalyst code, issues, Projects v2, and CI/CD. This ADR records a **future migration track**, not an in-flight cutover.
 
-**Related**: [ADR-001](ADR-001-github-issues-as-state-machine.md) · [ADR-006](ADR-006-cicd-pipeline-architecture.md) · [ADR-011](ADR-011-catalyst-agentic-workflow.md) · [ADR-013](ADR-013-guided-milestone-orchestration.md) · [ADR-016](ADR-016-catalyst-homelab-deployment.md) · [`docs/worklog/2026-05-13-migration-to-github.md`](../worklog/2026-05-13-migration-to-github.md)
+**Related**: [ADR-001](ADR-001-github-issues-as-state-machine.md) · [ADR-006](ADR-006-cicd-pipeline-architecture.md) · [ADR-011](ADR-011-catalyst-agentic-workflow.md) · [ADR-013](ADR-013-guided-milestone-orchestration.md) · [ADR-020](ADR-020-catalyst-homelab-deployment.md) · [`docs/worklog/2026-05-13-migration-to-github.md`](../worklog/2026-05-13-migration-to-github.md)
 
 ---
 
@@ -12,7 +12,7 @@
 
 Catalyst **migrated from self-hosted Gitea to GitHub** in May 2026 because Gitea’s project-board column automation was blocked (404 on column-move API) while GitHub Projects v2 and GraphQL met the issue-as-state-machine requirements ([`docs/worklog/2026-05-13-migration-to-github.md`](../worklog/2026-05-13-migration-to-github.md)). The prior Gitea instance lived on homelab infrastructure (TrueNAS SCALE; remote preserved as `gitea-origin`).
 
-The platform owner now wants a **documented option** to host the canonical repo (or a mirror with eventual cutover) on a **Gitea homelab** instance again — often **co-located** with homelab runtime ([ADR-016](ADR-016-catalyst-homelab-deployment.md)).
+The platform owner now wants a **documented option** to host the canonical repo (or a mirror with eventual cutover) on a **Gitea homelab** instance again — often **co-located** with homelab runtime ([ADR-020](ADR-020-catalyst-homelab-deployment.md)).
 
 This ADR captures **migration as a future workstream**, summarises phased work from planning conversations, and lists what breaks vs what ports — without committing to cutover date or full design.
 
@@ -38,7 +38,7 @@ This ADR captures **migration as a future workstream**, summarises phased work f
 | **Phase 4 — Agent tooling** | `gh` → `tea` / Gitea API; project board equivalent; MCP or adapter per ADR-001 multi-host gap | [ADR-011](ADR-011-catalyst-agentic-workflow.md), [ADR-013](ADR-013-guided-milestone-orchestration.md) |
 | **Phase 5 — Cutover** | Flip canonical remote, archive GitHub or mirror-only, update docs/onboarding | Requires rollback runbook |
 
-Dependencies: Phase 3–5 are blocked on forge + runner topology; homelab Gitea often shares network with [ADR-016](ADR-016-catalyst-homelab-deployment.md) Phase 0–1.
+Dependencies: Phase 3–5 are blocked on forge + runner topology; homelab Gitea often shares network with [ADR-020](ADR-020-catalyst-homelab-deployment.md) Phase 0–1.
 
 ---
 
@@ -81,7 +81,7 @@ No alternative is selected in this placeholder.
 
 ## Consequences
 
-- **Positive:** Sovereignty, co-location with homelab API ([ADR-016](ADR-016-catalyst-homelab-deployment.md)), no GitHub org dependency for air-gapped labs.
+- **Positive:** Sovereignty, co-location with homelab API ([ADR-020](ADR-020-catalyst-homelab-deployment.md)), no GitHub org dependency for air-gapped labs.
 - **Positive:** Reuses prior operational knowledge (TrueNAS Gitea URL, `gitea-origin` remote).
 - **Cost:** Rebuild CI/CD and IAM trust; re-test entire [ADR-006](ADR-006-cicd-pipeline-architecture.md) matrix.
 - **Cost:** Agent and milestone flows ([ADR-013](ADR-013-guided-milestone-orchestration.md)) need re-validation or scope reduction on Gitea.
@@ -95,5 +95,5 @@ No alternative is selected in this placeholder.
 - [ADR-006](ADR-006-cicd-pipeline-architecture.md) — OIDC workflows
 - [ADR-011](ADR-011-catalyst-agentic-workflow.md) — six-gate agent contract
 - [ADR-013](ADR-013-guided-milestone-orchestration.md) — Andon / Projects dependency
-- [ADR-016](ADR-016-catalyst-homelab-deployment.md) — homelab co-deployment
+- [ADR-020](ADR-020-catalyst-homelab-deployment.md) — homelab co-deployment
 - [`docs/worklog/2026-05-13-migration-to-github.md`](../worklog/2026-05-13-migration-to-github.md) — prior Gitea → GitHub migration log
