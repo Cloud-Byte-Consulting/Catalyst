@@ -76,7 +76,7 @@ transitions, decision-log comments.
 Open Actions tab. Point at four workflows running green:
 
 - `pr-checks.yml` — terraform fmt/validate, tflint, tfsec, Checkov, Trivy,
-  gitleaks, pytest with `--cov-fail-under=85`.
+  gitleaks, pytest with `--cov-fail-under=93.83` (223 tests).
 - `terraform.yml` — consolidated plan-on-PR + apply-on-release. OIDC role
   pinned to `pull_request` for plan, `ref:refs/heads/release` for apply.
 - `service-cd.yml` — image build + push + runtime-switched deploy (`lambda`
@@ -103,6 +103,30 @@ Expect `{"status":"ok"}` and the OpenAPI title + path list.
 > for private egress (ADR-010), DynamoDB platform-state table, Lambda runtime
 > (ECS Fargate available via the `RUNTIME` switch per ADR-009), and an ALB
 > with a SigV4-verified RBAC layer (ADR-008)."
+
+**30s — KMS / data-at-rest (ADR-016):**
+
+> "Every Catalyst data surface is encrypted with a customer-managed KMS key, not
+> the AWS-managed default. The DynamoDB platform-state table, ECR image
+> repository, and CloudWatch log groups all use the same CMK provisioned by
+> `infrastructure/modules/kms`. ADR-016 captures the rotation policy and key
+> grants. This closes the last two AWS-managed-key gaps from the Option 1 audit."
+
+**30s — Aurora Serverless v2 + IAM-auth Postgres (ADR-019):**
+
+> "Beyond DynamoDB there's an Aurora Serverless v2 cluster — IAM-auth only, no
+> static passwords, accessed by the runtime over the VPC endpoint path. It backs
+> the `GET /deployment-history` endpoint, so deploy events have a relational
+> trail you can join against in SQL. ADR-019 documents the IAM-auth flow and the
+> scaling envelope (0.5–2 ACUs in demo, headroom higher in prod)."
+
+**30s — ECS app autoscaling (#235):**
+
+> "When the runtime switch is flipped to ECS, the Fargate service has app
+> autoscaling wired: target tracking on CPU and on `ALBRequestCountPerTarget`.
+> A traffic burst grows the task count without an operator in the loop, and it
+> scales back in once requests drain. This is the scale-out variant in
+> `diagrams/ha.md` — the demo runs Lambda, but the production path is wired."
 
 If asked about cost: `teardown-scheduled.yml` runs Mon–Fri 22:00 UTC and
 destroys everything except the bootstrap tier. Bootstrap resources cost $0.
