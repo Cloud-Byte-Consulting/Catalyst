@@ -9,3 +9,5 @@ Catalyst architectural decisions are maintained as ADRs in `docs/ADR/`.
 - `ADR-010`: Egress controls and firewall tiers
 - `ADR-012`: Onboarding experience (three audience tracks)
 - `ADR-013`: Guided milestone orchestration (console-first; GitHub Issue as system of record)
+- `ADR-016`: Catalyst homelab deployment (placeholder — self-hosted / lab target; see `docs/ADR/ADR-016-catalyst-homelab-deployment.md`)
+- `ADR-017`: Migration from GitHub to self-hosted Gitea (placeholder — future forge track; see `docs/ADR/ADR-017-migration-github-to-gitea.md`)
