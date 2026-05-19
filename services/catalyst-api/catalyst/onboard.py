@@ -56,6 +56,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from .constructs import ConstructAddress
+from .errors import with_aws_retry
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +285,21 @@ def _terraform_output(working_dir: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+@with_aws_retry()
+def _put_metric_data(cw_client: Any, **kwargs: Any) -> None:
+    """boto3 boundary for the OnboardDuration metric — wrapped so a
+    transient ThrottlingException on PutMetricData gets a retry instead
+    of silently dropping the metric on the floor.
+
+    Pulled into its own function so :func:`with_aws_retry` has a clean
+    boto3-only surface to wrap; the outer :func:`_emit_metric` keeps the
+    "observability MUST NOT mask correctness" swallow semantics around
+    this call.
+    """
+
+    cw_client.put_metric_data(**kwargs)
+
+
 def _emit_metric(
     duration_ms: float,
     *,
@@ -295,7 +311,9 @@ def _emit_metric(
 
     Failures here are swallowed — the metric is observability, not
     correctness; a failed PutMetricData call MUST NOT mask a successful
-    apply.
+    apply. Transient throttling on PutMetricData first gets a retry via
+    :func:`_put_metric_data` (#205); only an exhausted budget falls
+    through to the swallow below.
     """
 
     try:
@@ -303,7 +321,8 @@ def _emit_metric(
             import boto3
 
             cw_client = boto3.client("cloudwatch", region_name=region)
-        cw_client.put_metric_data(
+        _put_metric_data(
+            cw_client,
             Namespace=METRIC_NAMESPACE,
             MetricData=[
                 {

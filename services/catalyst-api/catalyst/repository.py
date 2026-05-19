@@ -29,6 +29,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from .errors import with_aws_retry
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -249,13 +251,26 @@ class DynamoDBRepository(Repository):
     def table_name(self) -> str:
         return self._table_name
 
+    # The four internal helpers below are the only methods in this class
+    # that touch the boto3 client surface — every public method routes
+    # through one or more of them. Applying ``@with_aws_retry()`` here
+    # (instead of at the public-method level) means a transient throttle
+    # gets a fresh attempt on JUST the failed call, not a replay of the
+    # whole read-modify-write — which keeps the retry semantically safe
+    # for the multi-step public methods (e.g. ``append_org_record`` does
+    # ``_get`` then ``_put``; we don't want the ``_get`` re-running just
+    # because the ``_put`` got throttled).
+
+    @with_aws_retry()
     def _put(self, item: dict) -> None:
         self._table.put_item(Item=item)
 
+    @with_aws_retry()
     def _get(self, pk: str, sk: str) -> dict | None:
         response = self._table.get_item(Key={"pk": pk, "sk": sk})
         return response.get("Item")
 
+    @with_aws_retry()
     def _query(self, pk: str, sk_prefix: str | None = None) -> list[dict]:
         from boto3.dynamodb.conditions import Key
 
@@ -265,6 +280,7 @@ class DynamoDBRepository(Repository):
         response = self._table.query(KeyConditionExpression=condition)
         return response.get("Items", [])
 
+    @with_aws_retry()
     def _scan_pk_prefix(self, pk_prefix: str) -> list[dict]:
         from boto3.dynamodb.conditions import Attr
 
@@ -408,6 +424,7 @@ class DynamoDBRepository(Repository):
         items = self._scan_pk_prefix(_PK_PRODUCT)
         return [item["record"] for item in items if "record" in item]
 
+    @with_aws_retry()
     def clear(self) -> None:  # pragma: no cover - destructive helper for tests only
         items = self._table.scan().get("Items", [])
         for item in items:
