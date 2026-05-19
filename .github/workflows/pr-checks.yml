@@ -5,33 +5,73 @@ on:
 permissions:
   contents: read
 jobs:
+  # Path-filter fan-in. Computes a boolean per top-level component glob so the
+  # downstream test jobs can skip themselves when their code wasn't touched.
+  # See `.claude/skills/test-coverage-discipline/SKILL.md` for the canonical
+  # changed-path → CI-job map that this filter mirrors.
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      cli: ${{ steps.filter.outputs.cli }}
+      infra: ${{ steps.filter.outputs.infra }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+      cursor: ${{ steps.filter.outputs.cursor }}
+      bootstrap: ${{ steps.filter.outputs.bootstrap }}
+      policies: ${{ steps.filter.outputs.policies }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            python:
+              - 'services/catalyst-api/**'
+            cli:
+              - 'clients/catalyst-cli/**'
+            infra:
+              - 'infrastructure/**'
+            workflows:
+              - '.github/workflows/**'
+            cursor:
+              - '.cursor/**'
+              - '.claude/**'
+            bootstrap:
+              - 'scripts/bootstrap-aws-account.*'
+              - 'scripts/tests/**'
+            policies:
+              - 'policies/**'
+              - '**/*.rego'
+            e2e:
+              - 'services/catalyst-api/**'
+              - 'clients/catalyst-cli/**'
+              - 'infrastructure/**'
+              - 'tests/e2e/**'
   actionlint:
     # Lint GitHub Actions workflows on every PR that touches .github/workflows/**.
-    # Gated by `paths` at the job level via dorny/paths-filter so unrelated PRs
-    # don't waste a runner. Required-status posture matches python-tests: when
-    # a PR touches workflows, this must pass before merge.
+    # Gated by the top-level `changes` job plus the three-way escape-hatch OR
+    # (paths-filter / FORCE_ALL_TESTS repo var / `force-all-tests` PR label).
     #
     # Kaizen scope (#127): adding the gate. If actionlint flags pre-existing
     # issues in current workflow files, those are tracked as a separate
     # follow-up kaizen — not fixed in this PR.
+    needs: changes
+    if: |
+      needs.changes.outputs.workflows == 'true' ||
+      vars.FORCE_ALL_TESTS == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'force-all-tests')
     runs-on: ubuntu-latest
-    # dorny/paths-filter@v3 calls the listFiles API on the PR to decide
-    # whether to run actionlint. That requires pull-requests:read.
-    # Job-level permissions override the workflow-level default entirely,
-    # so contents:read must be re-declared here.
     permissions:
       contents: read
       pull-requests: read
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: changes
-        with:
-          filters: |
-            workflows:
-              - '.github/workflows/**'
       - name: Run actionlint
-        if: steps.changes.outputs.workflows == 'true'
         uses: raven-actions/actionlint@v2
         with:
           version: latest
@@ -43,6 +83,11 @@ jobs:
           # gates. Findings are still visible in the run log as annotations.
           fail-on-error: false
   terraform-quality:
+    needs: changes
+    if: |
+      needs.changes.outputs.infra == 'true' ||
+      vars.FORCE_ALL_TESTS == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'force-all-tests')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +122,11 @@ jobs:
       # - name: gitleaks
       #   uses: gitleaks/gitleaks-action@v2
   python-tests:
+    needs: changes
+    if: |
+      needs.changes.outputs.python == 'true' ||
+      vars.FORCE_ALL_TESTS == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'force-all-tests')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -100,6 +150,11 @@ jobs:
         # dispatch input. See docs/e2e-testing.md.
         run: pytest tests/e2e/ -v
   cursor-config:
+    needs: changes
+    if: |
+      needs.changes.outputs.cursor == 'true' ||
+      vars.FORCE_ALL_TESTS == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'force-all-tests')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -117,6 +172,11 @@ jobs:
             exit 1
           fi
   cli-tests:
+    needs: changes
+    if: |
+      needs.changes.outputs.cli == 'true' ||
+      vars.FORCE_ALL_TESTS == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'force-all-tests')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -133,3 +193,147 @@ jobs:
         # marker filter keeps the suite output clean ("0 deselected" beats
         # a wall of "skipped: requires endpoint").
         run: pytest clients/catalyst-cli/tests -v -m 'not live' --cov=catalyst_cli --cov-branch --cov-fail-under=80 --cov-report=term-missing
+  workflow-structure:
+    # Structural validator + pytest harness for .github/workflows/**. The
+    # validator lives at .github/scripts/validate_workflows.py and its test
+    # harness at .github/scripts/test_workflow_structure.py. The same job
+    # also runs in ci-smoke.yml on workflow_dispatch — duplicate name is
+    # intentional so this gate becomes a required check for PR merge while
+    # ci-smoke keeps the manual-dispatch escape hatch alive.
+    needs: changes
+    if: |
+      needs.changes.outputs.workflows == 'true' ||
+      vars.FORCE_ALL_TESTS == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'force-all-tests')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: pip install pyyaml pytest
+      - name: Run structural validator
+        run: python .github/scripts/validate_workflows.py
+      - name: Run pytest harness
+        run: pytest .github/scripts/test_workflow_structure.py -v
+  conftest:
+    # OPA/Conftest policy validation. The policy bundle lives at
+    # infrastructure/policy/opa/. Standalone validate-policies.yml carries
+    # a separate trigger path; this job duplicates the gate so a single
+    # required check (`test-summary`) covers the policy surface too.
+    needs: changes
+    if: |
+      needs.changes.outputs.policies == 'true' ||
+      needs.changes.outputs.infra == 'true' ||
+      vars.FORCE_ALL_TESTS == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'force-all-tests')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install conftest
+        run: |
+          wget -qO- https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz | tar xz
+          sudo mv conftest /usr/local/bin/conftest
+      - name: Validate policy bundle syntax
+        run: conftest verify --policy infrastructure/policy/opa
+  bootstrap-script-tests:
+    # Shell + PowerShell syntax check + pytest smoke for the AWS account
+    # bootstrap scripts. The companion bootstrap-smoke.yml workflow keeps
+    # its own trigger for workflow_dispatch + the live-validation path;
+    # this job mirrors the test surface so test-summary covers it.
+    needs: changes
+    if: |
+      needs.changes.outputs.bootstrap == 'true' ||
+      vars.FORCE_ALL_TESTS == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'force-all-tests')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate shell syntax
+        run: bash -n scripts/bootstrap-aws-account.sh
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          $path = Join-Path $env:GITHUB_WORKSPACE 'scripts/bootstrap-aws-account.ps1'
+          $tokens = $null
+          $errors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+          if ($errors) {
+            $errors | Format-List
+            exit 1
+          }
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run bootstrap smoke tests
+        run: pytest scripts/tests/test_bootstrap_scripts.py -v
+  e2e-tests:
+    # Cross-cutting end-to-end fast suite. Fires whenever ANY component path
+    # changes (per the canonical map: services / CLI / infra / tests/e2e/).
+    # The test files themselves land via #207; this job is a stub that runs
+    # whatever `tests/e2e/` contains today (auto-skips with exit 5 if empty
+    # — which we coerce to pass for the pre-#207 interim).
+    needs: changes
+    if: |
+      needs.changes.outputs.e2e == 'true' ||
+      vars.FORCE_ALL_TESTS == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'force-all-tests')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run e2e fast suite
+        # exit 5 = "no tests collected" — pre-#207 the tests/e2e/ directory
+        # may not exist yet. Treat that as a no-op pass; #207 fills the suite.
+        run: |
+          if [ ! -d tests/e2e ]; then
+            echo "::notice::tests/e2e/ not present yet (lands via #207); skipping."
+            exit 0
+          fi
+          set +e
+          pytest tests/e2e -v
+          rc=$?
+          if [ "$rc" -eq 5 ]; then
+            echo "::notice::no e2e tests collected yet (lands via #207); pass."
+            exit 0
+          fi
+          exit "$rc"
+  test-summary:
+    # Single required status check for branch protection. Depends on every
+    # conditional test job above and aggregates their results: `skipped` is
+    # treated as pass (path-filter excluded that component); `failure` or
+    # `cancelled` fails the aggregator. Branch protection on `release`
+    # references ONLY this job — see infrastructure/modules/github/.
+    name: test-summary
+    if: always()
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - actionlint
+      - terraform-quality
+      - python-tests
+      - cursor-config
+      - cli-tests
+      - workflow-structure
+      - conftest
+      - bootstrap-script-tests
+      - e2e-tests
+    steps:
+      - name: Aggregate
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          set -euo pipefail
+          echo "Result map: $NEEDS_JSON"
+          if echo "$NEEDS_JSON" | grep -qE '"result"[[:space:]]*:[[:space:]]*"(failure|cancelled)"'; then
+            echo "::error::At least one test job failed or was cancelled"
+            exit 1
+          fi
+          echo "All test jobs passed or skipped per path-filter — pipeline green."

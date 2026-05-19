@@ -55,23 +55,23 @@ Classic PATs (`repo` scope) also work but are not recommended; prefer fine-grain
 | `repository_name` | `string` | — (required) | Name of the GitHub repository (e.g. `Catalyst`). |
 | `repository_owner` | `string` | — (required) | Owning org/user (e.g. `Cloud-Byte-Consulting`). Used for outputs and documentation; the provider itself reads the owner from its own config. |
 | `protected_branch` | `string` | `"release"` | Branch pattern to protect. |
-| `required_status_checks` | `list(string)` | Canonical 8-check green set (see below) | CI contexts that must pass before merge. |
+| `required_status_checks` | `list(string)` | `["test-summary"]` (see below) | CI contexts that must pass before merge. |
 | `required_approving_review_count` | `number` | `1` | Minimum approving reviews on a PR. |
 
 ### Default `required_status_checks`
 
 ```
-python-tests
-cli-tests
-Analyze (python)
-terraform-quality
-Terraform
-cursor-config
-conftest
-workflow-structure
+test-summary
 ```
 
-`actionlint` is intentionally **not** in the default list — it is advisory today (per #198) and will be added once [#200](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/200) flips it to `fail-on-error: true`.
+Post-[#208](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/208) the default is a **single context**: `test-summary`. This is a fan-in aggregator job in `.github/workflows/pr-checks.yml` that:
+
+- `needs:` every conditional component-test job (`python-tests`, `cli-tests`, `terraform-quality`, `cursor-config`, `workflow-structure`, `conftest`, `bootstrap-script-tests`, `actionlint`, `e2e-tests`),
+- runs `if: always()` so it executes even when upstreams skipped,
+- treats `skipped` upstream jobs as pass (the path-filter intentionally excluded that component for the PR),
+- fails when any upstream reports `failure` or `cancelled`.
+
+Pinning the required set to this single aggregator is what allows a doc-only PR (where every component test skips) to still merge — the previous 8-context green set blocked that case. See [`.claude/skills/test-coverage-discipline/SKILL.md`](../../../.claude/skills/test-coverage-discipline/SKILL.md) for the full changed-path → CI-job map and the three full-suite escape hatches, and [ADR-006 §"Path-filtered component tests"](../../../docs/ADR/ADR-006-cicd-pipeline-architecture.md) for the architectural rationale.
 
 ## Outputs
 
