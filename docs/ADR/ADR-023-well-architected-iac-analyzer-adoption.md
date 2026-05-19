@@ -59,7 +59,7 @@ Same convention applies to the CI-side variable: `WA_AWS_ANALYZER_PR_COMMENTS_EN
 
 ### Phase 1 (post-demo) — Deploy upstream as-is behind the flag
 
-- New Terraform composite at `infrastructure/composite/wa-iac-analyzer/` instantiated by `module "wa_iac_analyzer"` in `infrastructure/main.tf` with `count = var.enable_wa_aws_iac_analyzer ? 1 : 0`
+- New Terraform composite at `infrastructure/modules/composite/wa-iac-analyzer/` instantiated by `module "wa_aws_iac_analyzer"` in `infrastructure/main.tf` with `count = var.enable_wa_aws_iac_analyzer ? 1 : 0`
 - Composite either (a) wraps the upstream CloudFormation/CDK installer as a child resource, or (b) re-expresses the deployment in Terraform-native modules using the existing `modules/ecs-alb`, `modules/observability`, `modules/security-groups` primitives — discovery decides
 - IAM narrowing: the upstream installer uses AWS-managed PowerUserAccess-style policies; the Catalyst deployment must scope to least-privilege per ADR-008 / ADR-009
 - Observability: alarms + dashboard wired into the existing `modules/observability` SNS topic (#63 pattern)
