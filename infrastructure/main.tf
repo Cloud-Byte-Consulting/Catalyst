@@ -27,6 +27,25 @@ provider "aws" {
   region = var.aws_region
 }
 
+# Caller identity is consumed by the kms module wiring below to derive a
+# self-healing default for kms_admin_role_arn when the operator does not
+# pass an explicit override. Adding it at the root (rather than inside the
+# kms module) keeps the data source reusable for future wiring that needs
+# the deploying account id without taking another aws sts call.
+data "aws_caller_identity" "current" {}
+
+locals {
+  # Resolve the KMS admin role ARN. When the operator passes
+  # TF_VAR_kms_admin_role_arn (or sets it via tfvars), use it as-is.
+  # Otherwise, compose the bootstrap-admin ARN for the deploying account
+  # — that role is provisioned by scripts/bootstrap-aws-account.sh on
+  # every Catalyst account and is the canonical KMS admin per ADR-016.
+  effective_kms_admin_role_arn = coalesce(
+    var.kms_admin_role_arn,
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/catalyst-bootstrap-admin",
+  )
+}
+
 module "network" {
   source               = "./modules/network"
   name_prefix          = var.name_prefix
@@ -52,7 +71,7 @@ module "security_groups" {
 # which embeds its own kms module instance.
 module "kms" {
   source             = "./modules/kms"
-  admin_role_arn     = var.kms_admin_role_arn
+  admin_role_arn     = local.effective_kms_admin_role_arn
   consumer_role_arns = []
 }
 
