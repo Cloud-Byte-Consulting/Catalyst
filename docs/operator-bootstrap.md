@@ -13,7 +13,7 @@ A single, idempotent bash script that creates everything outside the Terraform-p
 - IAM **bootstrap-admin** role (used by the bootstrap script itself on re-runs)
 - The GitHub OIDC identity provider
 - Four GitHub Actions OIDC roles: `catalyst-github-{plan,apply,deploy,drift}` with their AWS managed policies
-- RBAC IAM groups: `catalyst-{owners,administrators,viewers,support-admins,support-operators,support-viewers,breakglass}`
+- RBAC IAM groups: `catalyst-{owners,administrators,viewers,support-admins,support-viewers,breakglass}`
 - Terraform state S3 bucket + DynamoDB lock table
 - Catalyst API data S3 bucket
 
@@ -255,7 +255,7 @@ IAM
   catalyst-github-apply                   (role, sub: ref:refs/heads/release, PowerUserAccess + CatalystApplyIAMScoped)
   catalyst-github-deploy                  (role, sub: ref:refs/heads/release, PowerUserAccess)
   catalyst-github-drift                   (role, sub: ref:refs/heads/release, ReadOnlyAccess)  [CICD-11a]
-  catalyst-{owners,administrators,viewers,support-admins,support-operators,support-viewers,breakglass}
+  catalyst-{owners,administrators,viewers,support-admins,support-viewers,breakglass}
                                           (RBAC IAM groups per ADR-008)
   OIDC provider: token.actions.githubusercontent.com
 
