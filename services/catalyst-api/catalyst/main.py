@@ -42,6 +42,7 @@ from .observability import (
 from .onboard import provision_app
 from . import products as products_module
 from .rbac import AccessContext, access_dependency, can_read_scope, require_write
+from .rds_repository import RDSRepository, get_rds_repository
 from .repository import Repository, get_repository
 
 logger = logging.getLogger(__name__)
@@ -263,6 +264,19 @@ def _extract_tenant_from_path(path: str) -> str | None:
 
 def repo_dependency() -> Repository:
     return get_repository()
+
+
+def rds_repo_dependency() -> RDSRepository | None:
+    """FastAPI dependency that returns the process-wide RDSRepository.
+
+    Returns ``None`` when Aurora isn't wired (``CATALYST_AURORA_ENDPOINT``
+    unset) — handlers that strictly require RDS (e.g. ``GET
+    /deployment-history``) translate that into a 503 so the operator can
+    distinguish "unwired" from "wired-but-failing". Tests override this
+    via FastAPI's ``app.dependency_overrides`` to inject a mock.
+    """
+
+    return get_rds_repository()
 
 
 # ---------------------------------------------------------------------------
@@ -877,6 +891,98 @@ def deploy_product_from_catalog(
         correlation_id,
     )
     return ProductDeployResponse(**payload)
+
+
+# ---------------------------------------------------------------------------
+# Deployment history — IAM-auth Postgres read endpoint (#229 / ADR-019).
+#
+# Mirror of the dual-write path in ``catalyst.products.deploy_product``:
+# every product deploy writes its record to BOTH DynamoDB (source of
+# truth) and Aurora (best-effort). This endpoint reads from the Aurora
+# side so the brief's Gherkin AC "GET /deployment-history?product_id=...
+# is called ... the response includes the deployment_id from the prior
+# write" is satisfied.
+#
+# RBAC:
+#   * Authenticated callers only (access_dependency).
+#   * Tenant-scoped callers (role == "scoped") get their own tenant
+#     filtered server-side. Tenant-wide callers see everything.
+#   * An explicit ``tenant`` query param is ignored for scoped callers
+#     unless it matches their own tenant — surfaced as a 403 to make the
+#     attempt visible rather than silently swapping the filter.
+#
+# Errors:
+#   * 503 when ``CATALYST_AURORA_ENDPOINT`` is unwired (the RDS surface
+#     is OPT-IN per the Terraform-side flag).
+#   * 500 mapped via the existing _safe_call boundary for psycopg / boto3
+#     failures (psycopg.OperationalError, etc.).
+# ---------------------------------------------------------------------------
+
+
+@app.get("/deployment-history")
+def list_deployment_history(
+    product_id: str | None = None,
+    tenant: str | None = None,
+    limit: int = 100,
+    correlation_id: str = Depends(correlation_id_dependency),
+    access: AccessContext = Depends(access_dependency),
+    rds_repo: RDSRepository | None = Depends(rds_repo_dependency),
+) -> dict:
+    """Return deployment-history rows filtered by product_id / tenant.
+
+    Implements the #229 Gherkin AC for "viewer cannot read outside their
+    tenant" and "GET /deployment-history returns the prior-write row".
+    """
+
+    if rds_repo is None:
+        raise to_http_exception(
+            HTTPException(
+                status_code=503,
+                detail="rds_unwired: CATALYST_AURORA_ENDPOINT is not set",
+            ),
+            correlation_id,
+        )
+
+    # Resolve the effective tenant filter from the caller's role and the
+    # optional query param. Scoped callers cannot read outside their own
+    # tenant — if they passed a different tenant explicitly, that's a 403
+    # rather than a silent override.
+    effective_tenant: str | None
+    if access.role == "scoped":
+        # Pick the first tenant scope; scoped callers always have at
+        # least one (rbac._access_from_groups guarantees a non-empty
+        # scopes list before assigning role == "scoped").
+        caller_tenant = access.scopes[0][0] if access.scopes else None
+        if tenant is not None and tenant != caller_tenant:
+            raise to_http_exception(
+                HTTPException(
+                    status_code=403,
+                    detail="insufficient_permissions",
+                ),
+                correlation_id,
+            )
+        effective_tenant = caller_tenant
+    else:
+        # Tenant-wide roles can filter explicitly or see everything.
+        effective_tenant = tenant
+
+    rows = _safe_call(
+        correlation_id,
+        rds_repo.list_deployments,
+        product_id=product_id,
+        tenant=effective_tenant,
+        limit=limit,
+    )
+
+    return {
+        "deployments": rows,
+        "count": len(rows),
+        "filters": {
+            "product_id": product_id,
+            "tenant": effective_tenant,
+        },
+        "correlation_id": correlation_id,
+    }
 
 
 handler = Mangum(app)
