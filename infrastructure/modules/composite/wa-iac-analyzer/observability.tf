@@ -54,10 +54,13 @@ resource "aws_cloudwatch_log_group" "analyzer" {
 # -----------------------------------------------------------------------------
 # ALB target-5xx > 5 in any 1-minute window, 3 evaluation periods.
 # `LoadBalancer` dimension is filled by `var.alb_arn_suffix` once the Phase 1
-# implementer provisions the ALB; until then the alarm's dimension references
-# the empty string and the alarm sits dormant (the composite as a whole is
-# count = 0 at root, so this is dormant-of-dormant).
+# implementer provisions the ALB. Per-resource count gate ensures the alarm
+# does NOT provision until the dimension is populated — CloudWatch's
+# PutMetricAlarm rejects empty-string dimension values with InvalidParameterValue,
+# so flipping the root flag without atomically wiring the suffix would break apply.
 resource "aws_cloudwatch_metric_alarm" "analyzer_5xx_rate" {
+  count = var.alb_arn_suffix != "" ? 1 : 0
+
   alarm_name        = "${var.name_prefix}-5xx-rate"
   alarm_description = "Analyzer ALB target 5xx > 5 requests / minute for 3 evaluation periods. Catches sustained backend errors from the ECS Fargate tasks. See modules/composite/wa-iac-analyzer/README.md §Observability."
 
@@ -123,9 +126,12 @@ resource "aws_cloudwatch_metric_alarm" "analyzer_bedrock_throttling" {
 #
 # ClusterName + ServiceName dimensions are wired via variables so the Phase
 # 1 implementer can plug the ECS service identity in once the resources
-# exist; at scaffold stage both default to empty string and the alarm sits
-# dormant under the root count = 0 gate.
+# exist. Per-resource count gate ensures the alarm does NOT provision until
+# both dimensions are populated — empty-string dimension values are rejected
+# by CloudWatch's PutMetricAlarm API.
 resource "aws_cloudwatch_metric_alarm" "analyzer_task_restarts" {
+  count = (var.ecs_cluster_name != "" && var.ecs_service_name != "") ? 1 : 0
+
   alarm_name        = "${var.name_prefix}-task-restarts"
   alarm_description = "ECS analyzer service has > 1 missing task (DesiredTaskCount - RunningTaskCount) sustained over 10 minutes. Surfaces task crash loops that would otherwise be discovered via user reports."
 
