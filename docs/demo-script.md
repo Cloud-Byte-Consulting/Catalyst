@@ -150,10 +150,11 @@ Switch to terminal:
 
 ```powershell
 $albDns = aws elbv2 describe-load-balancers --names catalyst-alb --query 'LoadBalancers[0].DNSName' --output text
-curl "https://$albDns/health"
-curl "https://$albDns/openapi.json" | jq '.info.title, .paths | keys'
+# ALB listener is HTTP on port 443 (not HTTPS/TLS). Default curl uses port 80 and times out.
+curl "http://${albDns}:443/health"
+curl "http://${albDns}:443/openapi.json" | jq '.info.title, .paths | keys'
 # Fallback if jq is not installed (Windows operator machine):
-# curl "https://$albDns/openapi.json" | python -m json.tool
+# curl "http://${albDns}:443/openapi.json" | python -m json.tool
 ```
 
 Expect `{"status":"ok"}` and the OpenAPI title + path list.
