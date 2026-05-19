@@ -4,6 +4,26 @@ Interview-panel walkthrough of Catalyst. Goal: prove this is a production-grade
 AWS Internal Developer Platform built by AI agents under a disciplined
 operating contract. Six minutes with a 0:45 closing buffer (5:15–6:00).
 
+## Pre-flight (before the checklist)
+
+Assumes a fresh operator machine. Do this **once** before the 5-minute checklist below.
+
+```bash
+# bash / WSL / macOS
+cp .env.example .env                          # then edit .env to fill creds
+aws sso login --profile <profile>             # or set static keys per .env.example
+aws sts get-caller-identity                   # must succeed before continuing
+```
+
+```powershell
+# PowerShell (Windows)
+Copy-Item .env.example .env                   # then edit .env to fill creds
+aws sso login --profile <profile>             # or set static keys per .env.example
+aws sts get-caller-identity                   # must succeed before continuing
+```
+
+If `aws sts get-caller-identity` fails, stop and fix creds — the checklist below assumes a valid caller identity.
+
 ## Pre-demo checklist (5 min before)
 
 ```powershell
@@ -46,7 +66,7 @@ Open `AGENTS.md`. Scroll the six gates:
 
 1. Model decision logging (`### Agent Decision Log` on every issue)
 2. RLM trigger at ~50k chars (ADR-004)
-3. AWS OIDC only — no long-lived keys (ADR-006)
+3. AWS OIDC only — no long-lived keys (ADR-005; CI/CD wiring in ADR-006)
 4. Container security gate (Trivy + SBOM + SARIF)
 5. **Pre-PR peer review (mandatory)** — sub-agent spawn before `gh pr create`
 6. GitHub MCP secret scanning
@@ -73,7 +93,7 @@ transitions, decision-log comments.
 
 ## 3:00 — 4:15 · CI/CD pipelines
 
-Open Actions tab. Point at four workflows running green:
+Open Actions tab. Point at four [workflows running green on release](https://github.com/Cloud-Byte-Consulting/Catalyst/actions?query=branch%3Arelease):
 
 - `pr-checks.yml` — terraform fmt/validate, tflint, tfsec, Checkov, Trivy,
   gitleaks, pytest with `--cov-fail-under=93.83` (223 tests).
@@ -95,6 +115,8 @@ Switch to terminal:
 $albDns = aws elbv2 describe-load-balancers --names catalyst-alb --query 'LoadBalancers[0].DNSName' --output text
 curl "http://$albDns/health"
 curl "http://$albDns/openapi.json" | jq '.info.title, .paths | keys'
+# Fallback if jq is not installed (Windows operator machine):
+# curl "http://$albDns/openapi.json" | python -m json.tool
 ```
 
 Expect `{"status":"ok"}` and the OpenAPI title + path list.
@@ -133,7 +155,7 @@ destroys everything except the bootstrap tier. Bootstrap resources cost $0.
 
 ## 5:15 — 6:00 · Closing + buffer
 
-> "Decisions are in `docs/ADR/` — eleven ADRs, every one cross-referenced from
+> "Decisions are in `docs/ADR/` — twenty ADRs, every one cross-referenced from
 > the code or workflows that implement it. Evidence the codebase was produced
 > by agents-on-contract is in `docs/ai-workflow-narrative.md` with PR citations."
 
@@ -153,3 +175,18 @@ Anticipated questions:
 1. `gh workflow run terraform.yml --ref release` — re-applies in ~3 minutes
 2. While it runs: pivot to `docs/ai-workflow-narrative.md` and PR #147 walkthrough
 3. If teardown was scheduled and not yet rebuilt: follow `docs/operator-bootstrap.md` §Step 7
+
+## Appendix — Alternate cli-driven path
+
+Back-pocket variant from the #145 dry-run handoff packet. The primary walkthrough above (README → AGENTS → PR #147 → Actions → live stack) is the canonical sequence; this appendix swaps in `catalyst-cli` onboard/teardown beats for sessions where the operator prefers to demo the CLI surface directly. Pick on the day — do not mix sequences mid-demo.
+
+| Beat | Time | Action |
+|---|---|---|
+| 1 | 0:00 — 0:45 | Open `docs/ADR/STATE-MACHINE.md` + a closed issue (e.g. #136). Walk Context → Gherkin → Done. |
+| 2 | 0:45 — 1:30 | Open `docs/ADR/` directory. Scroll ADR-006 (CI/CD), ADR-007 (golden paths), ADR-009 (runtime switch). |
+| 3 | 1:30 — 3:30 | Terminal beats: `catalyst-cli health` → `catalyst-cli orgs create-ou cloud-byte data-platform` → `catalyst-cli services onboard cloud-byte/dev/shared/api/catalyst-api` → `aws dynamodb get-item ...` to show the DynamoDB record landing in a second terminal. |
+| 4 | 3:30 — 4:30 | Open PR #147 in the browser. Scroll the Agent Decision Log → Pre-PR Peer Review → secret-scanning blocks. |
+| 5 | 4:30 — 5:30 | Terminal: `gh workflow run teardown.yml --ref release`. Open the run in the browser to show real-time log streaming. |
+| 6 | 5:30 — 6:00 | Close on `diagrams/control-plane.md` + `docs/ai-workflow-narrative.md`. |
+
+Same 6-minute envelope, same gates, same evidence — different surface. The CLI path leans harder on the catalyst-cli tooling and the teardown workflow as the live-action moment; the primary path leans on PR #147 + the curl-against-ALB beats.
