@@ -706,7 +706,6 @@ def list_groups(
             "catalyst-administrators",
             "catalyst-viewers",
             "catalyst-support-admins",
-            "catalyst-support-operators",
             "catalyst-support-viewers",
             "catalyst-breakglass",
         ],

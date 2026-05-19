@@ -64,7 +64,7 @@ See [`docs/cost-model.md`](../cost-model.md) for the per-tier dollar table and t
 
 - GitHub OIDC identity provider (dual-thumbprint tolerant)
 - IAM roles: `catalyst-github-{plan,apply,deploy,drift}`, plus `catalyst-bootstrap-admin`
-- Global RBAC groups: `catalyst-{owners,administrators,viewers,support-admins,support-operators,support-viewers,breakglass}` per [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md). The three `support-*` groups are intended for the platform support / on-call surface — see [ADR-008 §Support-* roles](../ADR/ADR-008-catalyst-api-rbac.md#support--roles) for the per-group authorisation mapping (and note that `catalyst-support-operators` is provisioned at bootstrap but currently grants no Catalyst API authority on its own).
+- Global RBAC groups: `catalyst-{owners,administrators,viewers,support-admins,support-viewers,breakglass}` per [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md). The two `support-*` groups are intended for the platform support / on-call surface — see [ADR-008 §Support-* roles](../ADR/ADR-008-catalyst-api-rbac.md#support--roles) for the per-group authorisation mapping.
 - S3 state bucket: `{prefix}-tf-state-{account}-{region}` (default prefix `catalyst`)
 - DynamoDB lock table: `{prefix}-terraform-locks`
 - S3 API-data bucket: `{prefix}-api-data-{account}-{region}`

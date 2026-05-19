@@ -760,7 +760,6 @@ JSON
   ensure_group "${CATALYST_PREFIX}-administrators"
   ensure_group "${CATALYST_PREFIX}-viewers"
   ensure_group "${CATALYST_PREFIX}-support-admins"
-  ensure_group "${CATALYST_PREFIX}-support-operators"
   ensure_group "${CATALYST_PREFIX}-support-viewers"
   ensure_group "${CATALYST_PREFIX}-breakglass"
 

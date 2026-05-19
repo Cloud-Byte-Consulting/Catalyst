@@ -662,7 +662,6 @@ try {
         "$Prefix-administrators",
         "$Prefix-viewers",
         "$Prefix-support-admins",
-        "$Prefix-support-operators",
         "$Prefix-support-viewers",
         "$Prefix-breakglass"
     )) {

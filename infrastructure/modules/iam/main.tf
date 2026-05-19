@@ -35,10 +35,6 @@ resource "aws_iam_group" "support_admins" {
   name = "catalyst-support-admins"
 }
 
-resource "aws_iam_group" "support_operators" {
-  name = "catalyst-support-operators"
-}
-
 resource "aws_iam_group" "support_viewers" {
   name = "catalyst-support-viewers"
 }
@@ -65,7 +61,6 @@ resource "aws_iam_policy" "owner_policy" {
         aws_iam_group.administrators.arn,
         aws_iam_group.viewers.arn,
         aws_iam_group.support_admins.arn,
-        aws_iam_group.support_operators.arn,
         aws_iam_group.support_viewers.arn,
         aws_iam_group.breakglass.arn,
       ]
@@ -152,7 +147,6 @@ output "group_names" {
     aws_iam_group.administrators.name,
     aws_iam_group.viewers.name,
     aws_iam_group.support_admins.name,
-    aws_iam_group.support_operators.name,
     aws_iam_group.support_viewers.name,
     aws_iam_group.breakglass.name,
   ]
