@@ -88,6 +88,19 @@ module "network_firewall" {
   subnet_id   = module.network.public_subnet_ids[0]
 }
 
+# SVC-9 (#63) — alarms + SNS + operator dashboard. References the metric
+# namespace #60's middleware emits (`Catalyst/API`) plus existing
+# `Catalyst/Onboard` and AWS-native `AWS/Lambda`. The Lambda function name
+# is constructed identically by `modules/lambda-service` so we pass the
+# composed value rather than read it back out (which would be null when
+# the lambda is gated off on bootstrap, per `var.lambda_image_seeded`).
+module "observability" {
+  source               = "../../observability"
+  name_prefix          = var.name_prefix
+  lambda_function_name = "${var.name_prefix}-api"
+  depends_on           = [module.lambda_service]
+}
+
 output "deployment_graph" {
   value = {
     backend          = module.backend.state_bucket
@@ -99,5 +112,17 @@ output "deployment_graph" {
     dynamodb         = module.dynamodb.table_name
     alb_dns          = module.ecs_alb.alb_dns_name
     firewall_enabled = var.enable_network_firewall
+    alarm_topic_arn  = module.observability.sns_topic_arn
+    dashboard_url    = module.observability.dashboard_url
   }
+}
+
+output "alarm_topic_arn" {
+  value       = module.observability.sns_topic_arn
+  description = "SNS topic ARN for Catalyst CloudWatch alarms. Operators subscribe email/PagerDuty/Slack out-of-band — see docs/onboarding/platform.md §Operator alerts."
+}
+
+output "dashboard_url" {
+  value       = module.observability.dashboard_url
+  description = "Direct CloudWatch console URL for the Catalyst operator dashboard."
 }
