@@ -207,6 +207,30 @@ curl "http://$albDns/catalog"     # expect {"resources":[...], "role": ...}
 
 See [`docs/smoke-tests.md`](../smoke-tests.md) for the full three-tier runbook (Lambda + ALB liveness, HTTP smoke, SigV4 authenticated paths).
 
+## Operator alerts
+
+The Catalyst platform publishes a CloudWatch dashboard plus five alarms via [`infrastructure/modules/observability/`](../../infrastructure/modules/observability/README.md) (5xx rate, request p99 latency, onboard p95 30-day trip-wire per [ADR-014](../ADR/ADR-014-services-onboard-provisioning-mode.md), transient-retry anomaly, AWS Lambda errors). All five fan out to one SNS topic, `${name_prefix}-alarms` (default `catalyst-alarms`).
+
+**Subscribers are deliberately out-of-band** — issue [#63](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/63) explicitly scopes "Out: PagerDuty/Slack integrations". The Terraform stops at the topic so on-call routing changes don't churn the infrastructure PR queue. Subscribe operator endpoints with `aws sns subscribe`:
+
+```bash
+TOPIC_ARN=$(terraform -chdir=infrastructure output -raw alarm_topic_arn)
+
+# Email
+aws sns subscribe --topic-arn "$TOPIC_ARN" --protocol email \
+  --notification-endpoint operator@example.com   # confirm via inbox link
+
+# PagerDuty (SNS integration on the service)
+aws sns subscribe --topic-arn "$TOPIC_ARN" --protocol https \
+  --notification-endpoint "https://events.pagerduty.com/integration/<key>/enqueue"
+
+# Slack (via an SNS-to-Slack relay Lambda you provision separately)
+aws sns subscribe --topic-arn "$TOPIC_ARN" --protocol lambda \
+  --notification-endpoint "arn:aws:lambda:<region>:<account>:function:sns-to-slack"
+```
+
+**Dashboard:** the operator dashboard URL is the `dashboard_url` Terraform output. Bookmark it post-bootstrap and link it in your runbook.
+
 ## Anti-patterns (explicitly unsupported)
 
 - Creating production VPC / ALB / Lambda in the AWS console "just once"
