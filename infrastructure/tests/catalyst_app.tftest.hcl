@@ -30,6 +30,24 @@ override_data {
   }
 }
 
+# The embedded modules/kms instance calls aws_caller_identity and
+# aws_region. Override both so plan-only test runs don't need live AWS.
+override_data {
+  target = module.kms.data.aws_caller_identity.current
+  values = {
+    account_id = "123456789012"
+    arn        = "arn:aws:iam::123456789012:user/test-runner"
+    user_id    = "AIDATESTUSER12345678"
+  }
+}
+
+override_data {
+  target = module.kms.data.aws_region.current
+  values = {
+    region = "us-west-2"
+  }
+}
+
 run "web_service" {
   command = plan
 
@@ -48,6 +66,8 @@ run "web_service" {
 
     alb_listener_arn     = "arn:aws:elasticloadbalancing:us-west-2:123456789012:listener/app/catalyst-alb/aaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbb"
     alb_target_group_arn = "arn:aws:elasticloadbalancing:us-west-2:123456789012:targetgroup/catalyst-shared/cccccccccccccccc"
+
+    kms_admin_role_arn = "arn:aws:iam::123456789012:role/catalyst-platform-admin"
   }
 
   assert {
@@ -109,6 +129,8 @@ run "worker" {
     state_bucket = "catalyst-tf-state-123456789012-us-west-2"
     aws_region   = "us-west-2"
     service_type = "worker"
+
+    kms_admin_role_arn = "arn:aws:iam::123456789012:role/catalyst-platform-admin"
   }
 
   assert {

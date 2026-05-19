@@ -48,14 +48,45 @@ data "terraform_remote_state" "tenant" {
 }
 
 # ---------------------------------------------------------------------------
+# Per-app customer-managed KMS keys (ADR-016).
+#
+# Each L4 catalyst-app composite owns its own pair of CMKs (data +
+# artifact) so a single app's key compromise never blasts outside the
+# tenant/env/project/app blast radius defined by the construct address.
+# The module emits aliases `alias/catalyst/data` and `alias/catalyst/
+# artifacts` — they're unique because each instance is in its own
+# Terraform state file (per-app `.tfstate` per ADR-015 §L4).
+#
+# CONFLICT-AVOIDANCE NOTE: this is the only new block this PR adds to
+# main.tf; #62 and #230 parallel agents are also editing this file.
+# ---------------------------------------------------------------------------
+
+module "kms" {
+  source = "../../kms"
+
+  admin_role_arn     = var.kms_admin_role_arn
+  consumer_role_arns = [aws_iam_role.exec.arn]
+
+  tags = {
+    "catalyst:construct" = local.construct_address
+    "catalyst:tenant"    = var.tenant
+    "catalyst:project"   = var.project
+    "catalyst:app"       = var.app
+    "catalyst:tier"      = "L4"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # ECR repository for the application's container images.
 #
 # Naming: {tenant}-{project}-{app} (matches ADR-007 Tier 2 contract and
 # the existing v1 stub-handler ARN shape). Scan-on-push + immutable tags
-# satisfy ADR-005 supply-chain controls.
+# satisfy ADR-005 supply-chain controls. Per ADR-016 the repository
+# encrypts images at rest with the per-app `catalyst_artifact_key`;
+# encryption_type cannot be changed in place, so an existing AES256 repo
+# must be recreated (runbook in ADR-016 §Migration).
 # ---------------------------------------------------------------------------
 
-# tfsec:ignore:aws-ecr-repository-customer-key
 resource "aws_ecr_repository" "app" {
   name                 = local.resource_name
   image_tag_mutability = "IMMUTABLE"
@@ -66,7 +97,8 @@ resource "aws_ecr_repository" "app" {
   }
 
   encryption_configuration {
-    encryption_type = "AES256"
+    encryption_type = "KMS"
+    kms_key         = module.kms.artifact_key_arn
   }
 
   tags = {
@@ -140,10 +172,10 @@ resource "aws_iam_role_policy" "exec_inline" {
 # the state-key hierarchy from ADR-015 exactly.
 # ---------------------------------------------------------------------------
 
-# tfsec:ignore:aws-cloudwatch-log-group-customer-key
 resource "aws_cloudwatch_log_group" "app" {
   name              = local.log_group_name
   retention_in_days = var.log_retention_days
+  kms_key_id        = module.kms.artifact_key_arn
 
   tags = {
     "catalyst:construct" = local.construct_address
@@ -224,8 +256,8 @@ resource "aws_dynamodb_table_item" "catalog" {
 #   - aws_iam_role.ecs_task      (DynamoDB + SSM + CloudWatch metrics)
 #
 # Gated by count so Lambda-only deployments (the ADR-009 default) are
-# unchanged. ECS autoscaling (#230) and CMK migration (#228) are NOT
-# wired here on purpose — they remain in their own surfaces.
+# unchanged. ECS autoscaling (#230) and CMK migration (#228) are wired in
+# their own opt-in blocks below.
 # ---------------------------------------------------------------------------
 
 module "ecs_runtime" {
@@ -245,4 +277,74 @@ module "ecs_runtime" {
   dynamodb_table_name    = var.catalog_table_name
   catalyst_log_level     = var.ecs_log_level
   container_extra_env    = var.ecs_container_extra_env
+}
+
+# ---------------------------------------------------------------------------
+# Aurora Serverless v2 (ADR-019 / issue #229) — OPT-IN.
+#
+# Provisioned only when `var.enable_aurora_serverless = true`. Pattern
+# mirrors the gated `enable_ecs_runtime` block from #62 — callers
+# that don't need RDS keep DynamoDB-only persistence and pay zero cost.
+#
+# Resource encryption uses the per-app `module.kms.data_key_arn`
+# (catalyst_data_key from ADR-016) so a single key revocation blackholes
+# the entire app's data plane (DynamoDB + Aurora).
+# ---------------------------------------------------------------------------
+
+data "aws_caller_identity" "aurora_consumer" {
+  count = var.enable_aurora_serverless ? 1 : 0
+}
+
+data "aws_region" "aurora_consumer" {
+  count = var.enable_aurora_serverless ? 1 : 0
+}
+
+module "aurora" {
+  count = var.enable_aurora_serverless ? 1 : 0
+
+  source = "../../aurora-serverless"
+
+  name                        = local.resource_name
+  vpc_id                      = var.aurora_vpc_id
+  private_subnet_ids          = var.aurora_private_subnet_ids
+  consumer_security_group_ids = var.aurora_consumer_security_group_ids
+  kms_key_arn                 = module.kms.data_key_arn
+  engine_version              = var.aurora_engine_version
+  min_capacity                = var.aurora_min_capacity
+  max_capacity                = var.aurora_max_capacity
+
+  tags = {
+    "catalyst:construct" = local.construct_address
+    "catalyst:tenant"    = var.tenant
+    "catalyst:project"   = var.project
+    "catalyst:app"       = var.app
+    "catalyst:tier"      = "L4"
+  }
+}
+
+# Attach the `rds-db:connect` IAM policy on the runtime exec role so the
+# app can authenticate to Aurora as the IAM-mapped `catalyst_app` role via
+# RDS IAM auth tokens. Resource ARN shape per the AWS docs:
+#   arn:aws:rds-db:{region}:{account}:dbuser:{cluster_resource_id}/{db_user}
+data "aws_iam_policy_document" "aurora_connect" {
+  count = var.enable_aurora_serverless ? 1 : 0
+
+  statement {
+    sid    = "AllowRDSIamAuth"
+    effect = "Allow"
+    actions = [
+      "rds-db:connect",
+    ]
+    resources = [
+      "arn:aws:rds-db:${data.aws_region.aurora_consumer[0].region}:${data.aws_caller_identity.aurora_consumer[0].account_id}:dbuser:${module.aurora[0].cluster_resource_id}/${module.aurora[0].app_db_user}",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "aurora_connect" {
+  count = var.enable_aurora_serverless ? 1 : 0
+
+  name   = "${local.resource_name}-aurora-connect"
+  role   = aws_iam_role.exec.id
+  policy = data.aws_iam_policy_document.aurora_connect[0].json
 }

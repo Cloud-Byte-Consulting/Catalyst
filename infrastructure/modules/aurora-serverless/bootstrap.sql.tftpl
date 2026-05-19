@@ -1,0 +1,53 @@
+-- ---------------------------------------------------------------------------
+-- Aurora Serverless v2 bootstrap — one-time first-apply SQL (ADR-019).
+--
+-- Run as the master user against the initial Aurora-provisioned database
+-- (which already exists at ${database_name}). This script:
+--
+--   1. Creates the catalyst_app role and grants it rds_iam (the AWS-managed
+--      group role that maps PostgreSQL auth onto IAM token verification).
+--   2. Creates the deployment_history table that backs GET /deployment-history.
+--   3. Grants catalyst_app the minimum CRUD on deployment_history.
+--
+-- Every statement is wrapped in IF NOT EXISTS or a DO block so a re-run
+-- (e.g. after a SQL-hash trigger change) is a no-op rather than an error.
+-- ---------------------------------------------------------------------------
+
+-- Create the IAM-mapped role. rds_iam is an AWS-managed role; granting it
+-- to catalyst_app is what lets boto3-generated auth tokens authenticate as
+-- catalyst_app. The role has no password (NOLOGIN-equivalent for password
+-- auth) — connections MUST go via IAM.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${app_db_user}') THEN
+    CREATE ROLE ${app_db_user} WITH LOGIN;
+    GRANT rds_iam TO ${app_db_user};
+  END IF;
+END$$;
+
+-- deployment_history mirrors the DynamoDB product-deployment record shape
+-- (per ADR-019 §Dual-write). Schema:
+--   deployment_id   - UUID hex from products.deploy_product._make_deployment_id
+--   product_id      - catalog key (e.g. "catalyst-api")
+--   tenant          - first segment of the construct address
+--   construct_address - full tenant/env/lz/project/app
+--   caller_arn      - the caller ARN from rbac.AccessContext at deploy time
+--   created_at      - ISO8601 UTC timestamp (matches the DynamoDB record)
+CREATE TABLE IF NOT EXISTS deployment_history (
+  deployment_id      TEXT PRIMARY KEY,
+  product_id         TEXT NOT NULL,
+  tenant             TEXT NOT NULL,
+  construct_address  TEXT NOT NULL,
+  caller_arn         TEXT NOT NULL,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Indexes that match the GET /deployment-history filter shape.
+CREATE INDEX IF NOT EXISTS deployment_history_by_product ON deployment_history (product_id);
+CREATE INDEX IF NOT EXISTS deployment_history_by_tenant ON deployment_history (tenant);
+
+-- Least-privilege grants. catalyst_app gets SELECT + INSERT only — no
+-- UPDATE / DELETE / TRUNCATE (deployment history is append-only).
+GRANT CONNECT ON DATABASE ${database_name} TO ${app_db_user};
+GRANT USAGE ON SCHEMA public TO ${app_db_user};
+GRANT SELECT, INSERT ON deployment_history TO ${app_db_user};

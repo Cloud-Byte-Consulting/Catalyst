@@ -5,6 +5,24 @@ provider "aws" {
   skip_requesting_account_id  = true
 }
 
+# ADR-016 / #228 — modules/kms calls aws_caller_identity + aws_region.
+# Override both so plan-only test runs don't hit live STS.
+override_data {
+  target = module.kms.data.aws_caller_identity.current
+  values = {
+    account_id = "123456789012"
+    arn        = "arn:aws:iam::123456789012:user/test-runner"
+    user_id    = "AIDATESTUSER12345678"
+  }
+}
+
+override_data {
+  target = module.kms.data.aws_region.current
+  values = {
+    region = "us-west-2"
+  }
+}
+
 run "composite_product_plans_with_firewall_off" {
   command = plan
 

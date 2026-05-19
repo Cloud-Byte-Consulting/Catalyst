@@ -3,13 +3,26 @@ variable "name" {
   default = "catalyst-api"
 }
 
+# Required CMK input per ADR-016. The repository encrypts images at rest
+# with the customer-managed `catalyst_artifact_key`. NOTE: ECR's
+# `encryption_type` cannot be changed in place — switching an existing
+# repository from AES256 to KMS forces a recreate. See ADR-016 §Migration
+# runbook for the seed-image / re-push workflow.
+variable "kms_key_arn" {
+  type        = string
+  description = "ARN of the customer-managed KMS key (catalyst_artifact_key) encrypting ECR images at rest. Required; ADR-016 made the CMK path mandatory."
+
+  validation {
+    condition     = length(var.kms_key_arn) > 0 && can(regex("^arn:aws:kms:", var.kms_key_arn))
+    error_message = "kms_key_arn must be a full KMS key ARN (arn:aws:kms:<region>:<account>:key/<uuid>)."
+  }
+}
+
 # IMMUTABLE tags satisfy tfsec aws-ecr-enforce-immutable-repository and ADR-005
 # supply-chain controls: a pushed image:tag pair cannot be overwritten, so a
 # rollback always refers to the exact same image digest. The `:latest` tag is
 # bootstrap-seeded once by service-cd and intentionally never re-pointed.
-# Encryption uses AES256 (AWS-managed key); the same CMK migration tracked
-# for the DynamoDB table also covers the ECR encryption upgrade.
-# tfsec:ignore:aws-ecr-repository-customer-key
+# Encryption uses the customer-managed `catalyst_artifact_key` per ADR-016.
 resource "aws_ecr_repository" "this" {
   name                 = var.name
   image_tag_mutability = "IMMUTABLE"
@@ -22,7 +35,8 @@ resource "aws_ecr_repository" "this" {
   }
 
   encryption_configuration {
-    encryption_type = "AES256"
+    encryption_type = "KMS"
+    kms_key         = var.kms_key_arn
   }
 }
 

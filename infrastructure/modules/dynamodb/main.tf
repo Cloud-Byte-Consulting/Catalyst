@@ -10,10 +10,21 @@ variable "ssm_parameter_name" {
   description = "SSM parameter the runtime reads to discover the table"
 }
 
-# DynamoDB SSE uses the AWS-owned KMS key today. Migrating to a customer-
-# managed CMK is tracked separately (KMS rollout coordinates with the future
-# `modules/kms/` referenced in ADR-006 §"Resources..."). Until the CMK exists
-# the AWS-owned key satisfies our encryption-at-rest requirement.
+# Optional CMK input (ADR-016). When null the table falls back to the
+# AWS-owned key so the module stays backward-compatible with callers that
+# have not yet wired the `modules/kms/` outputs through. The composite
+# `modules/composite/catalyst-app/` always passes a non-null value.
+variable "kms_key_arn" {
+  type        = string
+  default     = null
+  description = "ARN of the customer-managed KMS key encrypting the table at rest. Null preserves the legacy AWS-owned-key behaviour (see ADR-016 §Migration runbook)."
+}
+
+# DynamoDB SSE uses the customer-managed `catalyst_data_key` when
+# var.kms_key_arn is supplied (ADR-016). Callers that don't pass a key
+# fall back to the AWS-owned key — tfsec:ignore guards that path
+# explicitly because the composite always supplies a CMK ARN in
+# production wiring.
 # tfsec:ignore:aws-dynamodb-table-customer-key
 resource "aws_dynamodb_table" "platform_state" {
   name         = var.name
@@ -40,10 +51,13 @@ resource "aws_dynamodb_table" "platform_state" {
     enabled        = true
   }
 
-  # AWS-owned KMS key is sufficient for the platform-state table at this stage;
-  # ADR-008 lays out the CMK migration once the platform graduates from MVP.
+  # CMK migration per ADR-016: when var.kms_key_arn is set the table uses
+  # the customer-managed `catalyst_data_key`; otherwise SSE remains on the
+  # AWS-owned key for backward compatibility with callers that have not
+  # yet wired the kms module.
   server_side_encryption {
-    enabled = true
+    enabled     = true
+    kms_key_arn = var.kms_key_arn
   }
 }
 

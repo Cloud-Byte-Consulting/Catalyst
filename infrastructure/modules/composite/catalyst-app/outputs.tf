@@ -51,3 +51,52 @@ output "ecs_task_role_arn" {
   description = "ARN of the ECS task role (DynamoDB + SSM + CloudWatch metrics). Null when enable_ecs_runtime = false."
   value       = try(module.ecs_runtime[0].ecs_task_role_arn, null)
 }
+
+# ---------------------------------------------------------------------------
+# Aurora Serverless v2 outputs (ADR-019 / issue #229).
+#
+# All null when `var.enable_aurora_serverless = false` so existing
+# consumers (that don't read these fields) remain unaffected. The
+# count-gated module emits a 1-element list; we unwrap via try() so the
+# outputs degrade cleanly when the module is disabled.
+# ---------------------------------------------------------------------------
+
+output "aurora_cluster_arn" {
+  description = "ARN of the Aurora Serverless v2 cluster, or null when `enable_aurora_serverless = false`."
+  value       = try(module.aurora[0].cluster_arn, null)
+}
+
+output "aurora_cluster_endpoint" {
+  description = "Writer endpoint hostname for the Aurora cluster, or null when disabled. Apps target this via psycopg + RDS IAM auth tokens."
+  value       = try(module.aurora[0].cluster_endpoint, null)
+}
+
+output "aurora_cluster_reader_endpoint" {
+  description = "Reader endpoint hostname for the Aurora cluster, or null when disabled."
+  value       = try(module.aurora[0].cluster_reader_endpoint, null)
+}
+
+output "aurora_cluster_resource_id" {
+  description = "Stable Aurora cluster resource id (`cluster-XXXX...`) used in the `rds-db:connect` IAM policy ARN. Null when disabled."
+  value       = try(module.aurora[0].cluster_resource_id, null)
+}
+
+output "aurora_database_name" {
+  description = "Aurora initial database name. Null when disabled."
+  value       = try(module.aurora[0].database_name, null)
+}
+
+output "aurora_app_db_user" {
+  description = "PostgreSQL role mapped to IAM auth (`catalyst_app` by default). Null when disabled."
+  value       = try(module.aurora[0].app_db_user, null)
+}
+
+output "aurora_secret_arn" {
+  description = "ARN of the break-glass master credentials in Secrets Manager. NOT used by app traffic. Null when disabled."
+  value       = try(module.aurora[0].secret_arn, null)
+}
+
+output "aurora_security_group_id" {
+  description = "ID of the Aurora cluster security group. Null when disabled."
+  value       = try(module.aurora[0].security_group_id, null)
+}

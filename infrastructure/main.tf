@@ -45,8 +45,20 @@ module "security_groups" {
   alb_ingress_allowlist = var.alb_ingress_allowlist
 }
 
+# Customer-managed KMS keys (ADR-016 / #228). Emits two keys (data +
+# artifact) used by the dynamodb table, ECR repo, and CloudWatch log
+# groups. Consumer roles list is empty at root-stack time — the runtime
+# roles live in the per-app composite (modules/composite/catalyst-app/)
+# which embeds its own kms module instance.
+module "kms" {
+  source             = "./modules/kms"
+  admin_role_arn     = var.kms_admin_role_arn
+  consumer_role_arns = []
+}
+
 module "ecr" {
-  source = "./modules/ecr"
+  source      = "./modules/ecr"
+  kms_key_arn = module.kms.artifact_key_arn
 }
 
 module "ecs_alb" {
@@ -58,7 +70,8 @@ module "ecs_alb" {
 }
 
 module "dynamodb" {
-  source = "./modules/dynamodb"
+  source      = "./modules/dynamodb"
+  kms_key_arn = module.kms.data_key_arn
 }
 
 # module.lambda_service requires an existing ECR image tag (image_uri must
