@@ -50,9 +50,18 @@ client backs off and retries on its own clock.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from contextvars import ContextVar
+from typing import Any, Callable, TypeVar
 
 from fastapi import HTTPException
+from tenacity import (
+    RetryCallState,
+    Retrying,
+    retry_if_exception,
+    stop_after_attempt,
+    stop_after_delay,
+    wait_random_exponential,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -365,3 +374,167 @@ def _http_status_to_error_name(status_code: int) -> str:
         500: "InternalServerError",
         503: "RepositoryFailure",
     }.get(status_code, "Error")
+
+
+# ---------------------------------------------------------------------------
+# #205 — server-side retry + exponential backoff for transient AWS failures.
+#
+# The retry layer fires BEFORE the exception bubbles up to
+# ``_safe_call``'s 503 conversion. Only the codes listed in
+# :data:`RETRYABLE_AWS_CODES` trigger a retry; everything else (404-style
+# misses, conditional-check conflicts, validation errors) raises on the
+# first attempt so the boundary translator can map it to the right status.
+#
+# Retry budget — locked in the Decision Log on #205:
+#
+#   * ``stop_after_attempt(3)`` AND ``stop_after_delay(30)`` (whichever
+#     fires first) — 3 attempts max, 30 s wall-clock cap below the
+#     Lambda timeout.
+#   * ``wait_random_exponential(multiplier=0.5, max=8)`` — exponential
+#     backoff with full jitter capped at 8 s so the 30 s budget stays
+#     intact even on the worst-case ladder (≤ 0.5 + 1 + 2 + 4 + 8 = 15.5
+#     s of sleep across 3 attempts).
+#   * ``retry_if_exception(is_retryable_aws_error)`` — only ClientError
+#     with a code in :data:`RETRYABLE_AWS_CODES` retries; ANY other
+#     exception (including non-retryable ClientError codes) escapes the
+#     decorator on the first throw and gets the existing 4xx/5xx mapping.
+#   * ``before_sleep`` hook — emit a structured log line so operators can
+#     see retries in CloudWatch and distinguish a transient blip from a
+#     real capacity issue masquerading as success.
+# ---------------------------------------------------------------------------
+
+
+#: AWS error-code strings that warrant a server-side retry. Anything not
+#: in this set bubbles up on the first throw — including codes that map
+#: to non-2xx but non-transient outcomes (404, 409, etc.).
+RETRYABLE_AWS_CODES: frozenset[str] = frozenset(
+    {
+        "ThrottlingException",
+        "Throttling",
+        "ProvisionedThroughputExceededException",
+        "ServiceUnavailable",
+        "TooManyRequestsException",
+        "RequestLimitExceeded",
+    }
+)
+
+
+#: Per-request context populated by the handler/test boundary. The retry
+#: decorator pulls these into its structured-log line. They default to
+#: ``None`` so the decorator stays usable without any caller plumbing —
+#: callers that DO have the values (every catalyst handler does, via
+#: ``correlation_id_dependency``) ``token = retry_correlation_id.set(...)``
+#: and ``retry_correlation_id.reset(token)`` around the call.
+#:
+#: Contextvars (not function args) because the wrapped functions are
+#: existing repository methods whose signatures must stay stable — this
+#: kaizen explicitly forbids signature changes. Contextvars also survive
+#: across async/sync boundaries cleanly, which keeps the seam working
+#: when handlers eventually become async.
+retry_correlation_id: ContextVar[str | None] = ContextVar(
+    "retry_correlation_id", default=None
+)
+retry_endpoint: ContextVar[str | None] = ContextVar(
+    "retry_endpoint", default=None
+)
+
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def is_retryable_aws_error(exc: BaseException) -> bool:
+    """Return ``True`` iff ``exc`` is a ``ClientError`` we should retry.
+
+    Used both by the :func:`with_aws_retry` decorator's
+    ``retry_if_exception`` predicate and by unit tests that want to
+    assert classification independently of the tenacity machinery.
+
+    Any non-``ClientError`` exception returns ``False`` so unrelated
+    failure modes (network errors handled lower in botocore, plain
+    ``RuntimeError`` from a misbehaving fake, etc.) bubble up immediately.
+    """
+
+    try:
+        from botocore.exceptions import (  # type: ignore[import-not-found]
+            ClientError,
+        )
+    except Exception:  # noqa: BLE001 - botocore optional at unit-test boundary
+        return False
+
+    if not isinstance(exc, ClientError):
+        return False
+
+    code = _client_error_code(exc)
+    return code in RETRYABLE_AWS_CODES
+
+
+def _log_retry_attempt(retry_state: RetryCallState) -> None:
+    """``before_sleep`` hook: emit a structured log line per retry.
+
+    Fields required by the #205 Decision Log:
+
+        * ``endpoint`` — resolved from :data:`retry_endpoint` contextvar
+          (handler sets it via the dependency); ``None`` if unset.
+        * ``correlation_id`` — resolved from :data:`retry_correlation_id`
+          contextvar; ``None`` if unset.
+        * ``attempt`` — the 1-based attempt number that just failed
+          (tenacity counts attempts pre-sleep, so this is the attempt
+          we're about to retry after).
+        * ``error_code`` — the AWS error code that triggered the retry.
+
+    Failure inside this hook is swallowed — observability MUST NOT mask
+    a genuine retry.
+    """
+
+    outcome = retry_state.outcome
+    exc = outcome.exception() if outcome is not None else None
+    code = _client_error_code(exc) if exc is not None else None
+    logger.warning(
+        "aws_retry_attempt",
+        extra={
+            "endpoint": retry_endpoint.get(),
+            "correlation_id": retry_correlation_id.get(),
+            "attempt": retry_state.attempt_number,
+            "error_code": code,
+        },
+    )
+
+
+def with_aws_retry() -> Callable[[F], F]:
+    """Decorator: retry ``ClientError`` with retryable code, up to budget.
+
+    Wraps the bare boto3 call sites in :mod:`catalyst.repository` and
+    :mod:`catalyst.onboard` so transient throttling/capacity errors get a
+    chance to succeed without the client having to retry on its own
+    clock.
+
+    The decorator is parameter-free on purpose — the retry budget is a
+    project-wide policy (Decision Log on #205), not a per-call knob.
+
+    Returns
+    -------
+    Callable
+        A decorator that returns a wrapper with the same call signature
+        as ``fn``. The wrapper raises the SAME exception ``fn`` raised on
+        the last attempt — there is no re-wrapping, so the existing
+        boundary translator (:func:`to_http_exception`) sees the bare
+        ``ClientError`` and classifies it normally on exhaustion.
+    """
+
+    def decorator(fn: F) -> F:
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            retrying = Retrying(
+                retry=retry_if_exception(is_retryable_aws_error),
+                stop=(stop_after_attempt(3) | stop_after_delay(30)),
+                wait=wait_random_exponential(multiplier=0.5, max=8),
+                before_sleep=_log_retry_attempt,
+                reraise=True,
+            )
+            return retrying(fn, *args, **kwargs)
+
+        wrapped.__name__ = getattr(fn, "__name__", "wrapped")
+        wrapped.__doc__ = fn.__doc__
+        wrapped.__wrapped__ = fn  # type: ignore[attr-defined]
+        return wrapped  # type: ignore[return-value]
+
+    return decorator
