@@ -68,11 +68,11 @@ variable "enable_network_firewall" {
 
 variable "kms_admin_role_arn" {
   type        = string
-  description = "ARN of the SSO admin (or platform-engineer break-glass) role granted full kms:* on the platform CMKs provisioned by modules/kms (ADR-016 / #228). Defaults to the bootstrap admin role pattern; override via TF_VAR_kms_admin_role_arn in pipelines that bootstrap from a different role."
-  default     = "arn:aws:iam::000000000000:role/catalyst-bootstrap-admin"
+  description = "Optional override for the IAM role ARN granted full kms:* on the platform CMKs provisioned by modules/kms (ADR-016 / #228). When null (the default), main.tf computes the effective ARN as arn:aws:iam::<deploying-account-from-data.aws_caller_identity>:role/catalyst-bootstrap-admin — which matches what scripts/bootstrap-aws-account.sh provisions. Set explicitly via TF_VAR_kms_admin_role_arn in pipelines that bootstrap from a different role name."
+  default     = null
 
   validation {
-    condition     = can(regex("^arn:aws:iam::[0-9]{12}:role/.+$", var.kms_admin_role_arn))
-    error_message = "kms_admin_role_arn must be a full IAM role ARN."
+    condition     = var.kms_admin_role_arn == null || can(regex("^arn:aws:iam::[0-9]{12}:role/.+$", var.kms_admin_role_arn))
+    error_message = "kms_admin_role_arn must be null OR a full IAM role ARN (arn:aws:iam::<account>:role/<name>)."
   }
 }
