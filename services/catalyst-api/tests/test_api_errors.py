@@ -554,3 +554,209 @@ def test_translator_maps_conditional_check_failed_to_409() -> None:
     httpx = to_http_exception(err, "cid-7")
     assert httpx.status_code == 409
     assert httpx.detail["error"] == "IdempotencyConflict"
+
+
+# ---------------------------------------------------------------------------
+# #205 — server-side retry + exponential backoff for transient AWS failures.
+#
+# The retry wraps the boto3 boundary helpers on DynamoDBRepository
+# (_put/_get/_query/_scan_pk_prefix). We exercise that boundary directly
+# rather than through the HTTP surface so the retry behaviour is
+# observable as a call-count assertion on a moto-mocked DynamoDB Table
+# stub — keeping the test independent of which handler happens to drive
+# the AWS call.
+#
+# Backoff sleeps are stubbed to zero via tenacity.nap.sleep so the
+# 30 s wall-clock budget doesn't bleed test runtime.
+# ---------------------------------------------------------------------------
+
+
+from catalyst.errors import (  # noqa: E402 - grouped with #205 fixtures below
+    RETRYABLE_AWS_CODES,
+    is_retryable_aws_error,
+    with_aws_retry,
+)
+
+
+@pytest.fixture
+def _no_backoff_sleep(monkeypatch) -> None:
+    """Patch tenacity's sleep to a no-op so retries don't add wall-clock."""
+
+    import tenacity.nap
+
+    monkeypatch.setattr(tenacity.nap, "sleep", lambda _seconds: None)
+
+
+def _throttling_client_error() -> ClientError:
+    return ClientError(
+        error_response={
+            "Error": {"Code": "ThrottlingException", "Message": "rate exceeded"},
+            "ResponseMetadata": {"HTTPStatusCode": 400},
+        },
+        operation_name="GetItem",
+    )
+
+
+def _conditional_check_failed_error() -> ClientError:
+    return ClientError(
+        error_response={
+            "Error": {
+                "Code": "ConditionalCheckFailedException",
+                "Message": "predicate failed",
+            },
+            "ResponseMetadata": {"HTTPStatusCode": 400},
+        },
+        operation_name="PutItem",
+    )
+
+
+class _FlakyTable:
+    """Minimal stand-in for the boto3 DynamoDB Table resource.
+
+    Records every call to :meth:`get_item` (the only operation
+    DynamoDBRepository._get touches) so the test can assert exactly how
+    many attempts the retry decorator burned. ``raises`` is a list of
+    exceptions/None — popped left-to-right, ``None`` means "succeed".
+    """
+
+    def __init__(self, raises: list[Exception | None]) -> None:
+        self._raises = list(raises)
+        self.calls: int = 0
+
+    def get_item(self, **_kwargs: Any) -> dict:  # noqa: ANN401
+        self.calls += 1
+        if not self._raises:
+            return {"Item": {"pk": "OK", "sk": "OK"}}
+        nxt = self._raises.pop(0)
+        if nxt is not None:
+            raise nxt
+        return {"Item": {"pk": "OK", "sk": "OK"}}
+
+
+def test_is_retryable_aws_error_classifies_exactly_the_listed_codes() -> None:
+    """Sanity: every code in RETRYABLE_AWS_CODES is retryable; others aren't."""
+
+    for code in RETRYABLE_AWS_CODES:
+        err = ClientError(
+            error_response={
+                "Error": {"Code": code, "Message": "x"},
+                "ResponseMetadata": {"HTTPStatusCode": 400},
+            },
+            operation_name="X",
+        )
+        assert is_retryable_aws_error(err), f"{code} should be retryable"
+
+    # A non-listed code, plus a non-ClientError, must NOT be retryable.
+    assert not is_retryable_aws_error(_conditional_check_failed_error())
+    assert not is_retryable_aws_error(RuntimeError("nope"))
+
+
+def test_throttling_exception_retries_then_succeeds(
+    monkeypatch, _no_backoff_sleep
+) -> None:
+    """First call raises ThrottlingException, second succeeds → success path."""
+
+    from catalyst.repository import DynamoDBRepository
+
+    table = _FlakyTable(raises=[_throttling_client_error(), None])
+    repo = DynamoDBRepository("catalyst-platform-state", table=table)
+    set_repository(repo)
+
+    item = repo._get("PK#x", "SK#x")
+    assert item == {"pk": "OK", "sk": "OK"}
+    # One throttle then a success — two attempts total.
+    assert table.calls == 2
+
+
+def test_throttling_exhausts_retry_budget_returns_503(
+    monkeypatch, _no_backoff_sleep
+) -> None:
+    """Every call throttles → 3 attempts then ClientError escapes → 503 at the boundary."""
+
+    from catalyst.repository import DynamoDBRepository
+
+    table = _FlakyTable(
+        raises=[
+            _throttling_client_error(),
+            _throttling_client_error(),
+            _throttling_client_error(),
+        ]
+    )
+    repo = DynamoDBRepository("catalyst-platform-state", table=table)
+
+    with pytest.raises(ClientError) as caught:
+        repo._get("PK#x", "SK#x")
+    assert caught.value.response["Error"]["Code"] == "ThrottlingException"
+    assert table.calls == 3
+
+    # And the boundary translator maps the final ClientError → 503.
+    httpx = to_http_exception(caught.value, "cid-throttle-exhaust")
+    assert httpx.status_code == 503
+    assert httpx.detail["error"] == "AWSTransientFailure"
+
+
+def test_non_retryable_error_skips_retry(monkeypatch, _no_backoff_sleep) -> None:
+    """ConditionalCheckFailedException raises once → no retry, mapped to 409."""
+
+    from catalyst.repository import DynamoDBRepository
+
+    table = _FlakyTable(raises=[_conditional_check_failed_error()])
+    repo = DynamoDBRepository("catalyst-platform-state", table=table)
+
+    with pytest.raises(ClientError) as caught:
+        repo._get("PK#x", "SK#x")
+    # Critical: exactly one attempt — the non-retryable code MUST bypass the retry.
+    assert table.calls == 1
+
+    httpx = to_http_exception(caught.value, "cid-cond-fail")
+    assert httpx.status_code == 409
+    assert httpx.detail["error"] == "IdempotencyConflict"
+
+
+def test_retry_attempts_emit_structured_log(
+    monkeypatch, caplog, _no_backoff_sleep
+) -> None:
+    """Each retry emits a warning with endpoint, correlation_id, attempt, error_code."""
+
+    import logging as _logging
+
+    from catalyst.errors import retry_correlation_id, retry_endpoint
+    from catalyst.repository import DynamoDBRepository
+
+    table = _FlakyTable(raises=[_throttling_client_error(), None])
+    repo = DynamoDBRepository("catalyst-platform-state", table=table)
+
+    # Populate the contextvars the structured-log hook reads from.
+    cid_token = retry_correlation_id.set("cid-205-log")
+    ep_token = retry_endpoint.set("create_ou")
+    try:
+        with caplog.at_level(_logging.WARNING, logger="catalyst.errors"):
+            repo._get("PK#x", "SK#x")
+    finally:
+        retry_correlation_id.reset(cid_token)
+        retry_endpoint.reset(ep_token)
+
+    retry_records = [
+        r for r in caplog.records if r.message == "aws_retry_attempt"
+    ]
+    assert retry_records, "expected at least one aws_retry_attempt log line"
+    record = retry_records[0].__dict__
+    assert record.get("endpoint") == "create_ou"
+    assert record.get("correlation_id") == "cid-205-log"
+    assert record.get("attempt") == 1  # 1-based: the attempt that just failed
+    assert record.get("error_code") == "ThrottlingException"
+
+
+def test_with_aws_retry_passes_through_non_clienterror(_no_backoff_sleep) -> None:
+    """A plain Exception (not ClientError) MUST NOT trigger a retry."""
+
+    calls = {"n": 0}
+
+    @with_aws_retry()
+    def boom() -> None:
+        calls["n"] += 1
+        raise RuntimeError("not an AWS error")
+
+    with pytest.raises(RuntimeError):
+        boom()
+    assert calls["n"] == 1

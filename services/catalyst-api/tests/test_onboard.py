@@ -434,6 +434,76 @@ def test_onboard_worker_omits_alb_rule(env_setup, monkeypatch):
     assert body["alb_listener_rule_arn"] is None
 
 
+def test_onboard_retries_on_throttle(env_setup, monkeypatch):
+    """#205 — a transient ThrottlingException on PutMetricData triggers a
+    retry, so the metric is delivered before the swallow fallback fires.
+
+    Drives the Tier 2 surface (provision_app → _emit_metric →
+    _put_metric_data) so the retry decorator wired on the boto3 boundary
+    is exercised exactly the way it will fire in production.
+    """
+
+    from botocore.exceptions import ClientError
+
+    recorder = _SubprocessRecorder()
+    monkeypatch.setattr(subprocess, "run", recorder.make_success())
+
+    # Zero out tenacity's backoff so the test isn't wall-clock-bound on the
+    # retry sleeps (real budget is 30 s; we don't need to wait for it here).
+    import tenacity.nap
+
+    monkeypatch.setattr(tenacity.nap, "sleep", lambda _seconds: None)
+
+    class _ThrottleOnceCloudWatch:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+            self._raised = False
+
+        def put_metric_data(self, **kwargs):
+            self.calls.append(kwargs)
+            if not self._raised:
+                self._raised = True
+                raise ClientError(
+                    error_response={
+                        "Error": {
+                            "Code": "ThrottlingException",
+                            "Message": "rate exceeded",
+                        },
+                        "ResponseMetadata": {"HTTPStatusCode": 400},
+                    },
+                    operation_name="PutMetricData",
+                )
+
+    cw = _ThrottleOnceCloudWatch()
+
+    def cw_factory(client_name, region_name=None):  # noqa: ARG001
+        return cw
+
+    import boto3
+
+    monkeypatch.setattr(boto3, "client", cw_factory)
+
+    response = client.post(
+        "/services/onboard",
+        json={
+            "construct_address": "acme/dev/shared/payments/checkout",
+            "service_type": "web-service",
+            "port": 8000,
+            "idempotency_key": "onboard-throttle-retry-205",
+        },
+        headers=_headers(),
+    )
+    assert response.status_code == 200, response.text
+
+    # Two calls: the first throttled, the second succeeded — the retry
+    # decorator absorbed the transient failure before the outer "swallow"
+    # in _emit_metric had to fall back to a warning.
+    assert len(cw.calls) == 2
+    dims = {d["Name"]: d["Value"] for d in cw.calls[1]["MetricData"][0]["Dimensions"]}
+    assert dims["Endpoint"] == "services_onboard"
+    assert dims["Result"] == "success"
+
+
 def test_onboard_subprocess_timeout_returns_500(env_setup, monkeypatch):
     """A subprocess.TimeoutExpired during apply maps to a 500 with correlation id."""
 
