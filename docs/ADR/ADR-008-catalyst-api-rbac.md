@@ -75,6 +75,24 @@ The `"*"` sentinel (exposed as `rbac.TENANT_WIDE_PROJECT`) is interpreted by `ca
 
 ---
 
+### Support-* roles
+
+Beyond the three global groups and the tenant-scoped groups, the bootstrap script (`scripts/bootstrap-aws-account.sh`) provisions three additional **support-prefixed** global groups intended for the platform support / on-call surface. The names are recognised in `services/catalyst-api/catalyst/rbac.py::_access_from_groups` (around line 144).
+
+| Group name | Effective role | Recognised by `_access_from_groups`? | Scope | Intended use case |
+|---|---|---|---|---|
+| `catalyst-support-admins` | **Administrator** — identical authorisation profile to `catalyst-administrators` | Yes (line 144) — short-circuits to `AccessContext("administrator", [("*", "*")])` | Platform-wide (same as `catalyst-administrators`) | **Intended use case**: TBD — confirm with platform team. The naming and identical-to-admin authorisation suggest a support-tier elevated escalation role (e.g. a vendor support contact or a temporary break-glass support engineer who needs full administrator authority but should be distinguishable in audit logs from the standing `catalyst-administrators` group). |
+| `catalyst-support-operators` | **None recognised by the API** — group exists in IAM but is not a short-circuit branch in `_access_from_groups` | No — falls through to scoped-group parsing; if no `catalyst-{tenant}--…` scoped membership is also present, the caller resolves to `AccessContext("none", [])` and every endpoint denies | n/a (no API authority on its own) | **Intended use case**: TBD — confirm with platform team. The group is provisioned by bootstrap but currently grants no Catalyst API permission. Plausible intent: a future operator-tier scope (between admin and viewer) that has not yet been wired into the `_access_from_groups` short-circuit; or a holding group whose members must also be added to a scoped group to gain authority. **Operators must not assume membership in this group grants any Catalyst API access today.** |
+| `catalyst-support-viewers` | **Viewer** — identical authorisation profile to `catalyst-viewers` | Yes (line 146) — short-circuits to `AccessContext("viewer", [("*", "*")])` | Platform-wide read (same as `catalyst-viewers`) | **Intended use case**: TBD — confirm with platform team. The naming and identical-to-viewer authorisation suggest a read-only support / triage role (e.g. an L1 support engineer or external auditor) distinguishable from the standing `catalyst-viewers` group in IAM audit logs without granting any write authority. |
+
+**Source of truth.** The canonical authorisation mapping for these three groups lives in `services/catalyst-api/catalyst/rbac.py::_access_from_groups`. If `catalyst-support-operators` is later wired to a role, the change must update that function and this table together.
+
+**Precedence.** Within `_access_from_groups` the support-* short-circuits sit alongside the standing global short-circuits and run before scoped-group parsing. A caller in both `catalyst-support-admins` and `catalyst-tenant--admins` resolves to `administrator` (platform-wide) — the support-* short-circuit wins. Membership in `catalyst-breakglass` or `catalyst-owners` outranks both support-* admin and standing administrator.
+
+**Operator note.** The support-* groups are provisioned at bootstrap; see [`docs/onboarding/platform.md`](../onboarding/platform.md) §Bootstrap scope for the complete list. They are global groups (not per-tenant), so membership currently grants platform-wide visibility/authority subject to the per-group rules above.
+
+---
+
 ### Permission matrix
 
 | Endpoint | Owner | Administrator | Viewer |

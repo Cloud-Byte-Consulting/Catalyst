@@ -40,6 +40,13 @@ table.
 | Pipeline (ongoing) | VPC + subnets + NAT + endpoints, security groups (incl. ALB allowlist), ECR, ECS cluster + ALB + target group, Lambda runtime, DynamoDB platform-state table, optional Network Firewall | `terraform.yml` (PR plan + release apply, single consolidated workflow) → `tf-drift.yml` (daily) |
 | Service deploy | Catalyst API container image build/push + runtime update | `service-cd.yml` |
 
+Recently shipped (release):
+
+- **KMS module + CMK at rest** for DynamoDB, ECR, and CloudWatch log groups — closes the AWS-managed-key gaps from [ADR-016 §CMK strategy](./docs/ADR/ADR-016-cmk-key-strategy.md) (#228 / #234).
+- **ECS Fargate task definition + execution/task roles** wired alongside the Lambda runtime per the runtime switch in [ADR-009](./docs/ADR/ADR-009-runtime-strategy.md) (#62 / #232).
+- **ECS app autoscaling** — CPU + `ALBRequestCountPerTarget` target tracking on the Fargate service (#235).
+- **Aurora Serverless v2 + IAM-auth Postgres** with `GET /deployment-history` endpoint backed by Aurora reads — see [ADR-019](./docs/ADR/ADR-019-aurora-serverless-iam-auth.md) (#229 / #234).
+
 1. Once per account, run the bootstrap script (or trigger
    `bootstrap-smoke.yml` with `run_aws_validation: true, allow_live_changes: true`).
    **New operator? Start here: [`docs/onboarding/`](./docs/onboarding/)** — the three onboarding tracks (platform / organisation / application) per [ADR-012](./docs/ADR/ADR-012-onboarding-experience.md). For the day-0 step-by-step, [`docs/operator-bootstrap.md`](./docs/operator-bootstrap.md) is the canonical sequence (linked from `docs/onboarding/platform.md`).
@@ -75,9 +82,9 @@ uvicorn catalyst.main:app --app-dir services/catalyst-api --reload
 Run tests:
 
 ```bash
-# API service (gate: 85% coverage)
+# API service (gate: 93.83% coverage)
 pip install -r services/catalyst-api/requirements-dev.txt
-pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-branch --cov-fail-under=85
+pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-branch --cov-fail-under=93.83
 
 # CLI client (gate: 80% coverage; live tests opt-in via -m live)
 pip install -r clients/catalyst-cli/requirements-dev.txt
