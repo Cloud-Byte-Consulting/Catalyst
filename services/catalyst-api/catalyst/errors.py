@@ -53,7 +53,7 @@ import logging
 from contextvars import ContextVar
 from typing import Any, Callable, TypeVar
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from tenacity import (
     RetryCallState,
     Retrying,
@@ -239,7 +239,12 @@ def _client_error_code(exc: Exception) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def to_http_exception(exc: Exception, correlation_id: str) -> HTTPException:
+def to_http_exception(
+    exc: Exception,
+    correlation_id: str,
+    *,
+    request: Request | None = None,
+) -> HTTPException:
     """Translate ``exc`` into a uniformly-shaped ``HTTPException``.
 
     The response body always carries ``{error, correlation_id, detail}``.
@@ -257,13 +262,23 @@ def to_http_exception(exc: Exception, correlation_id: str) -> HTTPException:
         The id minted by the per-request dependency (or passed through
         from the ``X-Correlation-ID`` header) — the same id that already
         appears in success-path responses and structured logs.
+    request:
+        Optional FastAPI ``Request`` whose ``state.error_class`` will be
+        set to the chosen error-class name. Used by the
+        ``observability_middleware`` (#60) to tag ``ErrorCount`` with
+        the canonical class name (the same name that appears in the
+        response body's ``error`` field) rather than guessing from the
+        status code alone. Older call sites that don't pass ``request``
+        continue to work unchanged.
     """
 
     # ---- Pass-through: FastAPI / rbac may already have built an HTTPException
     # with a curated detail (e.g. the 401/403/422 paths in rbac.py). We add
     # the correlation_id to the body but leave the status untouched.
     if isinstance(exc, HTTPException):
-        return _wrap_existing_http_exception(exc, correlation_id)
+        wrapped = _wrap_existing_http_exception(exc, correlation_id)
+        _stash_error_class_on_request(request, _name_from_wrapped_detail(wrapped))
+        return wrapped
 
     # ---- Domain exceptions: status_code + default_detail come from the class.
     if isinstance(exc, CatalystAPIError):
@@ -277,6 +292,7 @@ def to_http_exception(exc: Exception, correlation_id: str) -> HTTPException:
                 "context": exc.context,
             },
         )
+        _stash_error_class_on_request(request, type(exc).__name__)
         return HTTPException(
             status_code=exc.status_code,
             detail={
@@ -304,6 +320,7 @@ def to_http_exception(exc: Exception, correlation_id: str) -> HTTPException:
                 "raw": str(exc)[:1000],
             },
         )
+        _stash_error_class_on_request(request, target_class.__name__)
         return HTTPException(
             status_code=target_class.status_code,
             detail={
@@ -321,6 +338,7 @@ def to_http_exception(exc: Exception, correlation_id: str) -> HTTPException:
             "correlation_id": correlation_id,
         },
     )
+    _stash_error_class_on_request(request, "InternalServerError")
     return HTTPException(
         status_code=500,
         detail={
@@ -329,6 +347,54 @@ def to_http_exception(exc: Exception, correlation_id: str) -> HTTPException:
             "detail": "internal_error",
         },
     )
+
+
+def _stash_error_class_on_request(request: Request | None, name: str) -> None:
+    """Set ``request.state.error_class`` so the observability middleware
+    can tag ``ErrorCount`` with the canonical name.
+
+    If ``request`` is ``None`` we fall back to the ``request_var``
+    contextvar set by ``observability_middleware`` — that way handlers
+    that raise ``to_http_exception(...)`` WITHOUT plumbing the request
+    through (every existing call site in :mod:`catalyst.main`) still
+    populate ``error_class`` correctly. Tolerates a missing ``state``
+    attribute defensively so a failure here can't break the error path.
+    """
+
+    if request is None:
+        try:
+            from .observability import request_var  # local import to avoid cycles
+
+            request = request_var.get()
+        except Exception:  # noqa: BLE001 - defensive; never fail error translation
+            request = None
+
+    if request is None:
+        return
+    state = getattr(request, "state", None)
+    if state is None:
+        return
+    try:
+        setattr(state, "error_class", name)
+    except Exception:  # noqa: BLE001 - defensive; never fail error translation
+        pass
+
+
+def _name_from_wrapped_detail(wrapped: HTTPException) -> str:
+    """Extract the ``error`` field from a wrapped HTTPException's detail.
+
+    Used to populate ``request.state.error_class`` on the
+    pass-through-existing-HTTPException branch. Falls back to a
+    status-code-derived name when the detail is not in the canonical
+    ``{error, correlation_id, detail}`` shape.
+    """
+
+    detail = wrapped.detail
+    if isinstance(detail, dict):
+        name = detail.get("error")
+        if isinstance(name, str):
+            return name
+    return _http_status_to_error_name(wrapped.status_code)
 
 
 def _wrap_existing_http_exception(
@@ -469,7 +535,7 @@ def is_retryable_aws_error(exc: BaseException) -> bool:
 
 
 def _log_retry_attempt(retry_state: RetryCallState) -> None:
-    """``before_sleep`` hook: emit a structured log line per retry.
+    """``before_sleep`` hook: emit a structured log line + custom metric.
 
     Fields required by the #205 Decision Log:
 
@@ -482,22 +548,39 @@ def _log_retry_attempt(retry_state: RetryCallState) -> None:
           we're about to retry after).
         * ``error_code`` — the AWS error code that triggered the retry.
 
+    Per #60, this hook ALSO emits ``Catalyst/API:RetryAttempt`` so the
+    retry pressure is alarmable from CloudWatch — a transient
+    ThrottlingException that successfully retries shows up as a real
+    retry attempt instead of being invisible at the metric layer.
+
     Failure inside this hook is swallowed — observability MUST NOT mask
-    a genuine retry.
+    a genuine retry. ``MetricsEmitter._put`` already swallows internally
+    so a CloudWatch outage cannot break the retry path either.
     """
 
     outcome = retry_state.outcome
     exc = outcome.exception() if outcome is not None else None
     code = _client_error_code(exc) if exc is not None else None
+    endpoint = retry_endpoint.get()
     logger.warning(
         "aws_retry_attempt",
         extra={
-            "endpoint": retry_endpoint.get(),
+            "endpoint": endpoint,
             "correlation_id": retry_correlation_id.get(),
             "attempt": retry_state.attempt_number,
             "error_code": code,
         },
     )
+    # #60 — emit the RetryAttempt metric in the same hook. Lazy-import the
+    # observability module so the circular dependency between
+    # ``errors`` (which observability imports) and ``observability``
+    # (which we'd import here) stays one-directional at import time.
+    try:
+        from .observability import metrics  # local import: avoid cycle at module load
+
+        metrics.retry_attempt(endpoint or "unknown", code or "Unknown")
+    except Exception:  # noqa: BLE001 - observability MUST NOT mask the retry path
+        pass
 
 
 def with_aws_retry() -> Callable[[F], F]:

@@ -65,6 +65,14 @@ correlation_id_var: ContextVar[str | None] = ContextVar(
 caller_arn_var: ContextVar[str | None] = ContextVar("caller_arn_var", default=None)
 tenant_var: ContextVar[str | None] = ContextVar("tenant_var", default=None)
 
+#: The current FastAPI Request object for the in-flight request. Set by
+#: ``observability_middleware`` so :func:`catalyst.errors.to_http_exception`
+#: can stash the chosen error-class on ``request.state.error_class``
+#: without every call site having to pass the request through. This is
+#: a transient seam — the middleware sets/resets it around every
+#: request — so leaking across requests is not a concern.
+request_var: ContextVar[Any | None] = ContextVar("request_var", default=None)
+
 
 # ---------------------------------------------------------------------------
 # Structured JSON logging.
