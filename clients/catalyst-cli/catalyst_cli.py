@@ -277,6 +277,53 @@ def orgs_applications_create_command(
     return _call("POST", f"/orgs/{tenant}/applications", json_body=body)
 
 
+# ---------------------------------------------------------------------------
+# Product-catalog commands (#103 — CAT-3 self-deploy).
+#
+# Wraps the new /products/catalog/* endpoints introduced in the
+# Catalyst-as-a-Product flow. The catalog ID space is the platform-shipped
+# products dict in services/catalyst-api/catalyst/products.py; the deploy
+# command exercises the SAME onboard.provision_app pipeline that
+# `catalyst services onboard ...` uses, just wrapped in a product
+# layer so the operator can `catalyst products deploy catalyst-api ...`
+# without remembering the Tier-2 endpoint shape.
+# ---------------------------------------------------------------------------
+
+
+def products_list_command() -> dict:
+    """GET /products/catalog — list platform-shipped products."""
+    return _call("GET", "/products/catalog")
+
+
+def products_get_command(product_id: str) -> dict:
+    """GET /products/catalog/{product_id} — fetch one catalog entry."""
+    if not product_id:
+        raise SystemExit("product_id is required")
+    return _call("GET", f"/products/catalog/{product_id}")
+
+
+def products_deploy_command(
+    product_id: str,
+    construct: str,
+    idempotency_key: str | None = None,
+) -> dict:
+    """POST /products/catalog/{product_id}/deploy — deploy a catalog product.
+
+    ``construct`` is the standard ``tenant/env/lz/project/app`` address
+    (validated client-side by :data:`CONSTRUCT_RE`). The optional
+    ``idempotency_key`` is keyed against ``(product_id, construct, key)``
+    server-side so reusing the same key against a DIFFERENT product
+    doesn't collide.
+    """
+    if not product_id:
+        raise SystemExit("product_id is required")
+    _validate_construct(construct)
+    body: dict[str, Any] = {"construct_address": construct}
+    if idempotency_key:
+        body["idempotency_key"] = idempotency_key
+    return _call("POST", f"/products/catalog/{product_id}/deploy", json_body=body)
+
+
 class CatalystCommandsLoader(CLICommandsLoader):
     def load_command_table(self, args):
         with CommandGroup(self, "health", "__main__#{}") as g:
@@ -298,6 +345,10 @@ class CatalystCommandsLoader(CLICommandsLoader):
             g.command("create", "orgs_ous_create_command")
         with CommandGroup(self, "orgs applications", "__main__#{}") as g:
             g.command("create", "orgs_applications_create_command")
+        with CommandGroup(self, "products", "__main__#{}") as g:
+            g.command("list", "products_list_command")
+            g.command("get", "products_get_command")
+            g.command("deploy", "products_deploy_command")
         return OrderedDict(self.command_table)
 
     def load_arguments(self, command):
@@ -315,6 +366,9 @@ def cli_main(argv: list[str] | None = None) -> int:
     sys.modules["__main__"].orgs_environments_create_command = orgs_environments_create_command
     sys.modules["__main__"].orgs_ous_create_command = orgs_ous_create_command
     sys.modules["__main__"].orgs_applications_create_command = orgs_applications_create_command
+    sys.modules["__main__"].products_list_command = products_list_command
+    sys.modules["__main__"].products_get_command = products_get_command
+    sys.modules["__main__"].products_deploy_command = products_deploy_command
     cli = CLI(cli_name="catalyst", commands_loader_cls=CatalystCommandsLoader)
     return cli.invoke(argv if argv is not None else sys.argv[1:])
 
