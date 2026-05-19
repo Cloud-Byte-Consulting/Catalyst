@@ -120,13 +120,64 @@ variable "kms_admin_role_arn" {
 }
 
 # ---------------------------------------------------------------------------
+# SVC-8 (#62) — ADR-009 ECS alternate-runtime wiring.
+#
+# All variables in this block are OPT-IN and only consulted when
+# enable_ecs_runtime = true. Lambda-only consumers can ignore them.
+# ---------------------------------------------------------------------------
+
+variable "enable_ecs_runtime" {
+  description = "Opt-in toggle for the ADR-009 ECS Fargate runtime. When true, the composite instantiates modules/ecs-alb with enable_task_definition = true and provisions the catalyst-api task definition + execution role + task role. Default false keeps Lambda (the ADR-009 default) as the only runtime."
+  type        = bool
+  default     = false
+}
+
+variable "ecs_vpc_id" {
+  description = "VPC ID for the ECS ALB + cluster. Required when enable_ecs_runtime = true."
+  type        = string
+  default     = ""
+}
+
+variable "ecs_public_subnet_ids" {
+  description = "Public subnet IDs for the ALB fronting the ECS service. Required when enable_ecs_runtime = true."
+  type        = list(string)
+  default     = []
+}
+
+variable "ecs_alb_security_group_id" {
+  description = "Security group attached to the ALB fronting the ECS service. Required when enable_ecs_runtime = true."
+  type        = string
+  default     = ""
+}
+
+variable "ecs_container_image_uri" {
+  description = "Fully-qualified ECR image URI (sha-tagged) for the catalyst-api container running on Fargate. Required when enable_ecs_runtime = true."
+  type        = string
+  default     = ""
+}
+
+variable "ecs_log_level" {
+  description = "Value for the container CATALYST_LOG_LEVEL env var when ECS runtime is enabled."
+  type        = string
+  default     = "INFO"
+}
+
+variable "ecs_container_extra_env" {
+  description = "Additional env vars merged into the catalyst-api container definition on top of the SVC-8 defaults."
+  type = list(object({
+    name  = string
+    value = string
+  }))
+  default = []
+}
+
+# ---------------------------------------------------------------------------
 # Aurora Serverless v2 — opt-in inputs (ADR-019 / issue #229).
 #
 # All inputs default to "off / empty" so the composite remains
 # backward-compatible: an existing caller that doesn't set
 # `enable_aurora_serverless = true` provisions zero RDS resources.
-# Pattern mirrors the `enable_ecs_runtime` / `enable_ecs_autoscaling`
-# gating established by #62 / #230.
+# Pattern mirrors the `enable_ecs_runtime` gating established by #62.
 # ---------------------------------------------------------------------------
 
 variable "enable_aurora_serverless" {

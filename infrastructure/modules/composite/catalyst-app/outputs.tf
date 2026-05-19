@@ -29,6 +29,30 @@ output "construct_address" {
 }
 
 # ---------------------------------------------------------------------------
+# SVC-8 (#62) — ADR-009 ECS alternate-runtime outputs.
+#
+# Null when enable_ecs_runtime = false (the Lambda-default path). Wired
+# here so downstream consumers (CD pipeline, runbooks, observability) can
+# discover the task definition + role ARNs without round-tripping through
+# SSM.
+# ---------------------------------------------------------------------------
+
+output "ecs_task_definition_arn" {
+  description = "ARN of the catalyst-api Fargate task definition. Null when enable_ecs_runtime = false."
+  value       = try(module.ecs_runtime[0].task_definition_arn, null)
+}
+
+output "ecs_execution_role_arn" {
+  description = "ARN of the ECS task execution role (image pull + log write + secrets read). Null when enable_ecs_runtime = false."
+  value       = try(module.ecs_runtime[0].ecs_execution_role_arn, null)
+}
+
+output "ecs_task_role_arn" {
+  description = "ARN of the ECS task role (DynamoDB + SSM + CloudWatch metrics). Null when enable_ecs_runtime = false."
+  value       = try(module.ecs_runtime[0].ecs_task_role_arn, null)
+}
+
+# ---------------------------------------------------------------------------
 # Aurora Serverless v2 outputs (ADR-019 / issue #229).
 #
 # All null when `var.enable_aurora_serverless = false` so existing

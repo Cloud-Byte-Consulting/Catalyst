@@ -26,6 +26,93 @@ variable "target_group_type" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# SVC-8 (#62) — variables that gate the ECS task definition + roles surface.
+# Default `enable_task_definition = false` so a Lambda-only apply (the
+# default runtime per ADR-009) does not provision unused IAM resources.
+# Operators flip this to true when RUNTIME=ecs is selected.
+# ---------------------------------------------------------------------------
+
+variable "enable_task_definition" {
+  type        = bool
+  default     = false
+  description = "When true, provisions the ECS Fargate task definition + execution role + task role for the catalyst-api container (ADR-009 alternate runtime). Default false keeps Lambda-only deployments lean."
+}
+
+variable "container_image_uri" {
+  type        = string
+  default     = ""
+  description = "Fully-qualified ECR image URI for the catalyst-api container (e.g. 123456789012.dkr.ecr.us-west-2.amazonaws.com/catalyst-api:sha-abcdef). Required when enable_task_definition = true; ignored otherwise."
+}
+
+variable "ecr_repository_name" {
+  type        = string
+  default     = "catalyst-api"
+  description = "Name of the ECR repository the execution role is scoped to pull from. Matches modules/ecr var.name."
+}
+
+variable "log_group_name" {
+  type        = string
+  default     = "/aws/catalyst/api"
+  description = "CloudWatch log group the awslogs driver streams container output to; also the only log group the execution role can write to."
+}
+
+variable "dynamodb_table_name" {
+  type        = string
+  default     = "catalyst-platform-state"
+  description = "DynamoDB table the task role is scoped to read + write. Matches modules/dynamodb var.name (the platform-state table)."
+}
+
+variable "task_cpu" {
+  type        = string
+  default     = "512"
+  description = "Fargate task vCPU units. Defaults to 0.5 vCPU — sufficient for the low-RPS FastAPI workload per ADR-009 §Context."
+}
+
+variable "task_memory" {
+  type        = string
+  default     = "1024"
+  description = "Fargate task memory in MiB. 1024 MiB matches the Lambda function's default reservation."
+}
+
+variable "container_port" {
+  type        = number
+  default     = 8080
+  description = "TCP port uvicorn binds inside the container. The ALB target group (target_type = ip) forwards to this port."
+}
+
+variable "catalyst_log_level" {
+  type        = string
+  default     = "INFO"
+  description = "Value for the CATALYST_LOG_LEVEL container env var."
+}
+
+variable "container_extra_env" {
+  type = list(object({
+    name  = string
+    value = string
+  }))
+  default     = []
+  description = "Additional env vars to merge into the container definition on top of the SVC-8 defaults (CATALYST_LOG_LEVEL, AWS_REGION, DYNAMODB_TABLE_NAME)."
+}
+
+variable "aws_account_id" {
+  type        = string
+  default     = ""
+  description = "12-digit AWS account ID to construct IAM resource ARNs against. Defaults to data.aws_caller_identity at apply time; pass an explicit value to avoid STS round-trips during `terraform test` or in air-gapped plans."
+
+  validation {
+    condition     = var.aws_account_id == "" || can(regex("^[0-9]{12}$", var.aws_account_id))
+    error_message = "aws_account_id must be empty or a 12-digit AWS account number."
+  }
+}
+
+variable "aws_region" {
+  type        = string
+  default     = ""
+  description = "AWS region to construct IAM resource ARNs against. Defaults to data.aws_region at apply time; pass an explicit value to avoid an API round-trip during `terraform test`."
+}
+
 resource "aws_ecs_cluster" "this" {
   name = "${var.name_prefix}-cluster"
 

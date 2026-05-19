@@ -247,19 +247,48 @@ resource "aws_dynamodb_table_item" "catalog" {
 }
 
 # ---------------------------------------------------------------------------
+# SVC-8 (#62) — ADR-009 ECS alternate-runtime wiring (additive, opt-in).
+#
+# When var.enable_ecs_runtime = true the composite instantiates the shared
+# modules/ecs-alb in task-definition mode, producing:
+#   - aws_ecs_task_definition (catalyst-api, Fargate, awsvpc)
+#   - aws_iam_role.ecs_execution (ECR pull + logs + secrets, scoped)
+#   - aws_iam_role.ecs_task      (DynamoDB + SSM + CloudWatch metrics)
+#
+# Gated by count so Lambda-only deployments (the ADR-009 default) are
+# unchanged. ECS autoscaling (#230) and CMK migration (#228) are wired in
+# their own opt-in blocks below.
+# ---------------------------------------------------------------------------
+
+module "ecs_runtime" {
+  count  = var.enable_ecs_runtime ? 1 : 0
+  source = "../../ecs-alb"
+
+  name_prefix           = local.resource_name
+  vpc_id                = var.ecs_vpc_id
+  public_subnet_ids     = var.ecs_public_subnet_ids
+  alb_security_group_id = var.ecs_alb_security_group_id
+  target_group_type     = "ip"
+
+  enable_task_definition = true
+  container_image_uri    = var.ecs_container_image_uri
+  ecr_repository_name    = aws_ecr_repository.app.name
+  log_group_name         = aws_cloudwatch_log_group.app.name
+  dynamodb_table_name    = var.catalog_table_name
+  catalyst_log_level     = var.ecs_log_level
+  container_extra_env    = var.ecs_container_extra_env
+}
+
+# ---------------------------------------------------------------------------
 # Aurora Serverless v2 (ADR-019 / issue #229) — OPT-IN.
 #
 # Provisioned only when `var.enable_aurora_serverless = true`. Pattern
-# mirrors the gated `enable_ecs_runtime` block from #62 / #230 — callers
+# mirrors the gated `enable_ecs_runtime` block from #62 — callers
 # that don't need RDS keep DynamoDB-only persistence and pay zero cost.
 #
 # Resource encryption uses the per-app `module.kms.data_key_arn`
 # (catalyst_data_key from ADR-016) so a single key revocation blackholes
 # the entire app's data plane (DynamoDB + Aurora).
-#
-# CONFLICT-AVOIDANCE NOTE: this block is APPENDED after the existing
-# resources to minimise diff against the parallel #62 / #230 work that
-# touches the same file (per the same convention used by #228).
 # ---------------------------------------------------------------------------
 
 data "aws_caller_identity" "aurora_consumer" {
