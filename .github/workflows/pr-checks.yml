@@ -287,8 +287,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install pytest
-        run: pip install pytest
+      - name: Install pytest + catalyst-api + catalyst-cli requirements
+        # The e2e tests import actual catalyst-api modules (fastapi, pydantic, etc.)
+        # and the CLI bits. Install both component requirements files before pytest.
+        # Pre-#207 the suite was empty so `pip install pytest` alone was sufficient;
+        # once tests landed they actually exercise the imports — surfaced as a
+        # ModuleNotFoundError on the first code-touching PR after #211. See #222.
+        run: |
+          pip install pytest
+          pip install -r services/catalyst-api/requirements.txt
+          pip install -r clients/catalyst-cli/requirements.txt
       - name: Run e2e fast suite
         # exit 5 = "no tests collected" — pre-#207 the tests/e2e/ directory
         # may not exist yet. Treat that as a no-op pass; #207 fills the suite.
