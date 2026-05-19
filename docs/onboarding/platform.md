@@ -81,6 +81,23 @@ See [`docs/cost-model.md`](../cost-model.md) for the per-tier dollar table and t
 
 Adding **new platform-wide AWS resource types** is always a Terraform PR — never an extension to the bootstrap script.
 
+### Why bootstrap is a separate script (chicken-egg)
+
+`terraform init` cannot wire up the S3 backend until the state bucket + lock table already exist, so the bucket that backs Terraform state cannot be safely created by the same configuration that consumes it. The bootstrap script therefore provisions the state bucket and lock table out-of-band, plus the shared API-data bucket so the first `terraform apply` doesn't fail on a missing data dependency. Re-running is idempotent, so the script doubles as the rotation path for the bootstrap-admin trust policy.
+
+```mermaid
+sequenceDiagram
+    actor Op as Operator
+    participant Boot as bootstrap-aws-account.sh
+    participant TF as terraform
+    Op->>Boot: run once (AWS creds)
+    Boot-->>Op: state bucket + lock table + API-data bucket
+    Op->>TF: init -backend-config="bucket=..."
+    Op->>TF: apply (Phase 1)
+```
+
+See [`scripts/bootstrap-aws-account.sh`](../../scripts/bootstrap-aws-account.sh) for the provisioning logic and [ADR-015 §Backend-config generation strategy](../ADR/ADR-015-terraform-state-partitioning.md#backend-config-generation-strategy) for the per-tier `-backend-config` key naming convention.
+
 ## Narrowing the bootstrap-admin principal
 
 **Why this matters.** [ADR-012](../ADR/ADR-012-onboarding-experience.md) §Consequences tolerates day-0 `account:root` for `BOOTSTRAP_ADMIN_PRINCIPAL_ARN` but requires it to be narrowed immediately after bootstrap. [ADR-008](../ADR/ADR-008-catalyst-api-rbac.md) defines the RBAC group/policy model the replacement principal must follow. Leaving `BOOTSTRAP_ADMIN_PRINCIPAL_ARN=arn:aws:iam::{account}:root` in place after day-0 means any compromise of root credentials is also a compromise of the Catalyst RBAC plane. `scripts/bootstrap-aws-account.sh` will emit a `[WARN]` (non-blocking) when it detects an `account:root` principal so operators can't silently ship that posture into production.
