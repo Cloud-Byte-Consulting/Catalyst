@@ -51,7 +51,7 @@ This variable is **declared in this README only**. It is not added to
 `infrastructure/variables.tf` until there is a consumer — declaring an unused
 variable would trip `tflint`'s `terraform_unused_declarations` rule.
 
-The corresponding AWS slot is `var.enable_wa_iac_analyzer` (ADR-023).
+The corresponding AWS slot is `var.enable_wa_aws_iac_analyzer` (ADR-023).
 
 Future construct-address labels (also reserved by the spike):
 
