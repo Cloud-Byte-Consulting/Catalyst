@@ -27,10 +27,6 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Caller identity is kept at the root for future wiring that needs the
-# deploying account id without taking another aws sts call.
-data "aws_caller_identity" "current" {}
-
 module "network" {
   source               = "./modules/network"
   name_prefix          = var.name_prefix
