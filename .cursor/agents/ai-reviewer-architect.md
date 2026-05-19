@@ -1,3 +1,4 @@
+<!-- AUTO-GENERATED from agents/ai-reviewer-architect.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
 ---
 name: ai-reviewer-architect
 description: >-

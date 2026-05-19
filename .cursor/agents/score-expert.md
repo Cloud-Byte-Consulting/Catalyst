@@ -1,3 +1,4 @@
+<!-- AUTO-GENERATED from agents/score-expert.md — do not edit here. Run scripts/sync_tool_skills.py to regenerate. -->
 ---
 name: score-expert
 description: >-
