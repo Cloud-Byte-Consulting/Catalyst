@@ -331,3 +331,92 @@ def test_call_returns_json_for_2xx(monkeypatch):
     monkeypatch.setattr(catalyst_cli.requests, "request", lambda *a, **kw: _R())
     result = catalyst_cli._call("GET", "/health")
     assert result == {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Product-catalog commands (#103 — CAT-3 self-deploy)
+# ---------------------------------------------------------------------------
+
+
+def test_products_list_calls_catalog_endpoint(fake_call):
+    calls, response_map = fake_call
+    response_map[("GET", "/products/catalog")] = {
+        "products": [{"product_id": "catalyst-api", "name": "Catalyst API"}],
+    }
+    payload = catalyst_cli.products_list_command()
+    assert calls == [("GET", "/products/catalog", None)]
+    assert payload["products"][0]["product_id"] == "catalyst-api"
+
+
+def test_products_get_calls_catalog_endpoint(fake_call):
+    calls, response_map = fake_call
+    response_map[("GET", "/products/catalog/catalyst-api")] = {
+        "product": {"product_id": "catalyst-api", "service_type": "web-service"},
+    }
+    payload = catalyst_cli.products_get_command("catalyst-api")
+    assert calls == [("GET", "/products/catalog/catalyst-api", None)]
+    assert payload["product"]["product_id"] == "catalyst-api"
+
+
+def test_products_get_rejects_empty_id(fake_call):
+    calls, _ = fake_call
+    with pytest.raises(SystemExit) as exc:
+        catalyst_cli.products_get_command("")
+    assert "product_id is required" in str(exc.value)
+    assert calls == []
+
+
+def test_products_deploy_posts_body(fake_call):
+    calls, _ = fake_call
+    construct = "acme/dev/shared/catalyst-meta/v2"
+    catalyst_cli.products_deploy_command(
+        product_id="catalyst-api",
+        construct=construct,
+        idempotency_key="deploy-001",
+    )
+    assert calls == [
+        (
+            "POST",
+            "/products/catalog/catalyst-api/deploy",
+            {"construct_address": construct, "idempotency_key": "deploy-001"},
+        )
+    ]
+
+
+def test_products_deploy_without_idempotency_key(fake_call):
+    """idempotency_key is optional — the field is omitted when not supplied."""
+
+    calls, _ = fake_call
+    construct = "acme/dev/shared/catalyst-meta/v2"
+    catalyst_cli.products_deploy_command(
+        product_id="catalyst-api", construct=construct
+    )
+    assert calls == [
+        (
+            "POST",
+            "/products/catalog/catalyst-api/deploy",
+            {"construct_address": construct},
+        )
+    ]
+
+
+def test_products_deploy_rejects_empty_product_id(fake_call):
+    calls, _ = fake_call
+    with pytest.raises(SystemExit) as exc:
+        catalyst_cli.products_deploy_command(
+            product_id="", construct="acme/dev/shared/catalyst-meta/v2"
+        )
+    assert "product_id is required" in str(exc.value)
+    assert calls == []
+
+
+def test_products_deploy_validates_construct(fake_call):
+    """Bad construct address fails client-side before hitting HTTP."""
+
+    calls, _ = fake_call
+    with pytest.raises(SystemExit) as exc:
+        catalyst_cli.products_deploy_command(
+            product_id="catalyst-api", construct="bad-address"
+        )
+    assert "invalid construct address" in str(exc.value)
+    assert calls == []
