@@ -323,6 +323,8 @@ The skill always:
 
 ## Worked example — PR #186 (this session, 2026-05-18)
 
+> **Note**: this worked example predates §2.5 (skeptic pass). It documents a STALE-only triage, and STALE is on §2.5's *When to skip* list — so the skeptic step would not fire on this triage even today. A future worked example showing the skeptic catching an over-eager ACCEPT or punted DEFERRED-ARCH will be added once §2.5 actually fires in production triage.
+
 A real run of this skill, abbreviated:
 
 1. Discovery: 1 unresolved thread (Copilot, `test_rbac_parser.py` — dead `if False else` ternary). Marked `isOutdated: true` because commit `906420c` had already removed the ternary.
