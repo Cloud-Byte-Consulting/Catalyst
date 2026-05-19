@@ -146,6 +146,40 @@ Every invocation emits:
 
 The L4 state lives at the path printed in the `state_key` response field; the Lambda execution role has read/write IAM scoped to that key prefix only.
 
+### Service observability (SVC-6 / #60)
+
+Independent of the onboard-specific trip-wire above, every request through the Catalyst API (this onboard endpoint included) also emits the generic per-request observability surface introduced by [#60](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/60):
+
+| Metric | Namespace | Dimensions | Unit | Fired by |
+|---|---|---|---|---|
+| `RequestCount` | `Catalyst/API` | `Endpoint`, `Method`, `StatusCode` | Count | Every response |
+| `RequestDuration` | `Catalyst/API` | `Endpoint`, `Method` | Milliseconds | Every response |
+| `ErrorCount` | `Catalyst/API` | `Endpoint`, `Method`, `ErrorClass` | Count | `status_code >= 400` |
+| `RetryAttempt` | `Catalyst/API` | `Endpoint`, `ErrorCode` | Count | `with_aws_retry` before-sleep hook |
+
+`Endpoint` is the cardinality-bounded route template (e.g. `/services/{addr}` rather than the literal slug-bearing URL) so dimension cardinality stays sane under arbitrary tenant counts. `ErrorClass` carries the same canonical class name that appears in the response body's `error` field (`ValidationFailure`, `ResourceNotFound`, `AWSTransientFailure`, etc.) — one alarm key, two surfaces.
+
+Every log line is a single JSON object on stdout — drained by the Lambda runtime into CloudWatch Logs. Required fields: `timestamp`, `level`, `event`, `endpoint`, `correlation_id`, `caller_arn`, `tenant`. Sample CloudWatch Logs Insights queries:
+
+```
+# All errors for a single correlation id (cross-handler trace)
+fields @timestamp, level, event, endpoint, error_class, detail
+| filter correlation_id = "<the-id-from-X-Correlation-ID>"
+| sort @timestamp asc
+
+# Top error classes by endpoint in the last hour
+filter level = "ERROR"
+| stats count(*) as errors by endpoint, error_class
+| sort errors desc
+
+# p99 wall-clock per endpoint
+filter event = "request_complete"
+| stats pct(duration_ms, 99) as p99_ms by endpoint
+| sort p99_ms desc
+```
+
+Alarms and dashboards keyed off these four metrics are tracked separately under [#63](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/63) (SVC-9). Until #63 lands no alarm fires on these metrics — the emission contract is in place so #63 can author alarms against the locked names without any further service-side change.
+
 ## Post-onboard lifecycle
 
 Once onboard succeeds, the construct address unlocks three additional Tier 2 operations:
