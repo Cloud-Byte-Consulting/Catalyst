@@ -27,6 +27,8 @@ Conversation-only comments ("looks good") need no disposition.
 
 ## Workflow
 
+The triage runs as nine steps. Steps 1-2 establish facts; step 2.5 challenges the facts; steps 3-9 act on what survives.
+
 ### 1. Discover
 
 Get every unresolved review thread + every top-level issue comment, with author + path + line + body. The GraphQL `reviewThreads` query is the only reliable source for thread IDs needed by the resolve mutation.
@@ -69,6 +71,88 @@ For each unresolved thread, decide the verdict. Use these signal phrases as flag
 - Anything that questions the PR's *premise* rather than its *execution*
 
 A comment that points at a *concrete line* with a *specific change* is almost always ACCEPT or REJECT, not DEFERRED-ARCH. Don't escalate to the human what the agent can settle.
+
+### 2.5. Skeptic pass — second opinion on ACCEPTs and DEFERRED-ARCHes
+
+After classifying but **before** acting, run a skeptic pass on each ACCEPT and DEFERRED-ARCH disposition. The skeptic is a fresh sub-agent (`Agent` tool, `subagent_type: general-purpose`) that doesn't see the triage agent's reasoning — only the raw inputs — and either CONFIRMs the classification or CHALLENGEs it.
+
+The skeptic catches two recurring failure modes:
+
+1. **Over-eager ACCEPTs** — the triage agent agrees with the reviewer too readily, applies a fix that papers over a deeper issue or that wasn't actually needed.
+2. **Punted DEFERRED-ARCHes** — the triage agent escalates to the human something the agent could have settled with one more lookup.
+
+The skeptic is NOT invoked on REJECT or STALE — those verdicts are factual claims (reviewer misread the code; commit already addressed it) that are cheap to verify in the reply text. Spawning a skeptic for them is wasted context.
+
+#### 2.5a — Skeptic prompt for ACCEPTs
+
+Spawn one sub-agent per ACCEPT thread (or batch when threads share a file and a theme — see below). Prompt template:
+
+```
+You are the skeptic for /pr-review-triage. Read the reviewer's comment and the planned fix critically. Either CONFIRM (and explain in one sentence why the fix is right and minimal) or CHALLENGE (and explain why + suggest the better disposition).
+
+Reviewer comment:
+<full comment body>
+
+File: <path>:<line>
+Current code (5 lines of context):
+<git show ${PR_BRANCH}:${path} | sed -n '${line-2},${line+2}p'>
+
+Planned fix (your view of what the triage agent intends to write):
+<short description + diff sketch>
+
+Answer one of:
+- CONFIRM — one sentence rationale.
+- CHALLENGE — why the fix is wrong / over-broad / papering over deeper issue, AND the better verdict (REJECT, DEFERRED-ARCH, or a different ACCEPT-fix). Cite specific evidence (line numbers, ADR sections, test cases).
+
+Bias toward CHALLENGE when the fix changes behavior beyond what the reviewer asked for, or when the reviewer's premise is actually questionable.
+```
+
+If the skeptic CONFIRMs: proceed to §3 (apply fix). If it CHALLENGEs: re-classify and reply on the thread with the new verdict + reference the skeptic's reasoning in the disposition body.
+
+**Batch when possible**: if three ACCEPTs all touch the same file with the same kind of fix (e.g. three "remove `iam:*`" findings), spawn one skeptic per file, not per thread. Same context, one cost.
+
+#### 2.5b — Skeptic prompt for DEFERRED-ARCHes
+
+DEFERRED-ARCH is expensive — every escalation costs the human time and decision-cycles. The agent should settle anything decidable. The skeptic pushes back specifically on the escalation premise:
+
+```
+You are the skeptic for /pr-review-triage. The triage agent classified this comment as DEFERRED-ARCH (escalating to human review). Your job: push back. Is this really a design question the agent can't settle?
+
+Reviewer comment:
+<full comment body>
+
+File: <path>:<line>
+Triage agent's reasoning for escalation:
+<short rationale>
+
+Linked ADR/spec the agent cited (if any):
+<link + relevant ADR section excerpt>
+
+Answer one of:
+- CONFIRM-ESCALATION — explain why no agent-resolvable answer exists. The reviewer is asking about a genuinely undetermined design choice (one not covered by existing ADRs / specs / past decisions).
+- CAN-SETTLE — propose the concrete next action that resolves this without human input. Common patterns:
+  * "Read ADR-N §X — the answer is there."
+  * "The pattern in module Y already establishes the convention."
+  * "Pick the option that matches the most recently shipped PR (#NNN)."
+  * "Reply with the agent's preference + rationale; mark as ACCEPT-with-justification."
+
+Bias toward CAN-SETTLE. The agent should escalate ONLY when escalation is the cheapest correct action — not when the agent is hedging.
+```
+
+If CONFIRM-ESCALATION: proceed to §4 (reply with DEFERRED-ARCH; leave unresolved). If CAN-SETTLE: re-classify (usually to ACCEPT) and proceed accordingly.
+
+#### Skeptic-pass mechanics
+
+- The skeptic sub-agent is spawned via the `Agent` tool with `subagent_type: general-purpose` (no `isolation: worktree` — it's read-only)
+- One sub-agent per thread (or per-batch when threads share a file + theme)
+- Report-back: under 100 words per thread. CONFIRM / CHALLENGE / CONFIRM-ESCALATION / CAN-SETTLE verdict + one-paragraph rationale + (for CHALLENGEs / CAN-SETTLEs) the concrete next action
+- The triage agent integrates the skeptic's response into its own disposition reply when relevant — quote one sentence from the skeptic to show the second-pair-of-eyes was real
+
+#### When to skip the skeptic
+
+- Pure-STALE pass (every unresolved thread is outdated) — nothing to second-guess
+- Threads that have been triaged before in the same session and the disposition is unchanged — re-running is redundant
+- One-line typo/spelling fixes where the cost of the skeptic outweighs the value of the second opinion (judgment call — if the fix is < 3 chars changed, skip)
 
 ### 3. Apply fixes (ACCEPT cases)
 
@@ -214,12 +298,14 @@ The skill always:
 |---|---|
 | Replying "I'll consider this" | No — decide now. Every comment gets a verdict. |
 | Bulk-resolving without per-thread replies | Each thread gets its own reply. The audit trail is the value. |
-| Escalating concrete fixes to DEFERRED-ARCH | Read again. If the reviewer points at a specific line with a specific change, it's not architectural. |
+| Escalating concrete fixes to DEFERRED-ARCH | Read again. If the reviewer points at a specific line with a specific change, it's not architectural. The §2.5b skeptic catches this. |
+| Skipping the skeptic pass to save time | The skeptic catches over-eager ACCEPTs and punted DEFERRED-ARCHes — both are *more* expensive to recover from than the skeptic cost. Skip only the cases in §2.5's "When to skip" list. |
 | Auto-merging after the summary | Never. Stop at "ready for human merge call". |
 | Reaching for fancy GraphQL for everything | Use REST (`pulls/{N}/comments/{C}/replies`) for line-comment replies. Use GraphQL only for `reviewThreads` discovery and `resolveReviewThread` mutation. |
 | Filing a follow-up issue every time you REJECT | Only if the REJECT identifies a real problem that belongs in *another* PR. "Out of scope" alone doesn't mean "file an issue". |
 | Skipping the summary comment | The summary is what lets the human approve at a glance. Always post it. |
 | Amending a pushed commit | Make a new commit. The PR's commit history is part of the review record. |
+| Letting the skeptic relitigate after CHALLENGE | The skeptic's verdict is final for the current pass. If the triage agent disagrees with the skeptic, log it in the disposition reply ("Skeptic challenged with X; triage agent stands by Y because Z") — but don't loop. The human can adjudicate at merge time. |
 
 ## Edge cases
 
