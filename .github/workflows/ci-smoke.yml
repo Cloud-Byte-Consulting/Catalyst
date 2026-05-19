@@ -7,6 +7,20 @@ on:
       - .github/scripts/**
       - .github/actions/**
   workflow_dispatch:
+    inputs:
+      run_e2e_live:
+        description: 'Run the e2e regression suite against a live ALB (#207)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      catalyst_api_endpoint:
+        description: 'ALB endpoint for live e2e (e.g. http://catalyst-alb-XXX.us-east-1.elb.amazonaws.com)'
+        required: false
+        default: ''
+        type: string
 permissions:
   contents: read
 jobs:
@@ -57,3 +71,27 @@ jobs:
       - name: STS GetCallerIdentity
         if: ${{ env.AWS_ROLE_PLAN_ARN != '' }}
         run: aws sts get-caller-identity
+  e2e-live:
+    # Opt-in live-stack e2e regression run (#207). Triggered only via
+    # workflow_dispatch with run_e2e_live=true and a populated
+    # catalyst_api_endpoint input. Stays off the per-PR critical path
+    # so a flaky ALB never gates a merge; operators invoke this after
+    # a deploy to validate the integration surface against real AWS.
+    name: e2e-live
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_e2e_live == 'true' && github.event.inputs.catalyst_api_endpoint != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: |
+          pip install -r services/catalyst-api/requirements-dev.txt
+          pip install -r clients/catalyst-cli/requirements.txt
+          pip install -r clients/catalyst-cli/requirements-dev.txt
+      - name: Run e2e regression suite (live mode, #207)
+        env:
+          CATALYST_E2E_LIVE: '1'
+          CATALYST_API_ENDPOINT: ${{ github.event.inputs.catalyst_api_endpoint }}
+        run: pytest tests/e2e/ -v
