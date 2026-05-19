@@ -83,7 +83,7 @@ Adding **new platform-wide AWS resource types** is always a Terraform PR — nev
 
 ### Why bootstrap is a separate script (chicken-egg)
 
-`terraform init` cannot wire up the S3 backend until the state bucket + lock table already exist, so the bucket that backs Terraform state cannot be safely created by the same configuration that consumes it. The bootstrap script therefore provisions the state bucket and lock table out-of-band, plus the shared API-data bucket so the first `terraform apply` doesn't fail on a missing data dependency. Re-running is idempotent, so the script doubles as the rotation path for the bootstrap-admin trust policy.
+`terraform init` cannot wire up the S3 backend until the state bucket + lock table already exist, so the bucket that backs Terraform state cannot be safely created by the same configuration that consumes it. The bootstrap script therefore provisions the state bucket and lock table out-of-band, plus the shared API-data bucket so the first `terraform apply` doesn't fail on a missing data dependency. Re-running is idempotent, so the script is safe to execute again after partial failures or to provision newly-added shared resources.
 
 ```mermaid
 sequenceDiagram
