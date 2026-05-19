@@ -15,9 +15,7 @@ name: Teardown Scheduled (Demo Cost-Save)
 #   gh workflow run terraform.yml --ref release
 #   (Follow docs/teardown.md for the full re-provisioning sequence)
 #
-# To adjust the schedule without a code change, override TEARDOWN_CRON_SCHEDULE
-# as a GitHub Actions repository variable (format: standard cron expression).
-# Default: 0 22 * * 1-5  (22:00 UTC Mon–Fri)
+# Schedule: 0 22 * * 1-5  (22:00 UTC Mon–Fri). Edit this file to change the cron.
 
 on:
   schedule:
@@ -194,6 +192,27 @@ jobs:
             for arn in ${MANAGED}; do
               if ! aws iam detach-role-policy --role-name "${role}" --policy-arn "${arn}" 2>err.log; then
                 echo "::warning::detach-role-policy failed for ${role} <- ${arn}: $(cat err.log)"
+              fi
+              rm -f err.log
+            done
+
+            # Remove instance profiles (requires iam:ListInstanceProfilesForRole on apply role).
+            PROFILES=$(aws iam list-instance-profiles-for-role \
+              --role-name "${role}" \
+              --query 'InstanceProfiles[].InstanceProfileName' \
+              --output text 2>&1) || {
+              echo "::warning::list-instance-profiles-for-role failed for ${role}: ${PROFILES}"
+              PROFILES=""
+            }
+            for prof in ${PROFILES}; do
+              if ! aws iam remove-role-from-instance-profile \
+                --instance-profile-name "${prof}" \
+                --role-name "${role}" 2>err.log; then
+                echo "::warning::remove-role-from-instance-profile failed for ${role} <- ${prof}: $(cat err.log)"
+              fi
+              rm -f err.log
+              if ! aws iam delete-instance-profile --instance-profile-name "${prof}" 2>err.log; then
+                echo "::warning::delete-instance-profile failed for ${prof}: $(cat err.log)"
               fi
               rm -f err.log
             done

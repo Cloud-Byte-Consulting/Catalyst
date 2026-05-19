@@ -49,6 +49,12 @@ REQUIRED_FILES = [
     "validate-policies.yml",
 ]
 
+# Teardown workflows destroy via the apply role (same as terraform.yml on release).
+TEARDOWN_WORKFLOWS = {
+    "teardown.yml": "AWS_ROLE_APPLY_ARN",
+    "teardown-scheduled.yml": "AWS_ROLE_APPLY_ARN",
+}
+
 
 @dataclass
 class Finding:
@@ -80,6 +86,14 @@ class Report:
 
 def _load(path: Path) -> dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def _workflow_triggers(workflow: dict[str, Any]) -> Any:
+    """Return the workflow `on` block (PyYAML 1.1 parses `on:` as boolean True)."""
+    triggers = workflow.get("on")
+    if triggers is None and True in workflow:
+        triggers = workflow[True]
+    return triggers
 
 
 def _all_steps(workflow: dict[str, Any]) -> list[dict[str, Any]]:
@@ -180,6 +194,37 @@ def validate(workflows_dir: Path = WORKFLOWS) -> Report:
             steps = _all_steps(wf)
             has_conftest = any("conftest" in str(s.get("run", "")) for s in steps)
             report.add(required, "conftest verify step", has_conftest)
+
+    for teardown_wf, expected_secret in TEARDOWN_WORKFLOWS.items():
+        path = workflows_dir / teardown_wf
+        report.add(teardown_wf, "exists", path.exists(),
+                   "" if path.exists() else f"missing {path.relative_to(REPO_ROOT)}")
+        if not path.exists():
+            continue
+        wf = _load(path)
+        report.add(teardown_wf, "yaml-parses", isinstance(wf, dict))
+        if not isinstance(wf, dict):
+            continue
+        report.add(teardown_wf, "permissions.id-token=write", _has_oidc_permissions(wf))
+        uses_creds, role_expr = _uses_configure_aws_credentials(wf)
+        report.add(teardown_wf, "uses configure-aws-credentials", uses_creds)
+        if uses_creds:
+            ok = bool(role_expr) and expected_secret in (role_expr or "")
+            report.add(
+                teardown_wf,
+                f"role-to-assume references secrets.{expected_secret}",
+                ok,
+                role_expr or "",
+            )
+        triggers = _workflow_triggers(wf)
+        dispatch_only = triggers == "workflow_dispatch" or (
+            isinstance(triggers, dict) and "workflow_dispatch" in triggers
+        )
+        has_schedule = isinstance(triggers, dict) and "schedule" in triggers
+        if teardown_wf == "teardown.yml":
+            report.add(teardown_wf, "workflow_dispatch only (no schedule)", dispatch_only and not has_schedule)
+        if teardown_wf == "teardown-scheduled.yml":
+            report.add(teardown_wf, "has schedule trigger", has_schedule)
 
     return report
 
