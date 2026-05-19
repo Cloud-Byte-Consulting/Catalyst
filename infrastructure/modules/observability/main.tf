@@ -29,25 +29,43 @@ resource "aws_sns_topic" "alarms" {
 # -----------------------------------------------------------------------------
 # Alarm 1 — 5xxRateAlarm
 # -----------------------------------------------------------------------------
-# Strategy: CloudWatch dimension matching requires the alarm to reference a
-# metric stream whose dimension *set* matches what the emitter publishes.
-# Per #60's locked spec:
-#   - `Catalyst/API:RequestCount` is keyed on (Endpoint, Method, StatusCode)
-#   - `Catalyst/API:ErrorCount`   is keyed on (Endpoint, Method, ErrorClass)
-# Enumerating 5xx StatusCode values (500..599) would scale poorly, so we use
-# the `ErrorClass=5xx` slice on ErrorCount (which the middleware already sets
-# semantically — see services/catalyst-api/catalyst/observability.py once #60
-# lands) and the SEARCH expression sums RequestCount across every dimension
-# combination for the denominator.
+# Strategy: PR #60's middleware emits `Catalyst/API:ErrorCount` with the
+# `ErrorClass` dimension set to the Python exception class name —
+# `RepositoryFailure`, `AWSTransientFailure`, `ValidationFailure`,
+# `IdempotencyConflict`, `ResourceNotFound`, etc. — NOT a status-code bucket
+# like `"5xx"`. (Earlier draft of this alarm assumed `ErrorClass=5xx`; that
+# would never fire.)
+#
+# Per `services/catalyst-api/catalyst/errors.py` on release, the class set
+# that maps to HTTP status ≥ 500 is exactly:
+#   - `RepositoryFailure`     → 503 (boto3 / repository non-transient)
+#   - `AWSTransientFailure`   → 503 (throttling, capacity exhaustion)
+#   - `ServerError`           — string fallback used by the middleware's
+#                               `_resolve_error_class` when a bare
+#                               HTTPException raised at status ≥ 500 didn't
+#                               go through `to_http_exception`'s translator
+#
+# The alarm enumerates all three explicitly and sums them. This is a known
+# fragility surface: new 5xx error classes added to `errors.py` MUST also be
+# added here, OR the alarm misses them. The fragility is locked by the
+# contract test `services/catalyst-api/tests/test_errors_5xx_contract.py`
+# which fails CI when the `errors.py` 5xx set drifts from this enumeration.
+#
+# Tracked long-term fix in kaizen #226: add a `StatusBucket` dimension to
+# `ErrorCount` so this alarm reduces to a single `StatusBucket=5xx` query
+# and the enumeration disappears.
 #
 # Metric-math semantics:
-#   m1 = SUM of Catalyst/API:ErrorCount where ErrorClass="5xx"
-#   m2 = SUM of Catalyst/API:RequestCount across all dimension combinations
-#   e1 = (m1 / m2) * 100  → 5xx percent
+#   m1a = SUM of ErrorCount{ErrorClass=RepositoryFailure}
+#   m1b = SUM of ErrorCount{ErrorClass=AWSTransientFailure}
+#   m1c = SUM of ErrorCount{ErrorClass=ServerError}
+#   m1  = SUM([m1a, m1b, m1c])
+#   m2  = SUM of RequestCount across all dimension combinations
+#   e1  = (m1 / m2) * 100 → 5xx percent
 # Evaluation: 1 of 3 periods of 5 min — single sustained spike trips the page.
 resource "aws_cloudwatch_metric_alarm" "http_5xx_rate" {
   alarm_name        = local.alarm_5xx_rate_name
-  alarm_description = "Catalyst API 5xx rate exceeded ${var.http_5xx_rate_threshold_percent}% over a 5-minute window. Source: Catalyst/API:ErrorCount{ErrorClass=5xx} / Catalyst/API:RequestCount."
+  alarm_description = "Catalyst API 5xx rate exceeded ${var.http_5xx_rate_threshold_percent}% over a 5-minute window. Sum of ErrorCount{ErrorClass IN [RepositoryFailure, AWSTransientFailure, ServerError]} / RequestCount. Enumeration contract-tested at services/catalyst-api/tests/test_errors_5xx_contract.py; long-term simplification tracked in #226."
 
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
@@ -63,14 +81,47 @@ resource "aws_cloudwatch_metric_alarm" "http_5xx_rate" {
   }
 
   metric_query {
-    id = "m1"
+    id          = "m1"
+    expression  = "SUM([m1a, m1b, m1c])"
+    label       = "5xx ErrorCount (enumerated per errors.py)"
+    return_data = false
+  }
+
+  metric_query {
+    id = "m1a"
     metric {
       namespace   = "Catalyst/API"
       metric_name = "ErrorCount"
       period      = 300
       stat        = "Sum"
       dimensions = {
-        ErrorClass = "5xx"
+        ErrorClass = "RepositoryFailure"
+      }
+    }
+  }
+
+  metric_query {
+    id = "m1b"
+    metric {
+      namespace   = "Catalyst/API"
+      metric_name = "ErrorCount"
+      period      = 300
+      stat        = "Sum"
+      dimensions = {
+        ErrorClass = "AWSTransientFailure"
+      }
+    }
+  }
+
+  metric_query {
+    id = "m1c"
+    metric {
+      namespace   = "Catalyst/API"
+      metric_name = "ErrorCount"
+      period      = 300
+      stat        = "Sum"
+      dimensions = {
+        ErrorClass = "ServerError"
       }
     }
   }
