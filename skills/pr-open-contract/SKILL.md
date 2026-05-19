@@ -1,15 +1,15 @@
 ---
 name: pr-open-contract
-description: Hard gate before every `gh pr create` — verify the tracking issue exists, ensure the PR body carries `Closes #<N>`, then assign the PR to the Catalyst Progress GitHub Project (#3). Invoke this skill any time you are about to call `gh pr create`, push a scope-expanding commit to an existing PR branch, or notice a PR open without a project assignment.
+description: Hard gate before every `gh pr create` — verify the tracking issue exists, ensure the PR body carries `Closes #<N>`, assign the PR to the Catalyst Progress GitHub Project (#3), and answer the docs/diagrams currency question explicitly. Invoke this skill any time you are about to call `gh pr create`, push a scope-expanding commit to an existing PR branch, or notice a PR open without a project assignment.
 ---
 
 # pr-open-contract
 
-The opening-side counterpart to `pr-review-triage`. This skill is the hard gate every Catalyst PR passes through *before* it is created. Two checks; both required; neither optional.
+The opening-side counterpart to `pr-review-triage`. This skill is the hard gate every Catalyst PR passes through *before* it is created. Three checks; all required; none optional.
 
 ## 1. Why
 
-Without `Closes #<N>` in the PR body, scope drifts silently — the audit trail loses the link from "what we shipped" back to "what we agreed to ship", and GitHub's auto-close fails so the tracking issue lingers stale. Without a `Catalyst Progress` project assignment, the PR drops off the team's working board — reviewers don't see it on the queue and the kaizen feedback loop breaks. Both failures have happened in production this session (see §7). Per user direction 2026-05-19: *"PRs should have issues with them always... and assigned to the project. both of these are requirements for a PR."* Equal weight; both gates; no exceptions.
+Without `Closes #<N>` in the PR body, scope drifts silently — the audit trail loses the link from "what we shipped" back to "what we agreed to ship", and GitHub's auto-close fails so the tracking issue lingers stale. Without a `Catalyst Progress` project assignment, the PR drops off the team's working board — reviewers don't see it on the queue and the kaizen feedback loop breaks. Without an explicit answer to the docs/diagrams currency question, user-facing documentation drifts behind shipped features until a catch-up PR has to retro-document weeks of merges (see PR #252 in this session). All three failures have happened in production this session (see §7). Per user direction 2026-05-19: *"PRs should have issues with them always... and assigned to the project. both of these are requirements for a PR."* + *"we need to make sure our diagrams, and documentation is up to date... we should be asking the question if documentation or diagrams need to be created or updated."* Three equal-weight gates; no exceptions.
 
 ## 2. The contract
 
@@ -17,8 +17,9 @@ Without `Closes #<N>` in the PR body, scope drifts silently — the audit trail 
 |---|---|---|
 | PR closes a tracking issue | PR body contains `Closes #<N>` (case-insensitive) | This skill (pre-flight) + AGENTS.md gate 5 + `.claude/settings.json` PreToolUse hook on `gh pr create` |
 | PR is on `Catalyst Progress` board | `gh project item-add 3 --owner Cloud-Byte-Consulting --url <pr-url>` runs immediately after `gh pr create` | This skill (post-create) + AGENTS.md gate 5 (refusal trigger if skipped) |
+| Docs / diagrams currency answer recorded | PR body carries an explicit yes/no answer to the docs/diagrams update question, with surfaces named and either included-in-PR or filed-as-follow-up references | This skill (§4.5) + AGENTS.md gate 5 (silence is a refusal trigger) |
 
-Both must pass. Refuse to call `gh pr create` if the body lacks `Closes #<N>`. Refuse to consider a PR "open" until the project-add succeeds and `gh pr view --json projectItems` returns a non-empty list.
+All three must pass. Refuse to call `gh pr create` if the body lacks `Closes #<N>`, lacks an explicit docs/diagrams answer, or if the project-add will not be run in the same shell session. Refuse to consider a PR "open" until the project-add succeeds and `gh pr view --json projectItems` returns a non-empty list.
 
 ## 3. Canonical identifiers — Catalyst Progress project
 
@@ -60,6 +61,57 @@ Failure modes and recoveries:
 - Step 2 succeeds but body lacks `Closes #<N>`: amend the PR body with `gh pr edit <PR#> --body-file <fixed>.md` before continuing. The PreToolUse hook (Layer 4) should have caught this; if it did not, file a bug against the hook.
 - Step 3 fails: retry once; if still failing, check `gh project list --owner Cloud-Byte-Consulting` to confirm project #3 is reachable. Do not call the PR "open for review" until step 4 passes.
 - Step 4 returns `[]`: the project-add silently no-oped. Re-run step 3 with the exact URL from `gh pr view --json url`.
+
+## 4.5. The docs / diagrams currency question
+
+Before step 2 (`gh pr create`), walk this rubric and write a `## Docs & diagrams` section into the PR body containing either:
+
+- `**Yes** — <surface(s)> updated in this PR` (with file paths), OR
+- `**Yes** — <surface(s)> will be updated in follow-up #<N>` (with the filed follow-up issue), OR
+- `**No** — <one-sentence reason>` (an explicit, deliberate no — silence does not count)
+
+### Surfaces to consider
+
+| Surface | What it covers |
+|---|---|
+| `README.md` | Project overview, deploy steps, "Recently shipped" highlights, test-coverage gate |
+| `DECISIONS.md` | ADR index (every ADR file should appear here) |
+| `docs/ADR/` | Architecture decision records (one per material design choice) |
+| `docs/onboarding/platform.md` | Operator (cloud / platform engineer) runbook |
+| `docs/onboarding/organization.md` | Tenant / LZ / environment registration |
+| `docs/onboarding/application.md` | App-developer onboarding for new endpoints + flows |
+| `docs/demo-script.md` | 6-minute panel walkthrough; KMS / Aurora / autoscaling / etc. callouts |
+| `docs/ai-workflow-narrative.md` | AI-assisted workflow demonstrations with PR citations |
+| `diagrams/control-plane.md` + `.drawio` assets | Architecture diagrams (CMK boundaries, runtime paths, data plane) |
+| Inline mermaid diagrams in `docs/` | Often the right place for a sequence diagram or a small state machine |
+
+### Decision rubric
+
+| Change shape | Likely needs |
+|---|---|
+| New endpoint / API surface | `README.md` "Recently shipped" + `docs/onboarding/application.md` + OpenAPI/code annotation |
+| New Terraform module | New or updated ADR + `docs/onboarding/platform.md` operator runbook + maybe `diagrams/control-plane.md` |
+| New role / IAM change | `docs/ADR/ADR-008-catalyst-api-rbac.md` |
+| New runtime path / architectural change | `diagrams/control-plane.md` + relevant ADR |
+| New CI workflow | `README.md` + `docs/onboarding/platform.md` Verification section |
+| Bug fix touching no public surface | "No" — explicit |
+| Test-only PR | "No" — explicit |
+| Doc-only PR | "No" (the changes ARE the docs) — explicit |
+| Tooling / config-only PR | "No" unless it changes the operator-facing surface |
+
+### Recording convention
+
+Add this section to every PR body, immediately after the `## Scope` block:
+
+```markdown
+## Docs & diagrams
+
+**Yes / No / Follow-up #N — <reason or paths>**
+
+- `<file/path>` — <what was updated or why no update was needed>
+```
+
+If filing a follow-up: do it BEFORE `gh pr create`, and reference the new issue number in this section. The follow-up issue itself goes on the Catalyst Progress board per the contract above.
 
 ## 5. Scope-expansion case
 
