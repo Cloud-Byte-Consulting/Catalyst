@@ -1,0 +1,110 @@
+# Dependabot configuration for Catalyst.
+#
+# Covers the three dependency ecosystems Catalyst actually uses today:
+#   - github-actions (the workflow files under .github/workflows/)
+#   - pip            (services/catalyst-api + clients/catalyst-cli, separately)
+#   - docker         (services/catalyst-api/Dockerfile — Lambda Python + bundled terraform)
+#
+# Schedule: weekly on Monday at 06:00 America/Los_Angeles so PRs land before the
+# operator's normal triage hours. Minor + patch bumps are grouped per-ecosystem
+# into a single PR to avoid a Monday PR-storm; major bumps remain individual PRs
+# so breaking changes get their own review thread.
+#
+# Labels (type/kaizen + kind/cicd) route Dependabot PRs through the same Catalyst
+# Progress board lane as agent-filed kaizens — the operator triages them with
+# the same /pr-review-triage discipline as the rest of the repo.
+#
+# reviewers/assignees are intentionally empty: the operator pulls work from the
+# project board rather than receiving direct review-requests from Dependabot.
+
+version: 2
+
+updates:
+  # GitHub Actions workflows (.github/workflows/*.yml).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    labels:
+      - "type/kaizen"
+      - "kind/cicd"
+    reviewers: []
+    assignees: []
+    commit-message:
+      prefix: "kaizen(deps-actions)"
+    groups:
+      actions:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Python dependencies for the Catalyst API Lambda service.
+  - package-ecosystem: "pip"
+    directory: "/services/catalyst-api"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    labels:
+      - "type/kaizen"
+      - "kind/cicd"
+    reviewers: []
+    assignees: []
+    commit-message:
+      prefix: "kaizen(deps-pip-api)"
+    groups:
+      pip:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Python dependencies for the Catalyst CLI client.
+  - package-ecosystem: "pip"
+    directory: "/clients/catalyst-cli"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    labels:
+      - "type/kaizen"
+      - "kind/cicd"
+    reviewers: []
+    assignees: []
+    commit-message:
+      prefix: "kaizen(deps-pip-cli)"
+    groups:
+      pip:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Container base images referenced from services/catalyst-api/Dockerfile
+  # (hashicorp/terraform:1.15 + public.ecr.aws/lambda/python:3.12).
+  - package-ecosystem: "docker"
+    directory: "/services/catalyst-api"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    labels:
+      - "type/kaizen"
+      - "kind/cicd"
+    reviewers: []
+    assignees: []
+    commit-message:
+      prefix: "kaizen(deps-docker)"
+    groups:
+      docker:
+        update-types:
+          - "minor"
+          - "patch"

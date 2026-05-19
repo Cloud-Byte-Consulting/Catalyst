@@ -164,6 +164,8 @@ On Windows, the equivalent is `scripts/bootstrap-aws-account.ps1`. The script ha
 
 `bootstrap-smoke.yml` runs on PRs touching `scripts/bootstrap-aws-account.*`. For live AWS validation, dispatch it manually with `run_aws_validation: true` and the `Catalyst` environment configured (see [`.github/workflows/bootstrap-smoke.yml:63`](../../.github/workflows/bootstrap-smoke.yml) — this is one of the only places we use the GitHub Environment binding; Terraform workflows MUST NOT per ADR-012).
 
+Dependabot is wired for `github-actions`, `pip` (api + cli), and `docker` via [`.github/dependabot.yml`](../../.github/dependabot.yml); the alert dashboard at <https://github.com/Cloud-Byte-Consulting/Catalyst/security/dependabot> is the operator's source of truth for outstanding vulnerabilities.
+
 ## After bootstrap completes — pipeline prerequisites checklist
 
 1. **Set repository variables:** `BOOTSTRAP_AWS_ACCOUNT_ID`, `BOOTSTRAP_AWS_REGION`, `BOOTSTRAP_GITHUB_REPOSITORY`, `BOOTSTRAP_ADMIN_PRINCIPAL_ARN`, optional `BOOTSTRAP_CATALYST_PREFIX`, `CATALYST_API_INGRESS_ALLOWLIST`.
