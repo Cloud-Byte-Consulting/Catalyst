@@ -87,6 +87,8 @@ A v3 implementation note is preserved here so the future agent does not re-deriv
 
 This deferred direction is **not** a commitment to ship Option B; it is the design that ships **if and only if** the trip-wire fires.
 
+**Trip-wire alarm now exists.** The CloudWatch alarm encoding this trip-wire is provisioned by [`infrastructure/modules/observability/`](../../infrastructure/modules/observability/README.md) (`aws_cloudwatch_metric_alarm.onboard_p95_latency`, alarm name `${name_prefix}-onboard-p95-latency`). It computes p95 of `Catalyst/Onboard:OnboardDuration` on a 1-day period over 30 evaluation periods — the 30-day rolling window — and fires when the value crosses 600,000 ms (10 min) into the `${name_prefix}-alarms` SNS topic. Until SVC-9 reaches the operator-subscriber wiring step (out-of-band; see [`docs/onboarding/platform.md`](../onboarding/platform.md) §"Operator alerts"), the alarm is computed but the page is not delivered.
+
 ---
 
 ## Compliance
