@@ -213,3 +213,36 @@ resource "aws_dynamodb_table_item" "catalog" {
     tier              = { S = "L4" }
   })
 }
+
+# ---------------------------------------------------------------------------
+# SVC-8 (#62) — ADR-009 ECS alternate-runtime wiring (additive, opt-in).
+#
+# When var.enable_ecs_runtime = true the composite instantiates the shared
+# modules/ecs-alb in task-definition mode, producing:
+#   - aws_ecs_task_definition (catalyst-api, Fargate, awsvpc)
+#   - aws_iam_role.ecs_execution (ECR pull + logs + secrets, scoped)
+#   - aws_iam_role.ecs_task      (DynamoDB + SSM + CloudWatch metrics)
+#
+# Gated by count so Lambda-only deployments (the ADR-009 default) are
+# unchanged. ECS autoscaling (#230) and CMK migration (#228) are NOT
+# wired here on purpose — they remain in their own surfaces.
+# ---------------------------------------------------------------------------
+
+module "ecs_runtime" {
+  count  = var.enable_ecs_runtime ? 1 : 0
+  source = "../../ecs-alb"
+
+  name_prefix           = local.resource_name
+  vpc_id                = var.ecs_vpc_id
+  public_subnet_ids     = var.ecs_public_subnet_ids
+  alb_security_group_id = var.ecs_alb_security_group_id
+  target_group_type     = "ip"
+
+  enable_task_definition = true
+  container_image_uri    = var.ecs_container_image_uri
+  ecr_repository_name    = aws_ecr_repository.app.name
+  log_group_name         = aws_cloudwatch_log_group.app.name
+  dynamodb_table_name    = var.catalog_table_name
+  catalyst_log_level     = var.ecs_log_level
+  container_extra_env    = var.ecs_container_extra_env
+}
