@@ -1,10 +1,10 @@
-# ADR-016 — Catalyst homelab deployment
+# ADR-020 — Catalyst homelab deployment
 
 **Status**: Proposed (placeholder) · 2026-05-18
 
 > **Placeholder — design sessions required before Accepted.** This ADR captures intent and open questions only; no homelab topology, toolchain, or parity target is committed yet.
 
-**Related**: [ADR-003](ADR-003-static-and-ephemeral-environments.md) · [ADR-006](ADR-006-cicd-pipeline-architecture.md) · [ADR-009](ADR-009-runtime-strategy.md) · [ADR-011](ADR-011-catalyst-agentic-workflow.md) · [ADR-012](ADR-012-onboarding-experience.md) · [ADR-017](ADR-017-migration-github-to-gitea.md) · [`docs/references/challenge-brief.md`](../references/challenge-brief.md)
+**Related**: [ADR-003](ADR-003-static-and-ephemeral-environments.md) · [ADR-006](ADR-006-cicd-pipeline-architecture.md) · [ADR-009](ADR-009-runtime-strategy.md) · [ADR-011](ADR-011-catalyst-agentic-workflow.md) · [ADR-012](ADR-012-onboarding-experience.md) · [ADR-021](ADR-021-migration-github-to-gitea.md) · [`docs/references/challenge-brief.md`](../references/challenge-brief.md)
 
 ---
 
@@ -12,7 +12,7 @@
 
 Catalyst today targets a **commercial AWS account** pattern: bootstrap provisions the state bucket and lock table, `terraform.yml` applies platform infrastructure on push to `release`, and `service-cd.yml` deploys the control-plane API (Lambda by default per [ADR-009](ADR-009-runtime-strategy.md), ECS as an option) behind ALB with GitHub Actions OIDC for credentials ([ADR-006](ADR-006-cicd-pipeline-architecture.md)).
 
-The platform owner wants the option to run the **Catalyst control plane and supporting infrastructure** on a **homelab / self-hosted** footprint — lab hardware, Proxmox, TrueNAS, or a single-node cluster at home — rather than (or in addition to) the current AWS commercial path. Use cases include cost control, offline development, regulated data residency on owned metal, and co-location with a self-hosted forge ([ADR-017](ADR-017-migration-github-to-gitea.md)).
+The platform owner wants the option to run the **Catalyst control plane and supporting infrastructure** on a **homelab / self-hosted** footprint — lab hardware, Proxmox, TrueNAS, or a single-node cluster at home — rather than (or in addition to) the current AWS commercial path. Use cases include cost control, offline development, regulated data residency on owned metal, and co-location with a self-hosted forge ([ADR-021](ADR-021-migration-github-to-gitea.md)).
 
 This ADR does **not** define homelab architecture. It records the **decision to pursue** homelab as a future deployment target and frames scope, phases, and trade-offs for later design sessions.
 
@@ -38,7 +38,7 @@ What “homelab” means is **explicitly unresolved**. Design sessions must choo
 | **“AWS-shaped” infra** | Real mini-AWS account vs [LocalStack](https://localstack.cloud/) / LocalStack Pro vs hybrid (LocalStack + selective real AWS) |
 | **State & artifacts** | MinIO (S3-compatible) for Terraform state and ECR substitutes vs NFS on TrueNAS vs cloud-backed state with homelab compute only |
 | **Networking** | Tailscale-only API, split-horizon DNS, public ingress on residential ISP |
-| **Identity & CI** | Self-hosted runners, Gitea Actions, no OIDC to AWS — see [ADR-017](ADR-017-migration-github-to-gitea.md) |
+| **Identity & CI** | Self-hosted runners, Gitea Actions, no OIDC to AWS — see [ADR-021](ADR-021-migration-github-to-gitea.md) |
 | **Multi-tenancy** | Single-tenant lab vs replaying ADR-002 construct hierarchy on lab metal |
 
 **In scope (future phases):** control-plane API reachability, minimal Terraform or k8s manifests, documented bootstrap for lab operators.
@@ -75,7 +75,7 @@ Phase gates and timelines are **not** set in this placeholder.
 
 ## Consequences
 
-- **Positive:** Enables local iteration, air-gapped or low-cost environments, and alignment with self-hosted Git ([ADR-017](ADR-017-migration-github-to-gitea.md)).
+- **Positive:** Enables local iteration, air-gapped or low-cost environments, and alignment with self-hosted Git ([ADR-021](ADR-021-migration-github-to-gitea.md)).
 - **Positive:** Forces explicit documentation of which ADRs assume AWS-only primitives.
 - **Cost:** Second deployment matrix — docs, CI, and agent skills must branch or parameterise on `deployment_target`.
 - **Risk:** LocalStack / emulated AWS diverges from real IAM, Lambda, and ALB behaviour — mitigated by Phase 0 spikes and labelled “lab-only” in docs.
@@ -88,7 +88,7 @@ Phase gates and timelines are **not** set in this placeholder.
 | Alternative | Why not chosen (yet) |
 |---|---|
 | **Stay cloud-only** | Rejects stated owner intent; keeps ops simple but blocks homelab goals |
-| **Mirror-only Gitea, deploy only on AWS** | See [ADR-017](ADR-017-migration-github-to-gitea.md) — valid hybrid; does not satisfy “platform runs at home” |
+| **Mirror-only Gitea, deploy only on AWS** | See [ADR-021](ADR-021-migration-github-to-gitea.md) — valid hybrid; does not satisfy “platform runs at home” |
 | **Full AWS parity on homelab before any doc** | Too large for placeholder; deferred to Phase 2 |
 | **Vendor-managed lab (e.g. dedicated small AWS account)** | May remain a stepping stone; not mutually exclusive with true homelab |
 
@@ -108,5 +108,5 @@ Phase gates and timelines are **not** set in this placeholder.
 - [ADR-006](ADR-006-cicd-pipeline-architecture.md) — GitHub Actions + OIDC apply path
 - [ADR-009](ADR-009-runtime-strategy.md) — Lambda vs ECS runtime
 - [ADR-011](ADR-011-catalyst-agentic-workflow.md) · [ADR-012](ADR-012-onboarding-experience.md) — operator and agent onboarding
-- [ADR-017](ADR-017-migration-github-to-gitea.md) — forge co-location on homelab
+- [ADR-021](ADR-021-migration-github-to-gitea.md) — forge co-location on homelab
 - [`docs/references/challenge-brief.md`](../references/challenge-brief.md) — submission context (AWS-native demo remains primary until homelab Accepted)
