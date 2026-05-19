@@ -104,6 +104,40 @@ class Repository(ABC):
     def list_products(self) -> list[dict]:
         pass
 
+    # ----- Product-catalog deployment records (#103 — CAT-3) ---------------
+    # These are distinct from the per-tenant product_instances above (which
+    # back the existing /products/deploy flow from #167). Catalog deployment
+    # rows are keyed on a per-deploy UUID and looked up either by
+    # deployment_id (status) or by the composite idempotency key
+    # f"product:{product_id}:{construct_address}:{idempotency_key}" for replay.
+
+    @abstractmethod
+    def record_product_deployment(
+        self,
+        *,
+        product_id: str,
+        construct_address: str,
+        deployment_id: str,
+        idempotency_key: str | None,
+        payload: dict,
+        created_at: str,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def get_product_deployment(self, deployment_id: str) -> dict | None:
+        pass
+
+    @abstractmethod
+    def get_product_deployment_by_idem_key(
+        self, idempotency_key: str
+    ) -> dict | None:
+        pass
+
+    @abstractmethod
+    def list_product_deployments(self, product_id: str) -> list[dict]:
+        pass
+
     @abstractmethod
     def clear(self) -> None:
         pass
@@ -121,6 +155,11 @@ class InMemoryRepository(Repository):
         self.idempotency: dict[str, dict] = {}
         self.product_instances: dict[str, dict] = {}
         self.groups: dict[str, set[str]] = defaultdict(set)
+        # #103 — product-catalog deployments. Two indexes so the handler
+        # can replay by composite idempotency key (cheap O(1) lookup) and
+        # the get-status path can resolve by deployment_id without scanning.
+        self.product_deployments: dict[str, dict] = {}
+        self.product_deployments_by_idem: dict[str, dict] = {}
 
     def get_idempotent(self, key: str | None) -> dict | None:
         if not key:
@@ -186,12 +225,55 @@ class InMemoryRepository(Repository):
     def list_products(self) -> list[dict]:
         return list(self.product_instances.values())
 
+    # ----- Product-catalog deployment records (#103) ----------------------
+
+    def record_product_deployment(
+        self,
+        *,
+        product_id: str,
+        construct_address: str,
+        deployment_id: str,
+        idempotency_key: str | None,
+        payload: dict,
+        created_at: str,
+    ) -> None:
+        record = {
+            "product_id": product_id,
+            "construct_address": construct_address,
+            "deployment_id": deployment_id,
+            "idempotency_key": idempotency_key,
+            "payload": payload,
+            "created_at": created_at,
+        }
+        self.product_deployments[deployment_id] = record
+        if idempotency_key:
+            # Store the payload directly under the idempotency key so the
+            # replay path can return the exact dict the caller saw on the
+            # first invocation (without us having to remap fields).
+            self.product_deployments_by_idem[idempotency_key] = payload
+
+    def get_product_deployment(self, deployment_id: str) -> dict | None:
+        return self.product_deployments.get(deployment_id)
+
+    def get_product_deployment_by_idem_key(
+        self, idempotency_key: str
+    ) -> dict | None:
+        return self.product_deployments_by_idem.get(idempotency_key)
+
+    def list_product_deployments(self, product_id: str) -> list[dict]:
+        return [
+            r for r in self.product_deployments.values()
+            if r["product_id"] == product_id
+        ]
+
     def clear(self) -> None:
         self.organizations.clear()
         self.services.clear()
         self.idempotency.clear()
         self.product_instances.clear()
         self.groups.clear()
+        self.product_deployments.clear()
+        self.product_deployments_by_idem.clear()
 
 
 # DynamoDB single-table key conventions (kept narrow on purpose; new entities
@@ -206,6 +288,14 @@ _PK_PRODUCT = "PROD#"
 _SK_PRODUCT = "INSTANCE"
 _PK_GROUP = "GROUP#"
 _SK_GROUP_ACTION_PREFIX = "ACTION#"
+# #103 — product-catalog deployment records. PK groups all deployments of
+# a given product so list_product_deployments is a single Query; we also
+# write a sidecar IDEM_PROD# row keyed by the composite idempotency key so
+# replay is O(1) without a GSI.
+_PK_PRODUCT_DEPLOY_PREFIX = "PRODDEP#"
+_SK_PRODUCT_DEPLOY_PREFIX = "DEPLOY#"
+_PK_PRODUCT_DEPLOY_IDEM_PREFIX = "PRODDEP_IDEM#"
+_SK_PRODUCT_DEPLOY_IDEM = "PAYLOAD"
 
 _IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60
 
@@ -422,6 +512,80 @@ class DynamoDBRepository(Repository):
 
     def list_products(self) -> list[dict]:
         items = self._scan_pk_prefix(_PK_PRODUCT)
+        return [item["record"] for item in items if "record" in item]
+
+    # ----- Product-catalog deployment records (#103) ----------------------
+    #
+    # PK layout:
+    #   - PRODDEP#{product_id} / DEPLOY#{deployment_id}    -> full record
+    #   - PRODDEP_IDEM#{idem_key} / PAYLOAD                -> cached payload
+    #
+    # The PRODDEP# rows are queryable by product_id for the inventory
+    # surface (list_product_deployments). The PRODDEP_IDEM# rows give
+    # O(1) replay lookup without a GSI; we store the full payload there
+    # so the replay path can return the exact dict the caller saw on
+    # the first invocation.
+
+    def record_product_deployment(
+        self,
+        *,
+        product_id: str,
+        construct_address: str,
+        deployment_id: str,
+        idempotency_key: str | None,
+        payload: dict,
+        created_at: str,
+    ) -> None:
+        record = {
+            "product_id": product_id,
+            "construct_address": construct_address,
+            "deployment_id": deployment_id,
+            "idempotency_key": idempotency_key,
+            "payload": payload,
+            "created_at": created_at,
+        }
+        self._put(
+            {
+                "pk": _PK_PRODUCT_DEPLOY_PREFIX + product_id,
+                "sk": _SK_PRODUCT_DEPLOY_PREFIX + deployment_id,
+                "record": record,
+            }
+        )
+        if idempotency_key:
+            self._put(
+                {
+                    "pk": _PK_PRODUCT_DEPLOY_IDEM_PREFIX + idempotency_key,
+                    "sk": _SK_PRODUCT_DEPLOY_IDEM,
+                    "payload": payload,
+                }
+            )
+
+    def get_product_deployment(self, deployment_id: str) -> dict | None:
+        # Without a GSI we can't query by deployment_id alone; this is a
+        # scan over PRODDEP# rows. Fine for the rare get-by-id path; the
+        # hot replay path goes through get_product_deployment_by_idem_key
+        # which is O(1).
+        for item in self._scan_pk_prefix(_PK_PRODUCT_DEPLOY_PREFIX):
+            record = item.get("record")
+            if record and record.get("deployment_id") == deployment_id:
+                return record
+        return None
+
+    def get_product_deployment_by_idem_key(
+        self, idempotency_key: str
+    ) -> dict | None:
+        item = self._get(
+            _PK_PRODUCT_DEPLOY_IDEM_PREFIX + idempotency_key,
+            _SK_PRODUCT_DEPLOY_IDEM,
+        )
+        if not item:
+            return None
+        return item.get("payload")
+
+    def list_product_deployments(self, product_id: str) -> list[dict]:
+        items = self._query(
+            _PK_PRODUCT_DEPLOY_PREFIX + product_id, _SK_PRODUCT_DEPLOY_PREFIX
+        )
         return [item["record"] for item in items if "record" in item]
 
     @with_aws_retry()

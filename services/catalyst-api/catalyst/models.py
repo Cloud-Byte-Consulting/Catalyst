@@ -118,3 +118,61 @@ class ProductDeploymentRecord(BaseModel):
     lifecycle_state: Literal["planned", "deploying", "active", "failed"]
     resources: list[str]
     updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Product-catalog endpoints (#103 — CAT-3 self-deploy).
+#
+# These are distinct from ``ProductDeploymentRequest`` / ``ProductDeploymentRecord``
+# above (which back the existing /products/deploy tenant-instance flow from
+# #167). The catalog endpoints sit under /products/catalog/ and orchestrate
+# a real onboard.provision_app call — the catalog tracks platform-shipped
+# products (e.g. catalyst-api itself), not per-tenant deployment lifecycle.
+# ---------------------------------------------------------------------------
+
+
+class ProductDeployRequest(BaseModel):
+    """``POST /products/catalog/{product_id}/deploy`` request body.
+
+    ``construct_address`` is the standard ``tenant/env/lz/project/app``
+    pattern (validated server-side by :class:`ConstructAddress`).
+    ``idempotency_key`` is optional — when supplied, the deployment
+    record is keyed on ``(product_id, construct_address, idempotency_key)``
+    so a replay returns the cached payload without re-invoking onboard.
+    ``extra="forbid"`` per the #199 drift-detection contract.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    construct_address: str = Field(description="tenant/env/lz/project/app")
+    idempotency_key: str | None = None
+
+
+class ProductDeployResponse(BaseModel):
+    """``POST /products/catalog/{product_id}/deploy`` response body.
+
+    Mirrors the onboard ARN payload (per the L4 composite's outputs.tf
+    contract from ADR-014/15) plus the catalog-deploy-specific fields:
+
+      * ``product_id``  — the catalog key the caller asked to deploy
+      * ``deployment_id`` — UUID minted per deploy; persisted in the
+        product-deployment table for grep-from-CloudWatch correlation
+      * ``image_uri`` — resolved image URI (env-var override or default
+        derived from ``CATALYST_ECR_BASE``); the follow-up service-cd
+        run uses this to update the runtime
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    product_id: str
+    deployment_id: str
+    construct_address: str
+    status: Literal["provisioned"]
+    ecr_uri: str
+    execution_role_arn: str
+    log_group_name: str
+    alb_listener_rule_arn: str | None
+    catalog_record_key: str
+    state_key: str
+    image_uri: str
+    correlation_id: str

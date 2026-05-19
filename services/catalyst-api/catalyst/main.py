@@ -24,6 +24,8 @@ from .models import (
     OuCreateRequest,
     ProductDeploymentRecord,
     ProductDeploymentRequest,
+    ProductDeployRequest,
+    ProductDeployResponse,
     ServiceConfigRequest,
     ServiceDeployRequest,
     ServiceOnboardRequest,
@@ -38,6 +40,7 @@ from .observability import (
     tenant_var,
 )
 from .onboard import provision_app
+from . import products as products_module
 from .rbac import AccessContext, access_dependency, can_read_scope, require_write
 from .repository import Repository, get_repository
 
@@ -779,6 +782,101 @@ def get_product(
             ResourceNotFound("product_not_found"), correlation_id
         )
     return {"product_instance": record, "correlation_id": correlation_id}
+
+
+# --------------------------------------------------------------------------
+# Product-catalog endpoints (#103 — CAT-3 self-deploy via Catalyst-as-a-Product)
+# Kept at the bottom of main.py to minimize collision with #60's middleware
+# registration near the top.
+#
+# Routed under /products/catalog/* so the catalog endpoints sit alongside
+# (not on top of) the existing /products + /products/deploy +
+# /products/{tenant}/{project}/{app_name} routes from #167, which back the
+# tenant-instance product flow. The /products/catalog/ family is the
+# "platform-shipped product to deploy" catalog — the meta-feature from the
+# Decision Log on #103 (Option A — API-driven self-onboard via product
+# catalog).
+# --------------------------------------------------------------------------
+
+
+@app.get("/products/catalog")
+def list_product_catalog(
+    correlation_id: str = Depends(correlation_id_dependency),
+    access: AccessContext = Depends(access_dependency),
+) -> dict:
+    """List entries in the platform product catalog (#103).
+
+    The catalog is open for read to any authenticated caller — the RBAC
+    check on the deploy endpoint is what actually gates whether a caller
+    can request a deploy. Listing is intentionally cheap so a CLI can
+    enumerate available products without round-tripping per item.
+    """
+
+    return {
+        "products": products_module.list_products(),
+        "role": access.role,
+        "correlation_id": correlation_id,
+    }
+
+
+@app.get("/products/catalog/{product_id}")
+def get_product_catalog_entry(
+    product_id: str,
+    correlation_id: str = Depends(correlation_id_dependency),
+    access: AccessContext = Depends(access_dependency),  # noqa: ARG001 - auth required
+) -> dict:
+    """Fetch a single catalog entry by product_id.
+
+    Returns 404 if the product is not in the catalog.
+    """
+
+    product = products_module.get_product(product_id)
+    if product is None:
+        raise to_http_exception(
+            ResourceNotFound(f"unknown product: {product_id}"),
+            correlation_id,
+        )
+    return {
+        "product": products_module._serialise_product(product_id, product),
+        "correlation_id": correlation_id,
+    }
+
+
+@app.post("/products/catalog/{product_id}/deploy")
+def deploy_product_from_catalog(
+    product_id: str,
+    request: ProductDeployRequest,
+    correlation_id: str = Depends(correlation_id_dependency),
+    access: AccessContext = Depends(access_dependency),
+    repo: Repository = Depends(repo_dependency),
+) -> ProductDeployResponse:
+    """Deploy a catalog product at the given construct_address (#103 — CAT-3).
+
+    Wraps :func:`onboard.provision_app` with a product-catalog layer that
+    adds:
+
+      * Product existence validation (404 on miss)
+      * Product-specific RBAC (403 on insufficient role)
+      * Per-product deployment-record creation + idempotent replay
+      * Image-URI resolution at deploy time (env-var override or
+        ``CATALYST_ECR_BASE`` default)
+
+    The Tier-2 onboard plumbing (Terraform subprocess + S3 state + L4
+    composite) is reused verbatim — this endpoint is a thin product layer
+    on top, exactly the Option A direction from the Decision Log on #103.
+    """
+
+    payload = _safe_call(
+        correlation_id,
+        products_module.deploy_product,
+        product_id,
+        request.construct_address,
+        request.idempotency_key,
+        access,
+        repo,
+        correlation_id,
+    )
+    return ProductDeployResponse(**payload)
 
 
 handler = Mangum(app)

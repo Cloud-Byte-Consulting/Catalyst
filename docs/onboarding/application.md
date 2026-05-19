@@ -178,7 +178,27 @@ filter event = "request_complete"
 | sort p99_ms desc
 ```
 
-Alarms and dashboards keyed off these four metrics are tracked separately under [#63](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/63) (SVC-9). Until #63 lands no alarm fires on these metrics — the emission contract is in place so #63 can author alarms against the locked names without any further service-side change.
+Alarms and dashboards keyed off these four metrics ship with [#63](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/63) (SVC-9, merged) — the `infrastructure/modules/observability` Terraform module wires the SNS topic, dashboard, and the `http_5xx_rate` / `http_4xx_rate` / `request_p99_latency` / `error_rate_overall` alarms against these locked names.
+
+## Self-deploying Catalyst (#103 — CAT-3)
+
+Catalyst ships its **own** product catalog so operators can deploy another Catalyst API instance through the same `provision_app` Tier-2 pipeline. This is the meta-feature that proves the platform deploys its own products, not just arbitrary apps.
+
+**When to do this:** standing up a second Catalyst control plane (e.g. a sandbox catalyst alongside a production one), demoing the platform's self-hosting story, or stress-testing the onboard contract against a known service shape.
+
+**RBAC:** the catalog deploy endpoint requires `catalyst-owners` or `catalyst-administrators` (`catalyst-support-admins`) — same role floor as a regular `POST /services/onboard`. A viewer attempting it receives 403 before the orchestration ever fires.
+
+**One-liner via the CLI:**
+
+```bash
+python clients/catalyst-cli/catalyst_cli.py products deploy catalyst-api \
+  --construct cloud-byte/dev/shared/catalyst-meta/v2 \
+  --idempotency-key self-deploy-001
+```
+
+The CLI hits `POST /products/catalog/catalyst-api/deploy`, which validates RBAC, resolves the image URI from the `CATALYST_SELF_IMAGE_URI` env var (defaulting to `{CATALYST_ECR_BASE}:catalyst-api-latest` if unset), then composes `onboard.provision_app` to run the L4 Terraform composite. The response carries the standard onboard ARN payload plus `product_id` (`catalyst-api`) and `deployment_id` (UUID, persisted per-deploy so a future GET surfaces the inventory).
+
+**Discovery:** list available products with `catalyst products list`; inspect a single entry with `catalyst products get catalyst-api`. See [`docs/products.md`](../products.md) for how the catalog is structured and how new products are added.
 
 ## Post-onboard lifecycle
 
