@@ -106,3 +106,24 @@ module "network_firewall" {
   vpc_id      = module.network.vpc_id
   subnet_id   = module.network.public_subnet_ids[0]
 }
+
+# ---------------------------------------------------------------------------
+# ADR-023 Phase 1 — Well-Architected IaC Analyzer composite (#283).
+#
+# Gated by `var.enable_wa_aws_iac_analyzer` (default false) so this entry is
+# zero-impact at default: when the flag is false, `count = 0` means the
+# module's resource graph is never evaluated and `terraform plan` shows no
+# analyzer resources. The composite itself is a Phase 1 scaffold — see
+# modules/composite/wa-iac-analyzer/README.md for the CFN-wrap-vs-Terraform-
+# native discovery the implementation PR will record before adding the real
+# resource graph.
+# ---------------------------------------------------------------------------
+module "wa_aws_iac_analyzer" {
+  count  = var.enable_wa_aws_iac_analyzer ? 1 : 0
+  source = "./modules/composite/wa-iac-analyzer"
+
+  name_prefix       = "${var.name_prefix}-wa-analyzer"
+  vpc_id            = module.network.vpc_id
+  subnet_ids        = module.network.private_subnet_ids
+  public_subnet_ids = module.network.public_subnet_ids
+}
