@@ -46,30 +46,41 @@ data "aws_iam_policy_document" "key_policy" {
     resources = ["*"]
   }
 
-  statement {
-    sid    = "AllowKeyAdministration"
-    effect = "Allow"
-    principals {
-      type        = "AWS"
-      identifiers = [var.admin_role_arn]
+  # AllowKeyAdministration is OPT-IN: only emitted when an explicit admin
+  # role ARN is provided. Without it the EnableIAMUserPermissions statement
+  # above is sufficient — it delegates kms:* to any IAM identity in the
+  # account holding the matching IAM-policy grants (e.g. the apply role
+  # via its attached PowerUserAccess). This gating avoids KMS
+  # InvalidArnException on fresh accounts where the configured admin role
+  # does not yet exist (e.g. before scripts/bootstrap-aws-account.sh has
+  # been run). Per #268.
+  dynamic "statement" {
+    for_each = var.admin_role_arn != null && var.admin_role_arn != "" ? [1] : []
+    content {
+      sid    = "AllowKeyAdministration"
+      effect = "Allow"
+      principals {
+        type        = "AWS"
+        identifiers = [var.admin_role_arn]
+      }
+      actions = [
+        "kms:Create*",
+        "kms:Describe*",
+        "kms:Enable*",
+        "kms:List*",
+        "kms:Put*",
+        "kms:Update*",
+        "kms:Revoke*",
+        "kms:Disable*",
+        "kms:Get*",
+        "kms:Delete*",
+        "kms:TagResource",
+        "kms:UntagResource",
+        "kms:ScheduleKeyDeletion",
+        "kms:CancelKeyDeletion",
+      ]
+      resources = ["*"]
     }
-    actions = [
-      "kms:Create*",
-      "kms:Describe*",
-      "kms:Enable*",
-      "kms:List*",
-      "kms:Put*",
-      "kms:Update*",
-      "kms:Revoke*",
-      "kms:Disable*",
-      "kms:Get*",
-      "kms:Delete*",
-      "kms:TagResource",
-      "kms:UntagResource",
-      "kms:ScheduleKeyDeletion",
-      "kms:CancelKeyDeletion",
-    ]
-    resources = ["*"]
   }
 
   dynamic "statement" {

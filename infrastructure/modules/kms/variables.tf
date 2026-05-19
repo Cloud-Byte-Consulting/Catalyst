@@ -8,12 +8,13 @@
 # ---------------------------------------------------------------------------
 
 variable "admin_role_arn" {
-  description = "ARN of the SSO admin (or platform-engineer break-glass) role granted full `kms:*` on both keys. Anchors the key policy `Allow IAM User Permissions` statement."
+  description = "Optional ARN of an SSO admin / break-glass IAM role granted full `kms:*` via a key-policy statement. When null or empty, the AllowKeyAdministration statement is OMITTED — admin access then flows exclusively through the EnableIAMUserPermissions statement (account root + IAM-policy-delegated grants, e.g. PowerUserAccess on the apply role). Setting an explicit value pins a key-policy admin in addition. Per #268: the null/empty path is the safe default for fresh accounts where no dedicated admin role exists yet."
   type        = string
+  default     = null
 
   validation {
-    condition     = can(regex("^arn:aws:iam::[0-9]{12}:role/.+$", var.admin_role_arn))
-    error_message = "admin_role_arn must be a full IAM role ARN (arn:aws:iam::<account>:role/<name>)."
+    condition     = var.admin_role_arn == null || var.admin_role_arn == "" || can(regex("^arn:aws:iam::[0-9]{12}:role/.+$", var.admin_role_arn))
+    error_message = "admin_role_arn must be null, empty, OR a full IAM role ARN (arn:aws:iam::<account>:role/<name>)."
   }
 }
 
