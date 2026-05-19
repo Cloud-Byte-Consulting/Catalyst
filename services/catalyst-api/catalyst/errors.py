@@ -561,12 +561,32 @@ def _log_retry_attempt(retry_state: RetryCallState) -> None:
     outcome = retry_state.outcome
     exc = outcome.exception() if outcome is not None else None
     code = _client_error_code(exc) if exc is not None else None
-    endpoint = retry_endpoint.get()
+
+    # Endpoint resolution: prefer the per-request value the #60
+    # observability middleware sets on every request, fall back to the
+    # legacy ``retry_endpoint`` contextvar that #205 introduced. The
+    # observability one always fires for HTTP-driven calls; the legacy
+    # one stays useful for non-HTTP callers (e.g. a future background
+    # worker invoking the repository directly).
+    endpoint: str | None = None
+    correlation_id_value: str | None = None
+    try:
+        from .observability import correlation_id_var, endpoint_var
+
+        endpoint = endpoint_var.get()
+        correlation_id_value = correlation_id_var.get()
+    except Exception:  # noqa: BLE001 - defensive; never break the retry path
+        pass
+    if endpoint is None:
+        endpoint = retry_endpoint.get()
+    if correlation_id_value is None:
+        correlation_id_value = retry_correlation_id.get()
+
     logger.warning(
         "aws_retry_attempt",
         extra={
             "endpoint": endpoint,
-            "correlation_id": retry_correlation_id.get(),
+            "correlation_id": correlation_id_value,
             "attempt": retry_state.attempt_number,
             "error_code": code,
         },
