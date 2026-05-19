@@ -112,7 +112,9 @@ run "autoscaling_target_and_policies_render" {
   }
 
   assert {
-    condition     = aws_cloudwatch_metric_alarm.cpu_high[0].alarm_actions[0] == "arn:aws:sns:us-west-2:123456789012:catalyst-alerts"
+    # alarm_actions is a set(string) in the AWS provider — index access ([0])
+    # is invalid. Use `contains()` to assert membership instead.
+    condition     = contains(aws_cloudwatch_metric_alarm.cpu_high[0].alarm_actions, "arn:aws:sns:us-west-2:123456789012:catalyst-alerts")
     error_message = "CPU-high alarm action must publish to the SNS topic ARN passed in."
   }
 
