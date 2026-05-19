@@ -68,11 +68,11 @@ variable "enable_network_firewall" {
 
 variable "kms_admin_role_arn" {
   type        = string
-  description = "Optional override for the IAM role ARN granted full kms:* on the platform CMKs provisioned by modules/kms (ADR-016 / #228). When null (the default), main.tf computes the effective ARN as arn:aws:iam::<deploying-account-from-data.aws_caller_identity>:role/catalyst-bootstrap-admin — which matches what scripts/bootstrap-aws-account.sh provisions. Set explicitly via TF_VAR_kms_admin_role_arn in pipelines that bootstrap from a different role name."
+  description = "Optional ARN of an IAM role granted a dedicated AllowKeyAdministration statement on the platform CMKs (ADR-016 / #228). When null (the default), the statement is OMITTED entirely — admin access flows via the EnableIAMUserPermissions statement (account root) + IAM-policy-delegated grants (e.g. PowerUserAccess on the apply role). Set TF_VAR_kms_admin_role_arn in environments that want an additional key-policy-pinned admin (e.g. an SSO break-glass role). The previous default (auto-compose bootstrap-admin from data.aws_caller_identity) was unsafe on fresh accounts where that role had not been provisioned yet — see #268."
   default     = null
 
   validation {
-    condition     = var.kms_admin_role_arn == null || can(regex("^arn:aws:iam::[0-9]{12}:role/.+$", var.kms_admin_role_arn))
-    error_message = "kms_admin_role_arn must be null OR a full IAM role ARN (arn:aws:iam::<account>:role/<name>)."
+    condition     = var.kms_admin_role_arn == null || var.kms_admin_role_arn == "" || can(regex("^arn:aws:iam::[0-9]{12}:role/.+$", var.kms_admin_role_arn))
+    error_message = "kms_admin_role_arn must be null, empty, OR a full IAM role ARN (arn:aws:iam::<account>:role/<name>)."
   }
 }
