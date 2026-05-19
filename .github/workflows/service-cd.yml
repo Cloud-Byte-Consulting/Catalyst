@@ -64,12 +64,12 @@ jobs:
           # Dockerfile can COPY the bundled L4 composite at
           # infrastructure/modules/composite/catalyst-app into the image.
           # Required by #167 (synchronous Terraform-in-Lambda onboard).
-          docker build -t ${ECR_URI}:${GITHUB_SHA} -f services/catalyst-api/Dockerfile .
-          docker push ${ECR_URI}:${GITHUB_SHA}
+          docker build -t "${ECR_URI}:${GITHUB_SHA}" -f services/catalyst-api/Dockerfile .
+          docker push "${ECR_URI}:${GITHUB_SHA}"
           if ! aws ecr describe-images --repository-name "${REPO_NAME}" --image-ids imageTag=latest >/dev/null 2>&1; then
             echo "Seeding ${ECR_URI}:latest (one-time bootstrap)"
-            docker tag ${ECR_URI}:${GITHUB_SHA} ${ECR_URI}:latest
-            docker push ${ECR_URI}:latest
+            docker tag "${ECR_URI}:${GITHUB_SHA}" "${ECR_URI}:latest"
+            docker push "${ECR_URI}:latest"
           else
             echo "${ECR_URI}:latest already exists; skipping bootstrap re-tag (ECR IMMUTABLE)"
           fi
@@ -176,5 +176,5 @@ jobs:
         run: |
           CLUSTER=$(aws ssm get-parameter --name /catalyst/shared/ecs/cluster/arn --query Parameter.Value --output text)
           SERVICE=$(aws ssm get-parameter --name /catalyst/shared/ecs/service/name --query Parameter.Value --output text)
-          TASK_DEF=$(aws ecs describe-services --cluster ${CLUSTER} --services ${SERVICE} --query 'services[0].taskDefinition' --output text)
-          aws ecs update-service --cluster ${CLUSTER} --service ${SERVICE} --task-definition ${TASK_DEF}
+          TASK_DEF=$(aws ecs describe-services --cluster "${CLUSTER}" --services "${SERVICE}" --query 'services[0].taskDefinition' --output text)
+          aws ecs update-service --cluster "${CLUSTER}" --service "${SERVICE}" --task-definition "${TASK_DEF}"

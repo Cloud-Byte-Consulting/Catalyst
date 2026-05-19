@@ -221,20 +221,24 @@ jobs:
           else
             if [ "${#DELETED[@]}" -gt 0 ]; then
               echo "::notice::Orphan sweep removed: ${DELETED[*]}"
-              echo "Result: **destroy + sweep**." >> "$GITHUB_STEP_SUMMARY"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-              echo "**Deleted orphan roles:**" >> "$GITHUB_STEP_SUMMARY"
-              for r in "${DELETED[@]}"; do
-                echo "- \`${r}\`" >> "$GITHUB_STEP_SUMMARY"
-              done
+              {
+                echo "Result: **destroy + sweep**."
+                echo ""
+                echo "**Deleted orphan roles:**"
+                for r in "${DELETED[@]}"; do
+                  echo "- \`${r}\`"
+                done
+              } >> "$GITHUB_STEP_SUMMARY"
             fi
             if [ "${#FAILED[@]}" -gt 0 ]; then
               echo "::warning::Orphan sweep could not delete: ${FAILED[*]}"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-              echo "**Could not delete (manual cleanup required):**" >> "$GITHUB_STEP_SUMMARY"
-              for r in "${FAILED[@]}"; do
-                echo "- \`${r}\`" >> "$GITHUB_STEP_SUMMARY"
-              done
+              {
+                echo ""
+                echo "**Could not delete (manual cleanup required):**"
+                for r in "${FAILED[@]}"; do
+                  echo "- \`${r}\`"
+                done
+              } >> "$GITHUB_STEP_SUMMARY"
             fi
           fi
 
@@ -258,15 +262,17 @@ jobs:
       - name: Teardown summary
         if: success()
         run: |
-          echo "## Teardown complete" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "All Terraform-managed resources have been destroyed." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Preserved (bootstrap tier — cost \$0):**" >> "$GITHUB_STEP_SUMMARY"
-          echo "- IAM roles: \`${CATALYST_PREFIX}-github-{plan,apply,deploy,drift}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- GitHub OIDC identity provider" >> "$GITHUB_STEP_SUMMARY"
-          echo "- S3 state bucket: \`${CATALYST_PREFIX}-tf-state-*\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- DynamoDB lock table: \`${CATALYST_PREFIX}-terraform-locks\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**To re-provision:** \`gh workflow run terraform.yml --ref release\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "Then follow docs/operator-bootstrap.md §Step 7 for the full day-1 sequence." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Teardown complete"
+            echo ""
+            echo "All Terraform-managed resources have been destroyed."
+            echo ""
+            echo "**Preserved (bootstrap tier — cost \$0):**"
+            echo "- IAM roles: \`${CATALYST_PREFIX}-github-{plan,apply,deploy,drift}\`"
+            echo "- GitHub OIDC identity provider"
+            echo "- S3 state bucket: \`${CATALYST_PREFIX}-tf-state-*\`"
+            echo "- DynamoDB lock table: \`${CATALYST_PREFIX}-terraform-locks\`"
+            echo ""
+            echo "**To re-provision:** \`gh workflow run terraform.yml --ref release\`"
+            echo "Then follow docs/operator-bootstrap.md §Step 7 for the full day-1 sequence."
+          } >> "$GITHUB_STEP_SUMMARY"

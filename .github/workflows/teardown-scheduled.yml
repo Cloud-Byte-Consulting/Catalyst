@@ -118,16 +118,20 @@ jobs:
 
       - name: Pre-destroy manifest
         run: |
-          echo "## Resources targeted for destruction" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Resources targeted for destruction"
+            echo ""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
           terraform -chdir=infrastructure state list 2>/dev/null \
             || echo "(state is already empty — idempotent no-op run)"
           terraform -chdir=infrastructure state list 2>/dev/null \
             >> "$GITHUB_STEP_SUMMARY" \
             || echo "(state is already empty — idempotent no-op run)" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo '```'
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Terraform destroy
         id: destroy
@@ -229,20 +233,24 @@ jobs:
           else
             if [ "${#DELETED[@]}" -gt 0 ]; then
               echo "::notice::Orphan sweep removed: ${DELETED[*]}"
-              echo "Result: **destroy + sweep**." >> "$GITHUB_STEP_SUMMARY"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-              echo "**Deleted orphan roles:**" >> "$GITHUB_STEP_SUMMARY"
-              for r in "${DELETED[@]}"; do
-                echo "- \`${r}\`" >> "$GITHUB_STEP_SUMMARY"
-              done
+              {
+                echo "Result: **destroy + sweep**."
+                echo ""
+                echo "**Deleted orphan roles:**"
+                for r in "${DELETED[@]}"; do
+                  echo "- \`${r}\`"
+                done
+              } >> "$GITHUB_STEP_SUMMARY"
             fi
             if [ "${#FAILED[@]}" -gt 0 ]; then
               echo "::warning::Orphan sweep could not delete: ${FAILED[*]}"
-              echo "" >> "$GITHUB_STEP_SUMMARY"
-              echo "**Could not delete (manual cleanup required):**" >> "$GITHUB_STEP_SUMMARY"
-              for r in "${FAILED[@]}"; do
-                echo "- \`${r}\`" >> "$GITHUB_STEP_SUMMARY"
-              done
+              {
+                echo ""
+                echo "**Could not delete (manual cleanup required):**"
+                for r in "${FAILED[@]}"; do
+                  echo "- \`${r}\`"
+                done
+              } >> "$GITHUB_STEP_SUMMARY"
             fi
           fi
 
@@ -267,21 +275,27 @@ jobs:
         if: always()
         run: |
           STATUS="${{ job.status }}"
-          echo "## Teardown result: ${STATUS}" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Teardown result: ${STATUS}"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
           if [ "${STATUS}" = "success" ]; then
-            echo "All Terraform-managed resources destroyed. State file is empty." >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "**Preserved (bootstrap tier — cost \$0):**" >> "$GITHUB_STEP_SUMMARY"
-            echo "- IAM roles: \`${CATALYST_PREFIX}-github-{plan,apply,deploy,drift}\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "- GitHub OIDC identity provider" >> "$GITHUB_STEP_SUMMARY"
-            echo "- S3 state bucket: \`${CATALYST_PREFIX}-tf-state-*\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "- DynamoDB lock table: \`${CATALYST_PREFIX}-terraform-locks\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "**To rebuild:** \`gh workflow run terraform.yml --ref release\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "See [docs/teardown.md](../../docs/teardown.md) for the full re-provisioning sequence." >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "All Terraform-managed resources destroyed. State file is empty."
+              echo ""
+              echo "**Preserved (bootstrap tier — cost \$0):**"
+              echo "- IAM roles: \`${CATALYST_PREFIX}-github-{plan,apply,deploy,drift}\`"
+              echo "- GitHub OIDC identity provider"
+              echo "- S3 state bucket: \`${CATALYST_PREFIX}-tf-state-*\`"
+              echo "- DynamoDB lock table: \`${CATALYST_PREFIX}-terraform-locks\`"
+              echo ""
+              echo "**To rebuild:** \`gh workflow run terraform.yml --ref release\`"
+              echo "See [docs/teardown.md](../../docs/teardown.md) for the full re-provisioning sequence."
+            } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "Teardown did not complete cleanly. Check the logs above." >> "$GITHUB_STEP_SUMMARY"
-            echo "Partial destroy may leave the state file in an inconsistent state." >> "$GITHUB_STEP_SUMMARY"
-            echo "Run \`terraform plan\` to assess current state before retrying." >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "Teardown did not complete cleanly. Check the logs above."
+              echo "Partial destroy may leave the state file in an inconsistent state."
+              echo "Run \`terraform plan\` to assess current state before retrying."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi

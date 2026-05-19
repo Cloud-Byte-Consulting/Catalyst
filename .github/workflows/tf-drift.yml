@@ -91,7 +91,7 @@ jobs:
         run: |
           set +e
           terraform -chdir=infrastructure plan -detailed-exitcode -no-color -lock=false -input=false > drift.txt
-          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
       - name: Publish SNS on drift
         if: steps.drift.outputs.exit_code == '2' && env.DRIFT_SNS_TOPIC_ARN != ''
         env:
