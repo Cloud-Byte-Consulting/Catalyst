@@ -48,14 +48,45 @@ data "terraform_remote_state" "tenant" {
 }
 
 # ---------------------------------------------------------------------------
+# Per-app customer-managed KMS keys (ADR-016).
+#
+# Each L4 catalyst-app composite owns its own pair of CMKs (data +
+# artifact) so a single app's key compromise never blasts outside the
+# tenant/env/project/app blast radius defined by the construct address.
+# The module emits aliases `alias/catalyst/data` and `alias/catalyst/
+# artifacts` — they're unique because each instance is in its own
+# Terraform state file (per-app `.tfstate` per ADR-015 §L4).
+#
+# CONFLICT-AVOIDANCE NOTE: this is the only new block this PR adds to
+# main.tf; #62 and #230 parallel agents are also editing this file.
+# ---------------------------------------------------------------------------
+
+module "kms" {
+  source = "../../kms"
+
+  admin_role_arn     = var.kms_admin_role_arn
+  consumer_role_arns = [aws_iam_role.exec.arn]
+
+  tags = {
+    "catalyst:construct" = local.construct_address
+    "catalyst:tenant"    = var.tenant
+    "catalyst:project"   = var.project
+    "catalyst:app"       = var.app
+    "catalyst:tier"      = "L4"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # ECR repository for the application's container images.
 #
 # Naming: {tenant}-{project}-{app} (matches ADR-007 Tier 2 contract and
 # the existing v1 stub-handler ARN shape). Scan-on-push + immutable tags
-# satisfy ADR-005 supply-chain controls.
+# satisfy ADR-005 supply-chain controls. Per ADR-016 the repository
+# encrypts images at rest with the per-app `catalyst_artifact_key`;
+# encryption_type cannot be changed in place, so an existing AES256 repo
+# must be recreated (runbook in ADR-016 §Migration).
 # ---------------------------------------------------------------------------
 
-# tfsec:ignore:aws-ecr-repository-customer-key
 resource "aws_ecr_repository" "app" {
   name                 = local.resource_name
   image_tag_mutability = "IMMUTABLE"
@@ -66,7 +97,8 @@ resource "aws_ecr_repository" "app" {
   }
 
   encryption_configuration {
-    encryption_type = "AES256"
+    encryption_type = "KMS"
+    kms_key         = module.kms.artifact_key_arn
   }
 
   tags = {
@@ -140,10 +172,10 @@ resource "aws_iam_role_policy" "exec_inline" {
 # the state-key hierarchy from ADR-015 exactly.
 # ---------------------------------------------------------------------------
 
-# tfsec:ignore:aws-cloudwatch-log-group-customer-key
 resource "aws_cloudwatch_log_group" "app" {
   name              = local.log_group_name
   retention_in_days = var.log_retention_days
+  kms_key_id        = module.kms.artifact_key_arn
 
   tags = {
     "catalyst:construct" = local.construct_address

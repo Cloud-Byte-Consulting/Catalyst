@@ -29,6 +29,18 @@ variable "alb_ingress_allowlist" {
   default = ["73.239.59.22"]
 }
 
+# ADR-016 / #228 — admin role ARN granted full kms:* on the platform CMKs.
+variable "kms_admin_role_arn" {
+  type        = string
+  description = "ARN of the SSO admin role granted full kms:* on the platform CMKs. ADR-016."
+  default     = "arn:aws:iam::000000000000:role/catalyst-bootstrap-admin"
+
+  validation {
+    condition     = can(regex("^arn:aws:iam::[0-9]{12}:role/.+$", var.kms_admin_role_arn))
+    error_message = "kms_admin_role_arn must be a full IAM role ARN."
+  }
+}
+
 module "backend" {
   source      = "../../terraform-backend"
   name_prefix = var.name_prefix
@@ -55,8 +67,15 @@ module "iam" {
   bootstrap_owner_iam_user = var.bootstrap_owner_iam_user
 }
 
+module "kms" {
+  source             = "../../kms"
+  admin_role_arn     = var.kms_admin_role_arn
+  consumer_role_arns = []
+}
+
 module "ecr" {
-  source = "../../ecr"
+  source      = "../../ecr"
+  kms_key_arn = module.kms.artifact_key_arn
 }
 
 module "ecs_alb" {
@@ -68,7 +87,8 @@ module "ecs_alb" {
 }
 
 module "dynamodb" {
-  source = "../../dynamodb"
+  source      = "../../dynamodb"
+  kms_key_arn = module.kms.data_key_arn
 }
 
 module "lambda_service" {

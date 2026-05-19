@@ -65,3 +65,14 @@ variable "enable_network_firewall" {
   description = "When true, provision the optional AWS Network Firewall for egress controls."
   default     = false
 }
+
+variable "kms_admin_role_arn" {
+  type        = string
+  description = "ARN of the SSO admin (or platform-engineer break-glass) role granted full kms:* on the platform CMKs provisioned by modules/kms (ADR-016 / #228). Defaults to the bootstrap admin role pattern; override via TF_VAR_kms_admin_role_arn in pipelines that bootstrap from a different role."
+  default     = "arn:aws:iam::000000000000:role/catalyst-bootstrap-admin"
+
+  validation {
+    condition     = can(regex("^arn:aws:iam::[0-9]{12}:role/.+$", var.kms_admin_role_arn))
+    error_message = "kms_admin_role_arn must be a full IAM role ARN."
+  }
+}

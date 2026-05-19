@@ -104,3 +104,17 @@ variable "log_retention_days" {
   type        = number
   default     = 30
 }
+
+# ---------------------------------------------------------------------------
+# KMS — per-app customer-managed key inputs (ADR-016 / issue #228).
+# ---------------------------------------------------------------------------
+
+variable "kms_admin_role_arn" {
+  description = "ARN of the SSO admin (or platform-engineer break-glass) role granted full kms:* on the per-app CMKs provisioned by the embedded kms module. Sourced from the L1 platform baseline. ADR-016."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:aws:iam::[0-9]{12}:role/.+$", var.kms_admin_role_arn))
+    error_message = "kms_admin_role_arn must be a full IAM role ARN."
+  }
+}
