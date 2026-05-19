@@ -14,6 +14,8 @@ Onboarding into Catalyst is **three audience-sliced tracks** ([ADR-012](./docs/A
 
 The index at [`docs/onboarding/README.md`](./docs/onboarding/README.md) explains the cross-track sequencing.
 
+- **Self-deploy** via `catalyst products deploy catalyst-api --construct <addr>` — exercise the platform's own product-deploy contract on Catalyst itself ([`docs/products.md`](./docs/products.md), CAT-3 / [#103](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/103)).
+
 ## Repository layout
 
 - `infrastructure/`: Terraform modules and tests for backend, network, IAM, runtime, and security controls.
