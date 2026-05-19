@@ -248,6 +248,66 @@ aws sns subscribe --topic-arn "$TOPIC_ARN" --protocol lambda \
 
 **Dashboard:** the operator dashboard URL is the `dashboard_url` Terraform output. Bookmark it post-bootstrap and link it in your runbook.
 
+## Autoscaling — verifying scaling activity (ECS runtime only)
+
+When the ADR-009 ECS Fargate runtime is enabled (`enable_ecs_runtime = true`) **and** ECS autoscaling is opted in (`enable_ecs_autoscaling = true`), the `modules/ecs-autoscaling` sub-module registers an App Autoscaling target + two target-tracking policies on the catalyst-api ECS service. See [ADR-018](../ADR/ADR-018-ecs-autoscaling-strategy.md) for the strategy.
+
+To verify the autoscaling surface is live and healthy:
+
+**1. Target is registered:**
+
+```bash
+aws application-autoscaling describe-scalable-targets \
+  --service-namespace ecs \
+  --resource-ids service/<cluster-name>/<service-name>
+```
+
+The output should show `MinCapacity: 1`, `MaxCapacity: 6` (defaults) and `ScalableDimension: ecs:service:DesiredCount`.
+
+**2. Both policies are attached:**
+
+```bash
+aws application-autoscaling describe-scaling-policies \
+  --service-namespace ecs \
+  --resource-id service/<cluster-name>/<service-name>
+```
+
+Expect two `TargetTrackingScaling` policies:
+- One with `PredefinedMetricType: ECSServiceAverageCPUUtilization`, `TargetValue: 60`
+- One with `PredefinedMetricType: ALBRequestCountPerTarget`, `TargetValue: 50`, plus a `ResourceLabel` matching `app/<alb-name>/<hex>/targetgroup/<tg-name>/<hex>`
+
+**3. AWS-managed scaling alarms exist (auto-emitted by the policies):**
+
+```bash
+aws cloudwatch describe-alarms --alarm-name-prefix TargetTracking-
+```
+
+Expect four alarms (two per policy — one for scale-out, one for scale-in). These drive the scaling action internally; they are NOT routed to SNS.
+
+**4. Supplemental alarms (the SNS-visible ones) exist:**
+
+```bash
+aws cloudwatch describe-alarms \
+  --alarm-name-prefix catalyst-api- \
+  --query "MetricAlarms[?contains(@.AlarmName, 'cpu-high') || contains(@.AlarmName, 'rpt-high') || contains(@.AlarmName, 'at-max-capacity')].[AlarmName,StateValue,AlarmActions[0]]" \
+  --output table
+```
+
+Expect three alarms (`catalyst-api-cpu-high`, `catalyst-api-rpt-high`, `catalyst-api-at-max-capacity`), each with `AlarmActions` containing the `catalyst-alerts` SNS topic ARN from #63.
+
+**5. Inspect recent scaling activity:**
+
+```bash
+aws application-autoscaling describe-scaling-activities \
+  --service-namespace ecs \
+  --resource-id service/<cluster-name>/<service-name> \
+  --max-results 10
+```
+
+Each entry shows a scale-in or scale-out event with `Cause` ("monitor alarm ... in ALARM state") and `StatusCode: Successful`. An empty list means no scaling has occurred since the policies were registered (expected at steady state).
+
+**HA trade-off reminder** (per ADR-018 §3): `min_capacity` defaults to **1** for cost. Production deployments that require HA must override `ecs_autoscaling_min_capacity = 2` (or higher) in their composite caller — at `min=1` the service has a brief unavailability window during task replacement, crash recovery, or AZ outages.
+
 ## Anti-patterns (explicitly unsupported)
 
 - Creating production VPC / ALB / Lambda in the AWS console "just once"

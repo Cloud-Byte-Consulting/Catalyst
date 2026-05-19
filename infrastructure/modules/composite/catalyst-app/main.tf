@@ -246,3 +246,38 @@ module "ecs_runtime" {
   catalyst_log_level     = var.ecs_log_level
   container_extra_env    = var.ecs_container_extra_env
 }
+
+# ---------------------------------------------------------------------------
+# #230 — ECS application autoscaling (ADR-018, opt-in).
+#
+# Wires the modules/ecs-autoscaling sub-module that registers an App
+# Autoscaling target on the running ECS service + two target-tracking
+# policies (CPU + ALBRequestCountPerTarget) + supplemental alarms wired to
+# the #63 SNS topic.
+#
+# The cluster/service/ALB/TG identifiers are passed in as variables (not
+# read from module.ecs_runtime outputs) because the ECS *service* itself
+# is provisioned by the CD pipeline that consumes the #62 task definition
+# — at composite-apply time the service may not yet exist. This is why the
+# autoscaling module accepts bare strings rather than ARNs and why this
+# wiring is gated independently of `enable_ecs_runtime`.
+# ---------------------------------------------------------------------------
+
+module "ecs_autoscaling" {
+  count  = var.enable_ecs_autoscaling ? 1 : 0
+  source = "../../ecs-autoscaling"
+
+  name_prefix             = local.resource_name
+  cluster_name            = var.ecs_autoscaling_cluster_name
+  service_name            = var.ecs_autoscaling_service_name
+  alb_arn_suffix          = var.ecs_autoscaling_alb_arn_suffix
+  target_group_arn_suffix = var.ecs_autoscaling_target_group_arn_suffix
+  sns_topic_arn           = var.ecs_autoscaling_sns_topic_arn
+
+  min_capacity     = var.ecs_autoscaling_min_capacity
+  max_capacity     = var.ecs_autoscaling_max_capacity
+  cpu_target_value = var.ecs_autoscaling_cpu_target_value
+  rpt_target_value = var.ecs_autoscaling_rpt_target_value
+
+  enable_supplemental_alarms = var.ecs_autoscaling_enable_supplemental_alarms
+}
