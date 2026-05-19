@@ -25,16 +25,7 @@ How to destroy and re-provision Terraform-managed Catalyst resources. Intended f
 
 `teardown-scheduled.yml` runs automatically at **22:00 UTC Mon–Fri** and destroys all Terraform-managed resources. No action required from the operator.
 
-To change the schedule without a code change, set a GitHub Actions repository variable:
-
-```bash
-# Example: move to midnight UTC on weekdays
-gh variable set TEARDOWN_CRON_SCHEDULE \
-  --repo Cloud-Byte-Consulting/Catalyst \
-  --body "0 0 * * 1-5"
-```
-
-> **Note:** The workflow reads `vars.TEARDOWN_CRON_SCHEDULE` if set. The default baked into the workflow YAML is `0 22 * * 1-5`. Changes to a repository variable take effect on the next cron firing without a code push.
+The default schedule is **`0 22 * * 1-5`** (22:00 UTC Mon–Fri), defined in `teardown-scheduled.yml`. GitHub Actions does not support reading cron expressions from repository variables at runtime — change the `schedule.cron` entry in that workflow file and merge to `release`.
 
 ### What the scheduled run does
 
@@ -63,9 +54,18 @@ Watch the run:
 gh run watch --repo Cloud-Byte-Consulting/Catalyst
 ```
 
-### Via `teardown.yml` (requires confirmation input)
+### Via `teardown.yml` (requires confirmation)
 
-The original human-gated workflow. Useful when you want an explicit confirmation step in the audit trail:
+Human-gated workflow with an explicit confirmation step in the audit trail. Prefer the boolean input:
+
+```bash
+gh workflow run teardown.yml \
+  --repo Cloud-Byte-Consulting/Catalyst \
+  --ref release \
+  --field confirm_destroy=true
+```
+
+Legacy string confirmation (still supported):
 
 ```bash
 gh workflow run teardown.yml \
@@ -145,11 +145,11 @@ export CATALYST_PREFIX=catalyst
 ### Dry run (plan what would be destroyed)
 
 ```bash
+# Pass only bucket + region; key and lock settings come from backend.tf
+# (key = "catalyst/platform.tfstate", use_lockfile = true).
 terraform -chdir=infrastructure init \
   -backend-config="bucket=${CATALYST_PREFIX}-tf-state-${ACCOUNT_ID}-${AWS_REGION}" \
-  -backend-config="key=terraform.tfstate" \
-  -backend-config="region=${AWS_REGION}" \
-  -backend-config="dynamodb_table=${CATALYST_PREFIX}-terraform-locks"
+  -backend-config="region=${AWS_REGION}"
 
 terraform -chdir=infrastructure plan -destroy
 ```

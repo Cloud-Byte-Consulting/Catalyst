@@ -6,7 +6,7 @@ name: Teardown (Demo Cost-Save)
 #
 # Safety:
 #   - Only triggers on workflow_dispatch. Never on push or schedule.
-#   - Requires the operator to type "destroy" as a confirmation input.
+#   - Requires confirm_destroy=true or confirmation=destroy before any AWS call.
 #   - Uses the apply role (PowerUserAccess + CatalystApplyIAMScoped).
 #
 # To re-provision after teardown:
@@ -16,12 +16,18 @@ name: Teardown (Demo Cost-Save)
 on:
   workflow_dispatch:
     inputs:
+      confirm_destroy:
+        type: boolean
+        description: >
+          Set to true to tear down all Terraform-managed resources (VPC, NAT,
+          ECS, Lambda, ALB, ECR, DynamoDB platform-state table). Bootstrap
+          resources are preserved.
+        required: true
+        default: false
       confirmation:
         description: >
-          Type exactly "destroy" to confirm you want to tear down all
-          Terraform-managed resources (VPC, NAT, ECS, Lambda, ALB, ECR,
-          DynamoDB platform-state table). Bootstrap resources are preserved.
-        required: true
+          (Legacy) Type exactly "destroy" instead of confirm_destroy=true.
+        required: false
         default: ''
 
 permissions:
@@ -36,12 +42,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  confirm:
+    name: Confirm destruction
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require explicit confirmation
+        if: ${{ github.event.inputs.confirm_destroy != 'true' && github.event.inputs.confirmation != 'destroy' }}
+        run: |
+          echo "::error::Teardown aborted — set confirm_destroy to true or pass confirmation=destroy."
+          exit 1
+      - name: Confirmed
+        run: |
+          echo "::notice::Teardown confirmed by ${GITHUB_ACTOR} — proceeding to destroy."
+
   teardown:
     name: Terraform Destroy
+    needs: confirm
     runs-on: ubuntu-latest
-    # Guard: fail immediately if the operator did not type the magic word.
-    # This check runs before any AWS credential exchange.
-    if: ${{ github.event.inputs.confirmation == 'destroy' }}
 
     defaults:
       run:
@@ -182,6 +199,27 @@ jobs:
             for arn in ${MANAGED}; do
               if ! aws iam detach-role-policy --role-name "${role}" --policy-arn "${arn}" 2>err.log; then
                 echo "::warning::detach-role-policy failed for ${role} <- ${arn}: $(cat err.log)"
+              fi
+              rm -f err.log
+            done
+
+            # Remove instance profiles (requires iam:ListInstanceProfilesForRole on apply role).
+            PROFILES=$(aws iam list-instance-profiles-for-role \
+              --role-name "${role}" \
+              --query 'InstanceProfiles[].InstanceProfileName' \
+              --output text 2>&1) || {
+              echo "::warning::list-instance-profiles-for-role failed for ${role}: ${PROFILES}"
+              PROFILES=""
+            }
+            for prof in ${PROFILES}; do
+              if ! aws iam remove-role-from-instance-profile \
+                --instance-profile-name "${prof}" \
+                --role-name "${role}" 2>err.log; then
+                echo "::warning::remove-role-from-instance-profile failed for ${role} <- ${prof}: $(cat err.log)"
+              fi
+              rm -f err.log
+              if ! aws iam delete-instance-profile --instance-profile-name "${prof}" 2>err.log; then
+                echo "::warning::delete-instance-profile failed for ${prof}: $(cat err.log)"
               fi
               rm -f err.log
             done
