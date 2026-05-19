@@ -355,18 +355,22 @@ jobs:
         if: steps.gate.outputs.enabled == 'true'
       - uses: hashicorp/setup-terraform@v3
         if: steps.gate.outputs.enabled == 'true'
-      - name: Terraform plan (no backend — synthesized plan only)
+      - uses: aws-actions/configure-aws-credentials@v4
         if: steps.gate.outputs.enabled == 'true'
+        with:
+          role-to-assume: ${{ vars.WA_AWS_ANALYZER_PLAN_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Terraform plan
+        if: steps.gate.outputs.enabled == 'true'
+        working-directory: infrastructure
         run: |
-          # `-backend=false` mirrors the existing terraform-quality job — we
-          # don't need real state to produce a structural plan for the WA
-          # analyzer. If full plan-against-real-state is needed later, swap
-          # this for `aws-actions/configure-aws-credentials@v4` with the
-          # GitHub OIDC role (NEVER long-lived keys — CLAUDE.md guardrail).
+          # OIDC creds from the step above are required because `terraform plan`
+          # evaluates data sources (e.g. data.aws_caller_identity in modules/kms)
+          # which call STS at plan time. NEVER long-lived keys — CLAUDE.md guardrail.
           set -euo pipefail
-          terraform -chdir=infrastructure init -backend=false -input=false
-          terraform -chdir=infrastructure plan -input=false -out=plan.tfplan || true
-          terraform -chdir=infrastructure show -json plan.tfplan > plan.json || echo '{}' > plan.json
+          terraform init -backend=false -input=false
+          terraform plan -input=false -out=plan.tfplan || true
+          terraform show -json plan.tfplan > plan.json || echo '{}' > plan.json
       - name: Post plan to WA analyzer endpoint (fail-open)
         if: steps.gate.outputs.enabled == 'true'
         id: analyze
@@ -390,12 +394,15 @@ jobs:
             echo 'body=WA AWS analyzer unreachable — non-blocking warning (fail-open per ADR-023 Phase 2).' >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # Randomized per-run delimiter prevents body-collision injection
+          # into GITHUB_OUTPUT (GitHub Actions multiline-output best practice).
+          DELIM="ghadelim_$(openssl rand -hex 16)"
           {
-            echo 'body<<EOF_WA'
+            echo "body<<$DELIM"
             echo '## AWS Well-Architected Analyzer (ADR-023 Phase 2)'
             echo ''
             echo "$response"
-            echo 'EOF_WA'
+            echo "$DELIM"
           } >> "$GITHUB_OUTPUT"
       - name: Post WA score PR comment
         if: steps.gate.outputs.enabled == 'true' && steps.analyze.outputs.body != ''
