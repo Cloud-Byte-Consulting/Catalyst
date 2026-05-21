@@ -8,7 +8,7 @@ on:
 
 jobs:
   check-sync:
-    name: Verify Claude/Cursor stubs match canonical
+    name: Verify bootstrap-wired tool trees (ADR-024)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,46 +17,26 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Verify every canonical skill has both tool stubs
-        run: |
-          set -euo pipefail
-          missing=0
-          for d in skills/*/; do
-            name=$(basename "$d")
-            if [ ! -f ".claude/skills/$name/SKILL.md" ]; then
-              echo "::error::Missing .claude/skills/$name/SKILL.md for canonical skills/$name/"
-              missing=$((missing + 1))
-            fi
-            if [ ! -f ".cursor/skills/$name/SKILL.md" ]; then
-              echo "::error::Missing .cursor/skills/$name/SKILL.md for canonical skills/$name/"
-              missing=$((missing + 1))
-            fi
-          done
-          if [ "$missing" -gt 0 ]; then
-            echo "::error::$missing tool-stub file(s) missing. Run: python scripts/sync_tool_skills.py"
-            exit 1
-          fi
+      - name: Install bootstrap dependencies
+        run: pip install pyyaml
 
-      - name: Verify every canonical agent has a Claude adapter
+      - name: Wire tool trees and MCP configs
+        run: python platform/bootstrap.py
+
+      - name: Verify bootstrap check passes
+        run: python platform/bootstrap.py --check
+
+      - name: Verify thin Claude adapters exist for canonical personas
         run: |
           set -euo pipefail
           missing=0
           for f in agents/*.md; do
             name=$(basename "$f" .md)
             if [ ! -f ".claude/agents/$name.md" ]; then
-              echo "::error::Missing .claude/agents/$name.md adapter for canonical agents/$name.md"
-              missing=$((missing + 1))
-            fi
-            if [ ! -f ".cursor/agents/$name.md" ]; then
-              echo "::error::Missing .cursor/agents/$name.md stub for canonical agents/$name.md"
+              echo "::error::Missing .claude/agents/$name.md (run platform/bootstrap.py)"
               missing=$((missing + 1))
             fi
           done
           if [ "$missing" -gt 0 ]; then
-            echo "::error::$missing agent stub/adapter file(s) missing."
             exit 1
           fi
-
-      - name: Verify stub contents match canonical (no drift)
-        run: |
-          python scripts/sync_tool_skills.py --check
