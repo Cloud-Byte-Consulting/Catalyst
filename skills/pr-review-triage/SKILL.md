@@ -341,5 +341,5 @@ The example shows the skill applies cleanly even when the triage surface is smal
 
 - AGENTS.md — gate-5 peer-review contract
 - ADR-011 — six-gate operating workflow
-- `.cursor/skills/review-prompt-engineering/` — companion skill for *generating* reviews (this one *closes* them)
-- `.cursor/skills/github-state-machine/` — broader state-machine convention the gate-5 boundary plugs into
+- `skills/review-prompt-engineering/` — companion skill for *generating* reviews (this one *closes* them)
+- `skills/github-state-machine/` — broader state-machine convention the gate-5 boundary plugs into

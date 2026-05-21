@@ -55,7 +55,7 @@ the summary aligns with the existing convention from the Gherkin workflow doc.
 - <option rejected> — <one-line reason>
 
 ### Actions taken
-- Initialised REPL: `python .claude/skills/rlm/scripts/rlm_repl.py init <artifact>`
+- Initialised REPL: `python skills/rlm/scripts/rlm_repl.py init <artifact>`
 - Scouted with `peek(0, 3000)` and `peek(end-3000, end)`
 - Materialised chunks: `write_chunks('.claude/rlm_state/chunks/', size=<N>, overlap=<N>)` → `<N>` files
 - Subcall loop: `<N>` `rlm-subcall` invocations; structured JSON appended to `buffers`
@@ -118,7 +118,7 @@ Chunk 0 surfaced the SQL injection with `confidence: high` and a direct evidence
 
 ### Actions taken
 - Exported diff: `gh pr diff 42 > /tmp/pr-42.diff`
-- Initialised REPL: `python .claude/skills/rlm/scripts/rlm_repl.py init /tmp/pr-42.diff`
+- Initialised REPL: `python skills/rlm/scripts/rlm_repl.py init /tmp/pr-42.diff`
 - Scouted with `peek(0, 3000)` and `peek(len(content)-3000, len(content))`
 - Materialised chunks: `write_chunks('.claude/rlm_state/chunks/', size=200000, overlap=2000)` → 4 files
 - Subcall loop: 4 `rlm-subcall` invocations; JSON per chunk appended to `buffers`

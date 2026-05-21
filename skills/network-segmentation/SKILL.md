@@ -6,7 +6,7 @@ description: >
   edge security, VPC endpoints for AWS service access, and single NAT gateway
   architecture. Use when designing or reviewing network infrastructure.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/network-segmentation/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/network-segmentation/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 
 ## Role

@@ -27,7 +27,7 @@ never raw artifact text.
 # RLM is already cloned at cloud-byte-consulting/claude_code_RLM
 
 # Copy skill and subagent into Catalyst .claude/
-cp -r claude_code_RLM/.claude/skills/rlm        Catalyst/.claude/skills/rlm
+cp -r claude_code_RLM/skills/rlm        Catalyst/skills/rlm
 cp -r claude_code_RLM/.claude/agents/rlm-subcall.md  Catalyst/.claude/agents/rlm-subcall.md
 
 # Add gitignore entry so pickle state is never committed
@@ -194,8 +194,8 @@ posted as a structured issue comment (`### Decision`, `### Actions taken`) befor
 `state/blocked-on-human` and back to `state/agent-working`), the REPL state pkl will be stale
 because `.claude/rlm_state/` is ephemeral. The resuming agent MUST re-initialise:
 ```bash
-python .claude/skills/rlm/scripts/rlm_repl.py reset
-python .claude/skills/rlm/scripts/rlm_repl.py init /tmp/codebase-context.txt
+python skills/rlm/scripts/rlm_repl.py reset
+python skills/rlm/scripts/rlm_repl.py init /tmp/codebase-context.txt
 ```
 
 ---
@@ -286,19 +286,19 @@ chunk-level analysis. In Cursor, use the **Shell tool** for REPL commands and th
 
 ```powershell
 # 1. Initialise — same command, any shell
-python .claude/skills/rlm/scripts/rlm_repl.py init <artifact_path>
-python .claude/skills/rlm/scripts/rlm_repl.py status
+python skills/rlm/scripts/rlm_repl.py init <artifact_path>
+python skills/rlm/scripts/rlm_repl.py status
 
 # 2. Scout
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "print(peek(0, 3000))"
+python skills/rlm/scripts/rlm_repl.py exec -c "print(peek(0, 3000))"
 
 # 3. Chunk
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
+python skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
 
 # 4. Analyse — launch Task subagents (see below)
 # 5. Synthesise — collect subagent JSON, compose in root context
 # 6. Clean up
-python .claude/skills/rlm/scripts/rlm_repl.py reset
+python skills/rlm/scripts/rlm_repl.py reset
 ```
 
 ### MCP tool alternative
@@ -317,7 +317,7 @@ call RLM operations as MCP tools instead of Shell commands:
 | `rlm_reset` | `python rlm_repl.py reset` |
 | `rlm_export_buffers` | `python rlm_repl.py export-buffers <path>` |
 
-The MCP server is at `.cursor/skills/rlm/rlm_mcp_server.py` and delegates to the
+The MCP server is at `skills/rlm/rlm_mcp_server.py` and delegates to the
 same `rlm_repl.py` without forking it.
 
 ### Cursor subagent mapping
@@ -338,8 +338,8 @@ Each of the four patterns above works identically in Cursor with these substitut
 ```
 # Shell tool:
 gh pr diff 42 > /tmp/pr-42.diff
-python .claude/skills/rlm/scripts/rlm_repl.py init /tmp/pr-42.diff
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
+python skills/rlm/scripts/rlm_repl.py init /tmp/pr-42.diff
+python skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
 
 # For each chunk — Task tool (generalPurpose, run_in_background=true):
 # Prompt: "Read .claude/rlm_state/chunks/chunk_0000.txt and extract bugs,
@@ -382,7 +382,7 @@ Get-ChildItem -Recurse -Include *.py,*.tf,*.md | Get-Content | Out-File /tmp/cod
 - [STATE-MACHINE.md](ADR/STATE-MACHINE.md)
 - [issue-execution-gherkin-workflow-2026-05-13.md](issue-execution-gherkin-workflow-2026-05-13.md)
 - Cursor rule: `.cursor/rules/rlm-workflow.mdc`
-- MCP server: `.cursor/skills/rlm/rlm_mcp_server.py`
+- MCP server: `skills/rlm/rlm_mcp_server.py`
 - MCP config: `.cursor/mcp.json`
 - Source repo: `https://github.com/BittahCriminal/claude_code_RLM`
 - Paper: Zhang, Kraska, Khattab — *Recursive Language Models* (arXiv:2512.24601)

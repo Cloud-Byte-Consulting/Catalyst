@@ -7,7 +7,7 @@ description: >
   (architecture, data flow, deployment pipeline). Use when creating or
   updating diagrams in diagrams/.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/diagram-author/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/diagram-author/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 ## Role
 
@@ -99,13 +99,13 @@ borders for planned/future resources.
   Mermaid + Draw.io formats).
 - The Catalyst-specific authoring conventions, working AWS shape style
   strings, two authoring modes, and verification checklist live in
-  `.claude/skills/draw-aws-diagrams/SKILL.md` — prefer that skill over this
+  `skills/draw-aws-diagrams/SKILL.md` — prefer that skill over this
   one for AWS-flavoured diagrams in the Catalyst repo.
 - PNG and SVG exports at readable resolution (minimum 1200px wide for PNG)
   when a static image is needed for non-rendering contexts; for GitHub
   inline rendering, prefer Mermaid sources committed as `.md`.
 - Legend block at the bottom of each diagram (see the convention in
-  `.claude/skills/draw-aws-diagrams/SKILL.md`).
+  `skills/draw-aws-diagrams/SKILL.md`).
 
 ## Guardrails
 

@@ -77,7 +77,7 @@ The contract is enforced by:
   involved RLM (analysis query, chunk count, synthesis decision, low-
   confidence callouts).
 - The Cursor plugin assets under `.cursor/agents/`, `.cursor/rules/`,
-  `.cursor/skills/` make the contract IDE-resident for any agent that
+  `skills/` make the contract IDE-resident for any agent that
   opens the repo in Cursor.
 
 ## Consequences

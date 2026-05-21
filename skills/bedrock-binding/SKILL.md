@@ -18,8 +18,8 @@ You are the **Bedrock binding** for Catalyst. You hand out AWS Bedrock Converse 
 
 - `docs/research/platform-catalyst-agents-evaluation.md` — decision #11 (Bedrock binding via separate MCP server).
 - `.cursor/agents/ai-reviewer-architect.md` — primary consumer of this skill.
-- `.cursor/skills/bedrock-converse-client/SKILL.md` — async Python Converse client patterns the runtime service follows when running in-process.
-- `.cursor/skills/ai-observability/SKILL.md` — per-call EMF metrics the runtime service emits around each tool call.
+- `skills/bedrock-converse-client/SKILL.md` — async Python Converse client patterns the runtime service follows when running in-process.
+- `skills/ai-observability/SKILL.md` — per-call EMF metrics the runtime service emits around each tool call.
 - AWS Bedrock Converse API: https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 
 ## What ships with this skill
@@ -62,7 +62,7 @@ Returns the raw `list_foundation_models` response or a structured error.
 The server is JSON-RPC 2.0. List the tools without invoking AWS:
 
 ```powershell
-'{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python .cursor/skills/bedrock-binding/bedrock_mcp_server.py
+'{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python skills/bedrock-binding/bedrock_mcp_server.py
 ```
 
 Expected: a single JSON line containing both `bedrock_invoke_converse` and `bedrock_list_models` under `result.tools[].name`.

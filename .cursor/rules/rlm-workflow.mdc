@@ -15,7 +15,7 @@ CloudWatch/CloudTrail export, multi-file codebase dump) that exceeds **~50k char
 ```
 Cursor root agent (Opus/Sonnet)
   │
-  ├─ Shell tool ──► python .claude/skills/rlm/scripts/rlm_repl.py
+  ├─ Shell tool ──► python skills/rlm/scripts/rlm_repl.py
   │                 (init, status, peek, grep, chunk, exec)
   │
   ├─ Task subagent (generalPurpose) ──► chunk 0 analysis
@@ -38,8 +38,8 @@ Cursor root agent (Opus/Sonnet)
 Use the Shell tool to initialise RLM state from the artifact file:
 
 ```
-python .claude/skills/rlm/scripts/rlm_repl.py init <artifact_path>
-python .claude/skills/rlm/scripts/rlm_repl.py status
+python skills/rlm/scripts/rlm_repl.py init <artifact_path>
+python skills/rlm/scripts/rlm_repl.py status
 ```
 
 The state pickle is saved at `.claude/rlm_state/state.pkl` (gitignored).
@@ -49,14 +49,14 @@ The state pickle is saved at `.claude/rlm_state/state.pkl` (gitignored).
 Use the Shell tool to preview the beginning and end of the artifact:
 
 ```
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "print(peek(0, 3000))"
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "print(peek(len(content)-3000, len(content)))"
+python skills/rlm/scripts/rlm_repl.py exec -c "print(peek(0, 3000))"
+python skills/rlm/scripts/rlm_repl.py exec -c "print(peek(len(content)-3000, len(content)))"
 ```
 
 Use `grep` to locate specific patterns:
 
 ```
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "print(grep('ERROR', max_matches=10))"
+python skills/rlm/scripts/rlm_repl.py exec -c "print(grep('ERROR', max_matches=10))"
 ```
 
 ### 3. Choose a chunking strategy
@@ -72,7 +72,7 @@ overlap (~2000 chars) to keep resource blocks intact.
 ### 4. Materialise chunks as files
 
 ```
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000, overlap=0); print(len(paths)); print(paths)"
+python skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000, overlap=0); print(len(paths)); print(paths)"
 ```
 
 ### 5. Parallel chunk analysis via Task subagents
@@ -123,13 +123,13 @@ subagent completes.
 After each Task subagent returns, add its JSON output to the REPL buffers:
 
 ```
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "add_buffer('<escaped JSON result>')"
+python skills/rlm/scripts/rlm_repl.py exec -c "add_buffer('<escaped JSON result>')"
 ```
 
 Or export all buffers to a file for synthesis:
 
 ```
-python .claude/skills/rlm/scripts/rlm_repl.py export-buffers .claude/rlm_state/synthesis-input.json
+python skills/rlm/scripts/rlm_repl.py export-buffers .claude/rlm_state/synthesis-input.json
 ```
 
 ### 7. Root synthesis
@@ -152,7 +152,7 @@ required fields:
 ### 9. Clean up
 
 ```
-python .claude/skills/rlm/scripts/rlm_repl.py reset
+python skills/rlm/scripts/rlm_repl.py reset
 ```
 
 REPL state is ephemeral — discard when the issue reaches a terminal state.
@@ -173,10 +173,10 @@ Prefer MCP tools when available for cleaner tool-native access.
 gh pr diff <N> > /tmp/pr-<N>.diff
 
 # Init RLM
-python .claude/skills/rlm/scripts/rlm_repl.py init /tmp/pr-<N>.diff
+python skills/rlm/scripts/rlm_repl.py init /tmp/pr-<N>.diff
 
 # Chunk and analyze
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
+python skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
 
 # Spawn Task subagents per chunk (parallel) with query:
 # "Find bugs, security issues, API contract violations, and design problems."
@@ -189,8 +189,8 @@ python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.cl
 aws cloudtrail lookup-events --output json > /tmp/cloudtrail-export.json
 
 # Init and chunk
-python .claude/skills/rlm/scripts/rlm_repl.py init /tmp/cloudtrail-export.json
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
+python skills/rlm/scripts/rlm_repl.py init /tmp/cloudtrail-export.json
+python skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
 
 # Spawn Task subagents with query:
 # "Find resources created without encryption or public-access controls."
@@ -203,8 +203,8 @@ python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.cl
 terraform show -json tfplan.bin > /tmp/plan-output.json
 
 # Init with smaller chunks for structured data
-python .claude/skills/rlm/scripts/rlm_repl.py init /tmp/plan-output.json
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=150000, overlap=2000); print(paths)"
+python skills/rlm/scripts/rlm_repl.py init /tmp/plan-output.json
+python skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=150000, overlap=2000); print(paths)"
 
 # Spawn Task subagents with query:
 # "Identify resources being destroyed, IAM permission changes, KMS key changes, cost delta, policy violations."
@@ -217,8 +217,8 @@ python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.cl
 Get-ChildItem -Recurse -Include *.py,*.tf,*.md | Get-Content | Out-File /tmp/codebase-context.txt
 
 # Init and chunk
-python .claude/skills/rlm/scripts/rlm_repl.py init /tmp/codebase-context.txt
-python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
+python skills/rlm/scripts/rlm_repl.py init /tmp/codebase-context.txt
+python skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.claude/rlm_state/chunks', size=200000); print(paths)"
 
 # Spawn Task subagents with query:
 # "Locate all places where <target symbol> is defined, validated, or called."
@@ -242,6 +242,6 @@ python .claude/skills/rlm/scripts/rlm_repl.py exec -c "paths = write_chunks('.cl
 - ADR-004: `docs/ADR/ADR-004-rlm-for-long-context-agent-tasks.md`
 - Integration guide: `docs/rlm-integration-guide.md`
 - Handoff template: `docs/rlm-issue-handoff-template.md`
-- REPL script: `.claude/skills/rlm/scripts/rlm_repl.py`
-- Claude Code skill (reference): `.claude/skills/rlm/SKILL.md`
+- REPL script: `skills/rlm/scripts/rlm_repl.py`
+- Claude Code skill (reference): `skills/rlm/SKILL.md`
 - Claude Code subagent (reference): `.claude/agents/rlm-subcall.md`

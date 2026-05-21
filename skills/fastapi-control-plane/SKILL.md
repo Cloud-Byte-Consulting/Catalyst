@@ -6,7 +6,7 @@ description: >-
   dependency injection, structured error responses, health endpoints, and
   OpenAPI generation. Use when building or modifying catalyst-api endpoints.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/fastapi-control-plane/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/fastapi-control-plane/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 
 # FastAPI control plane

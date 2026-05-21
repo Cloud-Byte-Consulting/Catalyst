@@ -9,7 +9,7 @@ description: >-
   pairing IaC + Dockerfile + image CVE strategy with Trivy/Grype.
 ---
 
-<!-- Vendored from: platform-catalyst/.cursor/skills/checkov-cloud-image-static-analysis/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/checkov-cloud-image-static-analysis/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 # Checkov — cloud IaC and container static analysis (Catalyst)
 

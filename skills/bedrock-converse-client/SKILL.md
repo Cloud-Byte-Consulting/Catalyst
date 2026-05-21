@@ -6,7 +6,7 @@ description: >-
   error handling, and async client management. Use when making Bedrock
   API calls from pr-reviewer-consumer or ops-intel-reporter.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/bedrock-converse-client/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/bedrock-converse-client/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 # Bedrock Converse client
 
@@ -151,7 +151,7 @@ async def converse_stream(
 
 ### 7. Cross-region failover
 
-Per `AGENTS.md` and the Bedrock binding MCP (`.cursor/skills/bedrock-binding/`): use inference profiles for us-east-1 ↔ us-west-2 failover without code changes. The model ID in the profile handles routing. Model IDs are never pinned in agent files (decision #11) — supply them via the MCP server inputs.
+Per `AGENTS.md` and the Bedrock binding MCP (`skills/bedrock-binding/`): use inference profiles for us-east-1 ↔ us-west-2 failover without code changes. The model ID in the profile handles routing. Model IDs are never pinned in agent files (decision #11) — supply them via the MCP server inputs.
 
 ## Output
 

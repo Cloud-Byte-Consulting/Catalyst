@@ -126,8 +126,8 @@ PR feedback asked for faster signal on main; full suite runtime exceeds employer
 
 ## Implementation
 
-- `.cursor/skills/issue-execution-gherkin-workflow/SKILL.md`
-- Cross-link from `.cursor/skills/github-state-machine/SKILL.md`
+- `skills/issue-execution-gherkin-workflow/SKILL.md`
+- Cross-link from `skills/github-state-machine/SKILL.md`
 
 ## Acceptance criteria (Gherkin)
 
@@ -136,11 +136,11 @@ Feature: Issue execution skill discoverability
 
   Scenario: Skill file exists with frontmatter
     Given the repository root
-    When an agent lists `.cursor/skills/issue-execution-gherkin-workflow/`
+    When an agent lists `skills/issue-execution-gherkin-workflow/`
     Then `SKILL.md` exists with `name` and `description` in YAML frontmatter
 
   Scenario: State machine skill points to execution skill
-    Given `.cursor/skills/github-state-machine/SKILL.md`
+    Given `skills/github-state-machine/SKILL.md`
     When read for cross-references
     Then it references `@issue-execution-gherkin-workflow`
 
@@ -161,15 +161,15 @@ Feature: Issue execution skill discoverability
 
 | Scenario | Check |
 |----------|--------|
-| Skill file exists | `Test-Path .cursor/skills/issue-execution-gherkin-workflow/SKILL.md` |
-| Cross-link | `Select-String -Path .cursor/skills/github-state-machine/SKILL.md -Pattern 'issue-execution-gherkin-workflow'` |
+| Skill file exists | `Test-Path skills/issue-execution-gherkin-workflow/SKILL.md` |
+| Cross-link | `Select-String -Path skills/github-state-machine/SKILL.md -Pattern 'issue-execution-gherkin-workflow'` |
 | Agent comment handoff doc | `Select-String -Path docs/issue-execution-gherkin-workflow-2026-05-13.md -Pattern '### Next' -Quiet` |
 
 ## Validation
 
 ```powershell
-Test-Path .cursor/skills/issue-execution-gherkin-workflow/SKILL.md
-Select-String -Path .cursor/skills/github-state-machine/SKILL.md -Pattern 'issue-execution-gherkin-workflow' -Quiet
+Test-Path skills/issue-execution-gherkin-workflow/SKILL.md
+Select-String -Path skills/github-state-machine/SKILL.md -Pattern 'issue-execution-gherkin-workflow' -Quiet
 Select-String -Path docs/issue-execution-gherkin-workflow-2026-05-13.md -Pattern '### Next' -Quiet
 ```
 

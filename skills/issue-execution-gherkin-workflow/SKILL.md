@@ -9,7 +9,7 @@ description: >-
   that must stay auditable on the board.
 ---
 
-<!-- Vendored from: platform-catalyst/.cursor/skills/issue-execution-gherkin-workflow/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/issue-execution-gherkin-workflow/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 # Issue execution — Gherkin AC, tests, docs, dependencies (ADR-001)
 

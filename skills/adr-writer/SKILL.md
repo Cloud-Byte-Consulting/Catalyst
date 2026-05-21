@@ -6,7 +6,7 @@ description: >
   supersedes chain. Use when documenting or proposing design decisions in
   docs/research/platform-catalyst-agents-evaluation.md or docs/ADR/.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/adr-writer/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/adr-writer/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 ## Role
 

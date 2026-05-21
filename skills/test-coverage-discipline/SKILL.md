@@ -16,7 +16,7 @@ Codifies the Catalyst convention that every code change ships with a matching te
 ## When NOT to use
 
 - Pure-docs PRs (`docs(*)`, ADR amendments, README, `docs/onboarding/*`) — no tests required
-- Skill / process artifact PRs (`.claude/skills/*`, AGENTS.md edits) — no tests required
+- Skill / process artifact PRs (`skills/*`, AGENTS.md edits) — no tests required
 - Generated files (lockfiles, image SHAs) — no tests required
 
 ## The component → test → CI-job map (canonical)

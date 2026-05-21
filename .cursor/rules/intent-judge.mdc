@@ -10,7 +10,7 @@ This rule is the Catalyst implementation of the **intent-judge** persona from
 `docs/research/platform-catalyst-agents-evaluation.md`, the full upstream
 `plugins/catalyst-judge/` Python package is **intentionally NOT vendored**;
 this rule + the ~80-line MCP shim at
-`.cursor/skills/intent-judge-shim/intent_judge_mcp_server.py`
+`skills/intent-judge-shim/intent_judge_mcp_server.py`
 is the lightweight equivalent.
 
 ## When to invoke
@@ -54,7 +54,7 @@ lineage referenced in the upstream `intent-judge` agent):
 3. **LLM fallback is not implemented in the shim** — decision #3 explicitly
    caps this at ~80 LOC of effective code. If a future phase needs LLM judging,
    route to `@ai-reviewer-architect` and use the Bedrock binding MCP
-   (`.cursor/skills/bedrock-binding/bedrock_mcp_server.py`) instead of growing
+   (`skills/bedrock-binding/bedrock_mcp_server.py`) instead of growing
    this server. The shim's `assess_output` tool explicitly rejects
    `expected_shape: "llm_judge"` with `ok=false`.
 
@@ -92,8 +92,8 @@ exposes three MCP tools:
 These map 1:1 to the **Delegation map** in the upstream
 `intent-judge.md` (`@intent-validation`, `@output-assessment`,
 `@eval-scoring`). The corresponding SKILL.md files live in
-`.cursor/skills/intent-validation/`, `.cursor/skills/output-assessment/`,
-`.cursor/skills/eval-scoring/` — each carries a `Vendored from` line and a
+`skills/intent-validation/`, `skills/output-assessment/`,
+`skills/eval-scoring/` — each carries a `Vendored from` line and a
 "How Catalyst invokes this" subsection pointing back at these three tools.
 
 ## Why no `plugins/catalyst-judge/` vendoring
@@ -114,9 +114,9 @@ clients, Pydantic schemas, scoring cache, OutputGuard signal library) is
 
 ## See also
 
-- `.cursor/skills/intent-judge-shim/SKILL.md` — shim binding, smoke test, tool I/O contracts.
-- `.cursor/skills/intent-validation/SKILL.md` — heuristic rule design.
-- `.cursor/skills/output-assessment/SKILL.md` — post-execution signal taxonomy.
-- `.cursor/skills/eval-scoring/SKILL.md` — pluggable scorer protocol.
+- `skills/intent-judge-shim/SKILL.md` — shim binding, smoke test, tool I/O contracts.
+- `skills/intent-validation/SKILL.md` — heuristic rule design.
+- `skills/output-assessment/SKILL.md` — post-execution signal taxonomy.
+- `skills/eval-scoring/SKILL.md` — pluggable scorer protocol.
 - `docs/ADR/ADR-001-github-issues-as-state-machine.md` — `state/blocked-on-human` transition contract.
 - `docs/research/platform-catalyst-agents-evaluation.md` §5.4 and decision #3 — full rationale.
