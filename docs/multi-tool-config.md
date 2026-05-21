@@ -1,6 +1,8 @@
 # Multi-tool config — Cursor, Claude Code, and Gemini CLI
 
-Operating map for Catalyst agent config. Canonical content lives under `skills/` and `agents/`; per-tool trees are **wired by bootstrap** (ADR-024), replacing ADR-022 committed stub copies in phased sub-issues.
+Operating map for Catalyst agent config. Canonical content lives under `skills/` and `agents/`; per-tool trees are **wired by bootstrap** (ADR-024). Generated trees (`.cursor/skills/`, `.claude/skills/`, `.gemini/skills/`, etc.) are not committed — run bootstrap after clone.
+
+New agent? Start at [`docs/AGENT-GETTING-STARTED.md`](./AGENT-GETTING-STARTED.md).
 
 ## Bootstrap (ADR-024)
 
@@ -12,15 +14,15 @@ python platform/bootstrap.py --check  # verify tool trees match canonical
 python platform/bootstrap.py --copy   # force copy mode (Windows / no symlinks)
 ```
 
-**Dual mode until A-4**: CI may still enforce committed ADR-022 stubs via `scripts/sync_tool_skills.py --check`. Locally, bootstrap is the editor source of truth. `.gitignore` lists generated tool trees; committed stubs are removed in ADR-024 A-4.
+See [`platform/README.md`](../platform/README.md) for the platform directory map.
 
 ## Quick map
 
 | Surface | Canonical source | Claude Code path | Cursor / Gemini path | Sync mechanism |
 |---|---|---|---|---|
-| Skills | `skills/<name>/SKILL.md` (+ scripts/, templates/, *_mcp_server.py) | `skills/<name>/` | `skills/<name>/`, `.gemini/skills/<name>/` | `platform/bootstrap.py`; CI `--check` after A-4 |
+| Skills | `skills/<name>/SKILL.md` (+ scripts/, templates/, *_mcp_server.py) | `.claude/skills/<name>/` | `.cursor/skills/<name>/`, `.gemini/skills/<name>/` | `platform/bootstrap.py`; CI `--check` |
 | Personas | `agents/<name>.md` | `.claude/agents/<name>.md` (thin adapter from `platform/personas.meta.yaml`) | `.cursor/agents/<name>.md`, `.gemini/agents/<name>.md` | `platform/bootstrap.py`; Claude dispatch in `personas.meta.yaml` |
-| Routing skills | `skills/<name>/` | `skills/<name>/` | `skills/<name>/`, `.gemini/skills/<name>/` | Same as Skills |
+| Routing skills | `skills/<name>/` | `.claude/skills/<name>/` | `.cursor/skills/<name>/`, `.gemini/skills/<name>/` | Same as Skills |
 | MCP servers | `skills/<name>/<name>_mcp_server.py` | `.mcp.json` (generated) | `.cursor/mcp.json` (generated) | Edit `platform/mcp.servers.json`; bootstrap emits per-tool JSON |
 | Operating contract | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` | Both | Both | Already shared; no sync needed |
 | Cursor-only rules | `.cursor/rules/*.mdc` | (no equivalent — see below) | Cursor reads natively | Documented by intent here, not duplicated |
@@ -61,7 +63,7 @@ python platform/bootstrap.py
 # 3. Verify locally
 python platform/bootstrap.py --check  # exits 0
 
-# 4. Stage and commit canonical only (after A-4); until then also run sync if CI still checks stubs
+# 4. Stage and commit canonical only
 git add skills/my-new-skill/
 git commit -m "feat(skill): add my-new-skill (#issue-number)"
 ```
@@ -80,8 +82,8 @@ python platform/bootstrap.py
 # 4. Verify
 python platform/bootstrap.py --check
 
-# 5. Stage and commit canonical + personas.meta.yaml (+ thin .claude adapter until A-4)
-git add agents/my-new-persona.md platform/personas.meta.yaml .claude/agents/my-new-persona.md
+# 5. Stage and commit canonical + personas.meta.yaml
+git add agents/my-new-persona.md platform/personas.meta.yaml
 git commit -m "feat(agent): add my-new-persona (#issue-number)"
 ```
 
@@ -103,13 +105,14 @@ The `catalyst-github-secret-scanning` HTTP server stays Cursor-only (`cursorOnly
 
 ## CI guard
 
-Until ADR-024 A-4 lands, `.github/workflows/multi-tool-sync.yml` still runs `scripts/sync_tool_skills.py --check` against committed stubs.
+`.github/workflows/multi-tool-sync.yml` runs `python platform/bootstrap.py` then `python platform/bootstrap.py --check` on every PR to `release` and `main`. PRs should touch canonical `skills/` and `agents/` paths only; generated tool trees are gitignored.
 
-After A-4, CI runs `python platform/bootstrap.py --check` only; PRs touch `skills/` and `agents/` canonical paths.
+`scripts/sync_tool_skills.py` is deprecated (ADR-024); do not use it for new work.
 
 ## Related
 
-- ADR-022 — Canonical `skills/` and `agents/` layout (stub delivery superseded by ADR-024 bootstrap)
+- [`docs/AGENT-GETTING-STARTED.md`](./AGENT-GETTING-STARTED.md) — unified agent onboarding
+- ADR-022 — Canonical `skills/` and `agents/` layout (delivery superseded by ADR-024 bootstrap)
 - ADR-024 — Unified agent config and bootstrap-wired tool trees
 - Issue #255 — the one-time refactor that produced this layout
 - ADR-011 — Catalyst agentic workflow (the operating contract that this layout serves)

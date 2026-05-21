@@ -1,5 +1,7 @@
 # ADR-022 — Unify Claude Code and Cursor skills/agents under a canonical-source layout
 
+> **Delivery mechanism superseded by [ADR-024](ADR-024-unified-agent-config-and-issue-indexing.md).** ADR-024 replaces committed stub copies and `scripts/sync_tool_skills.py` with `platform/bootstrap.py` (symlink or copy into `.cursor/`, `.claude/`, `.gemini/`). **Canonical paths are unchanged:** `skills/<name>/` and `agents/<name>.md` remain the single source of truth. See [`docs/multi-tool-config.md`](../multi-tool-config.md) and [`docs/AGENT-GETTING-STARTED.md`](../AGENT-GETTING-STARTED.md).
+
 **Status**: Accepted · 2026-05-19
 
 ## Context

@@ -14,6 +14,14 @@ Onboarding into Catalyst is **three audience-sliced tracks** ([ADR-012](./docs/A
 
 The index at [`docs/onboarding/README.md`](./docs/onboarding/README.md) explains the cross-track sequencing.
 
+## Agent IDE setup
+
+For **coding agents** (Cursor, Claude Code, Gemini CLI) — not AWS platform operators:
+
+1. Clone the repo and run `python platform/bootstrap.py` ([ADR-024](./docs/ADR/ADR-024-unified-agent-config-and-issue-indexing.md)).
+2. Follow [`docs/AGENT-GETTING-STARTED.md`](./docs/AGENT-GETTING-STARTED.md) — bootstrap → pick IDE → [`AGENTS.md`](./AGENTS.md) workflow → issue context + persona routing.
+3. Per-tool config details: [`docs/multi-tool-config.md`](./docs/multi-tool-config.md).
+
 - **Self-deploy** via `catalyst products deploy catalyst-api --construct <addr>` — exercise the platform's own product-deploy contract on Catalyst itself ([`docs/products.md`](./docs/products.md), CAT-3 / [#103](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/103)).
 
 ## Repository layout
