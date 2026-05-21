@@ -7,7 +7,7 @@ description: >-
   policy-as-code (tfsec, checkov, OPA/Conftest), and vulnerability triage. Use
   when designing CI gates, configuring scanners, or triaging findings.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/devsecops-integration/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/devsecops-integration/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 
 # DevSecOps integration

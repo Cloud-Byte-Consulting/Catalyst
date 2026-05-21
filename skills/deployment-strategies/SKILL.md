@@ -6,7 +6,7 @@ description: >
   the deploy-orchestrator Step Functions state machine. Use when implementing
   or reviewing deployment automation.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/deployment-strategies/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/deployment-strategies/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 ## Role
 

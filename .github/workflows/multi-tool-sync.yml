@@ -26,6 +26,9 @@ jobs:
       - name: Verify bootstrap check passes
         run: python platform/bootstrap.py --check
 
+      - name: Verify Gemini MCP settings generated
+        run: test -f .gemini/settings.json
+
       - name: Verify thin Claude adapters exist for canonical personas
         run: |
           set -euo pipefail

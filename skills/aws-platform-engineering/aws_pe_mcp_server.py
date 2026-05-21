@@ -2,8 +2,8 @@
 """Lightweight MCP (stdio) server that exposes the AWS Platform Engineering
 skill's generators as tool-native MCP calls.
 
-Companion to .cursor/skills/aws-platform-engineering/SKILL.md (per ADR-005).
-Mirrors the shape of .cursor/skills/rlm/rlm_mcp_server.py — pure stdlib,
+Companion to skills/aws-platform-engineering/SKILL.md (per ADR-005).
+Mirrors the shape of skills/rlm/rlm_mcp_server.py — pure stdlib,
 JSON-RPC 2.0 over stdin/stdout (MCP stdio transport), no external deps.
 
 The server's job is template substitution + suggested target-path emission.

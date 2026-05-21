@@ -1,4 +1,4 @@
-<!-- Vendored from: platform-catalyst/.cursor/skills/intent-validation/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/intent-validation/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 ---
 name: intent-validation
 description: >-
@@ -14,7 +14,7 @@ description: >-
 
 You guide the use and extension of the `IntentValidator` in `plugins/catalyst-judge/src/catalyst_judge/intent.py`, which gates tool calls before execution using heuristic rules and an optional LLM judge.
 
-> **Catalyst note (decision #3)**: Catalyst does **not** vendor the upstream `plugins/catalyst-judge/` package. The paths and code samples below describe the upstream Relay/platform-catalyst lineage; the Catalyst-side surface is the heuristic-only MCP shim at `.cursor/skills/intent-judge-shim/intent_judge_mcp_server.py`. Use the upstream content here as design context when extending the shim's scanners; do not assume the Python package is importable in this repo.
+> **Catalyst note (decision #3)**: Catalyst does **not** vendor the upstream `plugins/catalyst-judge/` package. The paths and code samples below describe the upstream Relay/platform-catalyst lineage; the Catalyst-side surface is the heuristic-only MCP shim at `skills/intent-judge-shim/intent_judge_mcp_server.py`. Use the upstream content here as design context when extending the shim's scanners; do not assume the Python package is importable in this repo.
 
 ## Instructions
 
@@ -116,7 +116,7 @@ server** registered in `.cursor/mcp.json` (decision #3, see
 | Upstream concept                          | Catalyst surface                                                                |
 |-------------------------------------------|---------------------------------------------------------------------------------|
 | `judge_intent` MCP tool                   | `validate_intent` tool on the `intent-judge` MCP server                         |
-| `_DANGEROUS_PATTERNS` rule additions      | Extend the regex constants in `.cursor/skills/intent-judge-shim/intent_judge_mcp_server.py` (keep within the ~80-LOC budget) |
+| `_DANGEROUS_PATTERNS` rule additions      | Extend the regex constants in `skills/intent-judge-shim/intent_judge_mcp_server.py` (keep within the ~80-LOC budget) |
 | LLM judge fallback                        | Not implemented in the shim; escalate via `@ai-reviewer-architect` + Bedrock MCP if a model is required |
 | Escalation on `deny`                      | Open / transition issue to `state/blocked-on-human` per `docs/ADR/ADR-001-github-issues-as-state-machine.md` |
 
@@ -124,7 +124,7 @@ Smoke test (PowerShell):
 
 ```powershell
 '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"validate_intent","arguments":{"tool_name":"shell","arguments":{"cmd":"rm -rf /tmp"}}}}' `
-  | python .cursor/skills/intent-judge-shim/intent_judge_mcp_server.py
+  | python skills/intent-judge-shim/intent_judge_mcp_server.py
 ```
 
 ## Output

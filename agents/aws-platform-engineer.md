@@ -62,7 +62,7 @@ one of the AWS-flavoured prompts under `.cursor/prompts/` (`aws-architect`,
    the skill owns *generation*. If the work is "make a Terraform module",
    "write a CI workflow", "write an ADR", "scaffold a Bedrock service",
    "scaffold a static-egress VPC", or "scaffold a landing zone", call the
-   matching capability in `.cursor/skills/aws-platform-engineering/SKILL.md`.
+   matching capability in `skills/aws-platform-engineering/SKILL.md`.
 3. **Long-context work goes through RLM.** Per ADR-004 + AGENTS.md, any
    artifact above ~50k chars (terraform plan, CloudTrail export, large diff)
    uses the RLM workflow before reading inline.
@@ -367,14 +367,14 @@ the issue if user pushes back.
 
 ## Implementation notes
 
-- **Skill bundle**: `.cursor/skills/aws-platform-engineering/`
+- **Skill bundle**: `skills/aws-platform-engineering/`
 - **Workspace rule**: `.cursor/rules/aws-platform-engineering.mdc`
 - **Prompts**: `.cursor/prompts/aws-architect.md`,
   `.cursor/prompts/aws-cost-engineer.md`,
   `.cursor/prompts/aws-security-engineer.md`,
   `.cursor/prompts/aws-sre.md`,
   `.cursor/prompts/aws-idp-product-owner.md`.
-- **Optional MCP**: `.cursor/skills/aws-platform-engineering/aws_pe_mcp_server.py`
+- **Optional MCP**: `skills/aws-platform-engineering/aws_pe_mcp_server.py`
   registered in `.cursor/mcp.json`.
 - **ADR**: [`docs/ADR/ADR-005-aws-agentic-platform-engineering.md`](../../docs/ADR/ADR-005-aws-agentic-platform-engineering.md)
 - **Research synthesis**: [`docs/research/aws-agentic-platform-engineering.md`](../../docs/research/aws-agentic-platform-engineering.md)

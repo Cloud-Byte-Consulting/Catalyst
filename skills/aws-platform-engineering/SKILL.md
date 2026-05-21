@@ -585,14 +585,14 @@ writes the file using its native Write tool.
 
 ### Path C — Shell invocation of the MCP wrapper as a CLI
 
-`python .cursor/skills/aws-platform-engineering/aws_pe_mcp_server.py --cli
+`python skills/aws-platform-engineering/aws_pe_mcp_server.py --cli
 <capability> <args>` — for one-off renders outside an agent session.
 
 ---
 
 ## Composition with existing skills
 
-- **RLM** (`.cursor/skills/rlm/`): when generating a module that touches a
+- **RLM** (`skills/rlm/`): when generating a module that touches a
   large existing artifact (a hundred-resource Terraform plan, a CloudTrail
   export), route the analysis through RLM first; this skill consumes the
   RLM synthesis as the input to a generator.

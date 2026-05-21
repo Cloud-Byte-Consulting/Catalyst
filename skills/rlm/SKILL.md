@@ -40,14 +40,14 @@ If the user didn't supply arguments, ask for:
 
 1. Initialise the REPL state
    ```bash
-   python3 .claude/skills/rlm/scripts/rlm_repl.py init <context_path>
-   python3 .claude/skills/rlm/scripts/rlm_repl.py status
+   python3 skills/rlm/scripts/rlm_repl.py init <context_path>
+   python3 skills/rlm/scripts/rlm_repl.py status
    ```
 
 2. Scout the context quickly
    ```bash
-   python3 .claude/skills/rlm/scripts/rlm_repl.py exec -c "print(peek(0, 3000))"
-   python3 .claude/skills/rlm/scripts/rlm_repl.py exec -c "print(peek(len(content)-3000, len(content)))"
+   python3 skills/rlm/scripts/rlm_repl.py exec -c "print(peek(0, 3000))"
+   python3 skills/rlm/scripts/rlm_repl.py exec -c "print(peek(len(content)-3000, len(content)))"
    ```
 
 3. Choose a chunking strategy
@@ -56,7 +56,7 @@ If the user didn't supply arguments, ask for:
 
 4. Materialise chunks as files (so subagents can read them)
    ```bash
-   python3 .claude/skills/rlm/scripts/rlm_repl.py exec <<'PY'
+   python3 skills/rlm/scripts/rlm_repl.py exec <<'PY'
    paths = write_chunks('.claude/rlm_state/chunks', size=200000, overlap=0)
    print(len(paths))
    print(paths[:5])

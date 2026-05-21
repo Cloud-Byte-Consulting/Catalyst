@@ -6,7 +6,7 @@ description: >
   Catalyst alarm set tracked in this skill. Use when designing monitoring, alerting, or the
   operational dashboard.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/observability-alarms/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/observability-alarms/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 ## Role
 

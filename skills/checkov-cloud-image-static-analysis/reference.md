@@ -20,7 +20,7 @@ After `git clone … local/research/checkov`:
 | Checkov config | `.checkov.yaml` (repo root) |
 | Custom checks | `infrastructure/policies/checkov/*.py` |
 | OPA (sibling gate) | `infrastructure/policies/opa/terraform.rego` |
-| DevSecOps ladder | `.cursor/skills/devsecops-integration/SKILL.md` |
+| DevSecOps ladder | `skills/devsecops-integration/SKILL.md` |
 
 ## Docker image for CI
 

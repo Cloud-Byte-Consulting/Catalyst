@@ -6,7 +6,7 @@ description: >
   one-line pitch, and domain model introduction. Use when writing or updating
   README.md or docs/QUICKSTART.md.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/readme-quickstart/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/readme-quickstart/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 ## Role
 

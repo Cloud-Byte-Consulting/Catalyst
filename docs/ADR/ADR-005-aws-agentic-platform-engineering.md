@@ -91,7 +91,7 @@ Concretely:
    wires the persona to the skill, the prompts, this ADR, and the research doc;
    it auto-activates on AWS contexts (mentions of AWS services, `*.tf` files,
    `.github/workflows/` edits touching AWS).
-3. **A skill** at `.cursor/skills/aws-platform-engineering/SKILL.md` exposing
+3. **A skill** at `skills/aws-platform-engineering/SKILL.md` exposing
    eight bound capabilities: `bootstrap-landing-zone-skeleton`,
    `generate-terraform-module`, `generate-actions-oidc-workflow`, `generate-adr`
    (matching the AWS prescriptive ADR shape), `generate-platform-service-skeleton`
@@ -102,7 +102,7 @@ Concretely:
    `aws-cost-engineer.md`, `aws-security-engineer.md`, `aws-sre.md`,
    `aws-idp-product-owner.md`.
 5. **An optional thin MCP wrapper** at
-   `.cursor/skills/aws-platform-engineering/aws_pe_mcp_server.py` (pure stdlib),
+   `skills/aws-platform-engineering/aws_pe_mcp_server.py` (pure stdlib),
    registered alongside the existing `rlm-repl` server in `.cursor/mcp.json`.
    Provides tool-native generators so the agent can call `generate_terraform_module`
    without a Shell round-trip.
@@ -361,7 +361,7 @@ The deliberate choices in the decision are:
 
 - **CLI framework**: Microsoft [`knack`](https://github.com/microsoft/knack)
   for any new Catalyst Python CLI. The
-  [`python-cli-and-testing`](../../.cursor/skills/python-cli-and-testing/SKILL.md)
+  [`python-cli-and-testing`](../../skills/python-cli-and-testing/SKILL.md)
   skill's `scaffold-knack-cli` capability emits the canonical
   `cli.py` / `commands.py` / `arguments.py` / `validators.py` /
   `formatters.py` / `help.py` / `exceptions.py` shape. CLI ships with
@@ -462,10 +462,10 @@ The deliberate choices in the decision are:
   `.cursor/agents/aws-platform-engineer.md` and reference this ADR in its body.
 - The workspace rule `.cursor/rules/aws-platform-engineering.mdc` must include
   this ADR's filename in its `## References` section.
-- The skill at `.cursor/skills/aws-platform-engineering/SKILL.md` must list
+- The skill at `skills/aws-platform-engineering/SKILL.md` must list
   exactly the **thirteen** capabilities (eight original + five container
   supply chain); capability removals or additions land via a successor ADR.
-- The companion skill at `.cursor/skills/python-cli-and-testing/SKILL.md`
+- The companion skill at `skills/python-cli-and-testing/SKILL.md`
   must exist with the three capabilities listed in §Python tooling
   (`scaffold-knack-cli`, `scaffold-pytest-config`,
   `scaffold-pytest-ci-workflow`); capability removals or additions land

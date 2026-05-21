@@ -1,4 +1,4 @@
-<!-- Vendored from: platform-catalyst/.cursor/skills/eval-scoring/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/eval-scoring/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 ---
 name: eval-scoring
 description: >-
@@ -14,7 +14,7 @@ description: >-
 
 You guide the use and extension of the scoring system in `plugins/catalyst-judge/src/catalyst_judge/scorer.py`, which grades LLM responses against expected outputs or rubrics.
 
-> **Catalyst note (decision #3)**: Catalyst does **not** vendor the upstream `plugins/catalyst-judge/` package. The paths and code samples below describe the upstream Relay/platform-catalyst lineage; the Catalyst-side surface is the heuristic-only MCP shim at `.cursor/skills/intent-judge-shim/intent_judge_mcp_server.py`. Use the upstream content here as design context when extending the shim's scorers; do not assume the Python package is importable in this repo.
+> **Catalyst note (decision #3)**: Catalyst does **not** vendor the upstream `plugins/catalyst-judge/` package. The paths and code samples below describe the upstream Relay/platform-catalyst lineage; the Catalyst-side surface is the heuristic-only MCP shim at `skills/intent-judge-shim/intent_judge_mcp_server.py`. Use the upstream content here as design context when extending the shim's scorers; do not assume the Python package is importable in this repo.
 
 ## Instructions
 
@@ -108,7 +108,7 @@ class MyScorer:
 
 In Catalyst, batch scoring runs through the **`score_eval`** tool on the
 `intent-judge` MCP server (`.cursor/mcp.json` →
-`.cursor/skills/intent-judge-shim/intent_judge_mcp_server.py`). The shim
+`skills/intent-judge-shim/intent_judge_mcp_server.py`). The shim
 aggregates per-case `assess_output` calls into a pass/fail summary; the
 LLM-judge scorer is deliberately not implemented.
 
@@ -124,7 +124,7 @@ Smoke test (PowerShell):
 
 ```powershell
 '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"score_eval","arguments":{"cases":[{"name":"sum","output":"4","expected":"4","scorer":"substring"},{"name":"shape","output":"{\"a\":1}","expected":"{\"a\":1}","scorer":"json_equal"}]}}}' `
-  | python .cursor/skills/intent-judge-shim/intent_judge_mcp_server.py
+  | python skills/intent-judge-shim/intent_judge_mcp_server.py
 ```
 
 ## Output

@@ -38,7 +38,7 @@ Python, JSON-RPC 2.0 over stdio, hard-capped at ~80 effective lines of code
 // .cursor/mcp.json
 "intent-judge": {
   "command": "python",
-  "args": [".cursor/skills/intent-judge-shim/intent_judge_mcp_server.py"],
+  "args": ["skills/intent-judge-shim/intent_judge_mcp_server.py"],
   "env": {}
 }
 ```
@@ -94,19 +94,19 @@ instead.
 ```powershell
 # tools/list — confirms the three tools are advertised
 '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' `
-  | python .cursor/skills/intent-judge-shim/intent_judge_mcp_server.py
+  | python skills/intent-judge-shim/intent_judge_mcp_server.py
 ```
 
 ```powershell
 # validate_intent with a planted secret — expect "deny"
 '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"validate_intent","arguments":{"tool_name":"shell","arguments":{"cmd":"export AWS_SECRET=AKIAIOSFODNN7EXAMPLE"}}}}' `
-  | python .cursor/skills/intent-judge-shim/intent_judge_mcp_server.py
+  | python skills/intent-judge-shim/intent_judge_mcp_server.py
 ```
 
 ```powershell
 # assess_output with expected_shape=llm_judge — expect ok=false (shim cap)
 '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"assess_output","arguments":{"output":"x","expected":"y","expected_shape":"llm_judge"}}}' `
-  | python .cursor/skills/intent-judge-shim/intent_judge_mcp_server.py
+  | python skills/intent-judge-shim/intent_judge_mcp_server.py
 ```
 
 ## Guardrails

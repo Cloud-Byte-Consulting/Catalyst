@@ -18,9 +18,9 @@ python platform/bootstrap.py --copy   # force copy mode (Windows / no symlinks)
 
 | Surface | Canonical source | Claude Code path | Cursor / Gemini path | Sync mechanism |
 |---|---|---|---|---|
-| Skills | `skills/<name>/SKILL.md` (+ scripts/, templates/, *_mcp_server.py) | `.claude/skills/<name>/` | `.cursor/skills/<name>/`, `.gemini/skills/<name>/` | `platform/bootstrap.py`; CI `--check` after A-4 |
+| Skills | `skills/<name>/SKILL.md` (+ scripts/, templates/, *_mcp_server.py) | `skills/<name>/` | `skills/<name>/`, `.gemini/skills/<name>/` | `platform/bootstrap.py`; CI `--check` after A-4 |
 | Personas | `agents/<name>.md` | `.claude/agents/<name>.md` (thin adapter from `platform/personas.meta.yaml`) | `.cursor/agents/<name>.md`, `.gemini/agents/<name>.md` | `platform/bootstrap.py`; Claude dispatch in `personas.meta.yaml` |
-| Routing skills | `skills/<name>/` | `.claude/skills/<name>/` | `.cursor/skills/<name>/`, `.gemini/skills/<name>/` | Same as Skills |
+| Routing skills | `skills/<name>/` | `skills/<name>/` | `skills/<name>/`, `.gemini/skills/<name>/` | Same as Skills |
 | MCP servers | `skills/<name>/<name>_mcp_server.py` | `.mcp.json` (generated) | `.cursor/mcp.json` (generated) | Edit `platform/mcp.servers.json`; bootstrap emits per-tool JSON |
 | Operating contract | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` | Both | Both | Already shared; no sync needed |
 | Cursor-only rules | `.cursor/rules/*.mdc` | (no equivalent — see below) | Cursor reads natively | Documented by intent here, not duplicated |

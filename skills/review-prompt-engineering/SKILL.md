@@ -6,7 +6,7 @@ description: >-
   system prompt hardening against injection, and structured finding output.
   Use when designing or modifying prompts for the PR review pipeline.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/review-prompt-engineering/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/review-prompt-engineering/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 # Review prompt engineering
 
@@ -26,7 +26,7 @@ Three review agents, each with a focused mandate:
 | **Style reviewer** | Haiku (configurable via Bedrock MCP) | Naming conventions, code structure, `AGENTS.md` compliance, test coverage | Structured suggestions |
 | **Synthesizer** | Haiku (configurable via Bedrock MCP) | Combines findings, resolves conflicts, produces final verdict | Single PR review comment |
 
-Model IDs are supplied at runtime via the `bedrock-binding` MCP server (`.cursor/skills/bedrock-binding/`) per decision #11; this skill does not pin them.
+Model IDs are supplied at runtime via the `bedrock-binding` MCP server (`skills/bedrock-binding/`) per decision #11; this skill does not pin them.
 
 ### 2. System prompt structure (security reviewer example)
 

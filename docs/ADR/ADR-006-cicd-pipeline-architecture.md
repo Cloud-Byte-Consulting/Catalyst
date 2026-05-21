@@ -94,7 +94,7 @@ The cold-start no-op preserves a non-failing pipeline so the seed lands, but it 
 
 Earlier revisions of `pr-checks.yml` ran every CI job on every PR. A doc-only change triggered `python-tests` + `cli-tests` + `terraform-quality` + everything else — wasted runner time, slower feedback, masked which component a failure actually came from. [#208](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/208) restructured the workflow around a single `dorny/paths-filter@v3` fan-in job and a `test-summary` aggregator.
 
-**Component → CI-job map.** Lives in `.claude/skills/test-coverage-discipline/SKILL.md` (the `/test-coverage-discipline` skill). That skill is the single source of truth for which test files and which CI jobs own each top-level path glob; this ADR intentionally does not duplicate the table so the two surfaces cannot drift.
+**Component → CI-job map.** Lives in `skills/test-coverage-discipline/SKILL.md` (the `/test-coverage-discipline` skill). That skill is the single source of truth for which test files and which CI jobs own each top-level path glob; this ADR intentionally does not duplicate the table so the two surfaces cannot drift.
 
 **Aggregator pattern.** A top-level `changes` job emits a boolean output per component glob (`python`, `cli`, `infra`, `workflows`, `cursor`, `bootstrap`, `policies`, `e2e`). Each downstream test job carries `needs: changes` plus a three-way OR `if:`:
 
@@ -113,7 +113,7 @@ A fan-in `test-summary` job at the bottom `needs:` every conditional job, runs `
 2. **Repository variable `FORCE_ALL_TESTS=true`** — flips the second OR clause; every PR runs the full suite until the flag flips back.
 3. **PR label `force-all-tests`** — flips the third OR clause for a single PR.
 
-Use the narrowest scope that gives confidence. See `.claude/skills/test-coverage-discipline/SKILL.md` Rule 3 for the full-suite-vs-path-filter decision tree.
+Use the narrowest scope that gives confidence. See `skills/test-coverage-discipline/SKILL.md` Rule 3 for the full-suite-vs-path-filter decision tree.
 
 ### IAM roles per pipeline
 

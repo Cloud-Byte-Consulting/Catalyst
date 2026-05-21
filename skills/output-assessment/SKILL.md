@@ -1,4 +1,4 @@
-<!-- Vendored from: platform-catalyst/.cursor/skills/output-assessment/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/output-assessment/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 ---
 name: output-assessment
 description: >-
@@ -14,7 +14,7 @@ description: >-
 
 You guide the use and extension of the `OutputGuard` in `plugins/catalyst-judge/src/catalyst_judge/output_guard.py`, which scans tool output after execution for dangerous signals.
 
-> **Catalyst note (decision #3)**: Catalyst does **not** vendor the upstream `plugins/catalyst-judge/` package. The paths and code samples below describe the upstream Relay/platform-catalyst lineage; the Catalyst-side surface is the heuristic-only MCP shim at `.cursor/skills/intent-judge-shim/intent_judge_mcp_server.py`. Use the upstream content here as design context when extending the shim's output-side scanners; do not assume the Python package is importable in this repo.
+> **Catalyst note (decision #3)**: Catalyst does **not** vendor the upstream `plugins/catalyst-judge/` package. The paths and code samples below describe the upstream Relay/platform-catalyst lineage; the Catalyst-side surface is the heuristic-only MCP shim at `skills/intent-judge-shim/intent_judge_mcp_server.py`. Use the upstream content here as design context when extending the shim's output-side scanners; do not assume the Python package is importable in this repo.
 
 ## Instructions
 
@@ -105,7 +105,7 @@ Per the upstream `@agent-trust-architecture` skill (not vendored in Catalyst):
 
 In Catalyst, output assessment runs against the **`assess_output`** tool
 on the `intent-judge` MCP server (`.cursor/mcp.json` →
-`.cursor/skills/intent-judge-shim/intent_judge_mcp_server.py`). The shim's
+`skills/intent-judge-shim/intent_judge_mcp_server.py`). The shim's
 contract is intentionally narrower than the upstream `OutputGuard`:
 
 | Upstream concept                          | Catalyst surface                                                                |
@@ -119,7 +119,7 @@ Smoke test (PowerShell):
 
 ```powershell
 '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"assess_output","arguments":{"output":"the access key is AKIAIOSFODNN7EXAMPLE","expected":"AKIA[0-9A-Z]{16}","expected_shape":"regex"}}}' `
-  | python .cursor/skills/intent-judge-shim/intent_judge_mcp_server.py
+  | python skills/intent-judge-shim/intent_judge_mcp_server.py
 ```
 
 ## Output

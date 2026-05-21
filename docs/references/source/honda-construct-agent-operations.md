@@ -553,7 +553,7 @@ Other Muri patterns to watch:
 
 | 5S | Meaning | Repo discipline equivalent |
 |---|---|---|
-| **Sort** (Seiri) | Keep what's needed, discard the rest | `.gitignore` of self-install junk, node_modules, vector indexes, packs (rlm-context-agent PR #23 was exactly this — added `/.claude/skills/`, `/.cursor/`, `/.gemini/`, `/.opencode/`, `/.claude/worktrees/` to gitignore) |
+| **Sort** (Seiri) | Keep what's needed, discard the rest | `.gitignore` of self-install junk, node_modules, vector indexes, packs (rlm-context-agent PR #23 was exactly this — added `/skills/`, `/.cursor/`, `/.gemini/`, `/.opencode/`, `/.claude/worktrees/` to gitignore) |
 | **Set in order** (Seiton) | Every tool has its place | Conventional layout: `cmd/<binary>/`, `internal/<package>/`, `assets/{agents,commands,skills}/` (relay) and `installer/`, `assets/`, `tests/`, `docs/` (rlm-context-agent) — predictable so the agent doesn't need to guess where things go |
 | **Shine** (Seiso) | Keep it clean | Linter (ruff for Python, `go vet` for Go), pre-commit hooks; agent PRs that fail lint don't merge |
 | **Standardise** (Seiketsu) | Agree on conventions and document them | `CLAUDE.md` / `AGENTS.md` style files that codify the team's conventions for the agent to follow; `SKILL.md` files for repeated workflows; shared frontmatter format across all agent files |

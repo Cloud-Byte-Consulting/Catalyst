@@ -7,7 +7,7 @@ description: >-
   enforcing construct address context. Use when implementing Score validation
   in catalyst-api or the catalyst CLI.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/score-translator/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/score-translator/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 # Score translator
 

@@ -24,7 +24,7 @@ ADR-001 issue-comment handoff format around the new workflow.
 
 In-scope:
 
-- Vendor the RLM skill (`.claude/skills/rlm/`) and the `rlm-subcall` subagent
+- Vendor the RLM skill (`skills/rlm/`) and the `rlm-subcall` subagent
   (`.claude/agents/rlm-subcall.md`) verbatim from
   `https://github.com/BittahCriminal/claude_code_RLM` (sibling clone at
   `Z:\workspace\Cloud-Byte-Consulting\claude_code_RLM`).
@@ -56,16 +56,16 @@ clear deliverable and an evidence check that gets recorded in the worklog.
 
 **Deliverables**
 
-- `.claude/skills/rlm/SKILL.md` (verbatim from upstream)
-- `.claude/skills/rlm/scripts/rlm_repl.py` (verbatim from upstream)
+- `skills/rlm/SKILL.md` (verbatim from upstream)
+- `skills/rlm/scripts/rlm_repl.py` (verbatim from upstream)
 - `.claude/agents/rlm-subcall.md` (verbatim from upstream)
 
 **Evidence check**
 
-- `python -m py_compile .claude/skills/rlm/scripts/rlm_repl.py` exits 0.
-- `python .claude/skills/rlm/scripts/rlm_repl.py --help` lists the `init`, `status`,
+- `python -m py_compile skills/rlm/scripts/rlm_repl.py` exits 0.
+- `python skills/rlm/scripts/rlm_repl.py --help` lists the `init`, `status`,
   `reset`, `export-buffers`, and `exec` subcommands.
-- `Test-Path .claude/skills/rlm/SKILL.md` and `Test-Path .claude/agents/rlm-subcall.md`
+- `Test-Path skills/rlm/SKILL.md` and `Test-Path .claude/agents/rlm-subcall.md`
   return `True`.
 
 ### Phase 2 — `.gitignore` protection for ephemeral REPL state
@@ -139,7 +139,7 @@ clear deliverable and an evidence check that gets recorded in the worklog.
 - A representative artifact created under `.claude/rlm_state/` (gitignored)
   reproducible from in-repo files (e.g. concatenate ADR-001/STATE-MACHINE.md, and the
   vendored RLM scripts/docs to exceed the 50k-char threshold).
-- Run `python .claude/skills/rlm/scripts/rlm_repl.py init <artifact>` and `status`.
+- Run `python skills/rlm/scripts/rlm_repl.py init <artifact>` and `status`.
 - Run `peek` and `chunk_indices` via `exec` and capture the output.
 - Run `write_chunks` to produce N chunk files.
 - Simulate the `rlm-subcall` (Haiku) per chunk by writing a JSON finding per chunk

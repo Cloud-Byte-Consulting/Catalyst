@@ -137,7 +137,7 @@ Security is **cross-cutting**: it supports the **25% Infrastructure & Terraform 
 - All IAM policies use specific `Resource` ARNs — `Resource: "*"` is rejected for any write or destructive action without explicit justification.
 - Tag conditions (`aws:RequestedRegion`, `aws:PrincipalTag/construct-anchor`) enforce construct-hierarchy boundaries per ADR-002.
 - CI roles use GitHub OIDC trust policies (`token.actions.githubusercontent.com`) scoped to a specific `repository:` + `ref:` combination — wildcard `repository:*` is rejected.
-- Persona invokes `generate-iam-policy` from `.cursor/skills/aws-platform-engineering/SKILL.md` for all new policy authoring.
+- Persona invokes `generate-iam-policy` from `skills/aws-platform-engineering/SKILL.md` for all new policy authoring.
 
 ### 3. Secrets rotation
 
@@ -164,7 +164,7 @@ Every container PR must satisfy the B-1..B-8 baseline from ADR-005 §Container s
 | No build-time secrets | Multi-stage build; `--secret` mount only |
 | OCI labels | `LABEL org.opencontainers.image.*` for chargeback |
 
-Invoke `generate-container-scan-workflow` from `.cursor/skills/aws-platform-engineering/SKILL.md` for new scan workflows; defer to `@container-hardening` for Dockerfile-level patterns.
+Invoke `generate-container-scan-workflow` from `skills/aws-platform-engineering/SKILL.md` for new scan workflows; defer to `@container-hardening` for Dockerfile-level patterns.
 
 ### 5. Network segmentation
 

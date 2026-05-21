@@ -7,7 +7,7 @@ description: >-
   error handling. Use when building webhook-handler, deploy-orchestrator,
   secrets-rotator, ops-intel-collector, ops-intel probes, or ops-intel-reporter.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/lambda-service-patterns/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/lambda-service-patterns/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 
 # Lambda service patterns

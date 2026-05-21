@@ -7,7 +7,7 @@ description: >-
   project board. Use when implementing state transitions, webhook handlers,
   or debugging illegal-transition errors.
 ---
-<!-- Vendored from: platform-catalyst/.cursor/skills/github-state-machine/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
+<!-- Vendored from: platform-catalyst/skills/github-state-machine/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
 
 
 # GitHub state machine

@@ -42,7 +42,7 @@ relevant findings, not with the size of the original artifact.
 
 ## Decision
 
-Catalyst will adopt the RLM pattern — via the `.claude/skills/rlm/` skill and `rlm-subcall`
+Catalyst will adopt the RLM pattern — via the `skills/rlm/` skill and `rlm-subcall`
 subagent from `claude_code_RLM` — as the standard approach for agent tasks that require reasoning
 over artifacts exceeding ~50k tokens.
 
@@ -140,8 +140,8 @@ six-phase plan in
 
 | Path | Provenance |
 |---|---|
-| `.claude/skills/rlm/SKILL.md` | verbatim from `BittahCriminal/claude_code_RLM` @ `0b3cdba` |
-| `.claude/skills/rlm/scripts/rlm_repl.py` | verbatim, pure stdlib Python (no new deps) |
+| `skills/rlm/SKILL.md` | verbatim from `BittahCriminal/claude_code_RLM` @ `0b3cdba` |
+| `skills/rlm/scripts/rlm_repl.py` | verbatim, pure stdlib Python (no new deps) |
 | `.claude/agents/rlm-subcall.md` | verbatim, Haiku-targeted `llm_query` subagent |
 | `.gitignore` | extended with `**/.claude/rlm_state/` (existing rules preserved) |
 | `AGENTS.md` | new `## Operating Rules` section captures the ~50k-character trigger and the canonical paths |
@@ -204,7 +204,7 @@ to Cursor IDE agents without modifying any existing Claude Code assets.
 | Path | Purpose |
 |---|---|
 | `.cursor/rules/rlm-workflow.mdc` | Cursor rule — documents the ~50k-char trigger, chunking → Task-subagent → synthesis orchestration, and all four canonical patterns mapped to Cursor's Shell + Task tools |
-| `.cursor/skills/rlm/rlm_mcp_server.py` | Lightweight MCP stdio server wrapping `rlm_repl.py` — exposes `rlm_init`, `rlm_status`, `rlm_peek`, `rlm_grep`, `rlm_chunk`, `rlm_exec`, `rlm_reset`, `rlm_export_buffers` as MCP tools |
+| `skills/rlm/rlm_mcp_server.py` | Lightweight MCP stdio server wrapping `rlm_repl.py` — exposes `rlm_init`, `rlm_status`, `rlm_peek`, `rlm_grep`, `rlm_chunk`, `rlm_exec`, `rlm_reset`, `rlm_export_buffers` as MCP tools |
 | `.cursor/mcp.json` | MCP server registration for the RLM wrapper |
 | `docs/rlm-integration-guide.md` | New "Cursor agent usage" section with quick-start, MCP tool mapping, subagent mapping, pattern equivalents, and orchestration checklist |
 | `AGENTS.md` | Updated RLM trigger rule to note applicability to both Claude Code and Cursor agents |
