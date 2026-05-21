@@ -5,6 +5,15 @@ labels:
   - type/bug
   - state/pending
 body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Required labels (add after create)
+
+        Add construct anchors and exactly one `kind/*` label for agent routing
+        (`kind/service`, `kind/iac`, `kind/cicd`, `kind/security`, …).
+        See [`STATE-MACHINE.md` §2.7–2.8](https://github.com/Cloud-Byte-Consulting/Catalyst/blob/release/docs/ADR/STATE-MACHINE.md).
+        Avoid deprecated `Kind/*` and `Priority/*` labels.
   - type: textarea
     id: context
     attributes:

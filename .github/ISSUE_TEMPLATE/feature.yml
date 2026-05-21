@@ -1,6 +1,18 @@
 name: Feature
-about: Track a feature with Context/Scope/Gherkin contract
+description: Track a feature with Context/Scope/Gherkin contract
+title: "feat: "
+labels:
+  - state/pending
 body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Required labels (add after create)
+
+        Add construct anchors, `type/feat`, and exactly one `kind/*` routing label.
+        Registry: [`STATE-MACHINE.md` §2.7](https://github.com/Cloud-Byte-Consulting/Catalyst/blob/release/docs/ADR/STATE-MACHINE.md).
+
+        Typical feature routing: `kind/iac`, `kind/service`, `kind/cicd`, or `kind/platform`.
   - type: textarea
     id: context
     attributes:

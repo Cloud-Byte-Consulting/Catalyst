@@ -1,0 +1,52 @@
+name: Kaizen
+description: Continuous improvement — one standardized-work change (Hansei → change → indicator)
+title: "kaizen: "
+labels:
+  - type/kaizen
+  - state/pending
+  - tenant/catalyst
+  - env/shared
+  - lz/shared
+  - project/platform
+  - app/kaizen
+  - kind/platform
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Required labels
+
+        This template pre-applies the repo-wide kaizen construct anchors from
+        [`STATE-MACHINE.md` §2.2.1](https://github.com/Cloud-Byte-Consulting/Catalyst/blob/release/docs/ADR/STATE-MACHINE.md).
+        Adjust construct labels if the kaizen is tenant- or app-scoped. Ensure exactly
+        one `kind/*` routing label (`kind/docs`, `kind/platform`, or domain match) —
+        see [`STATE-MACHINE.md` §2.7](https://github.com/Cloud-Byte-Consulting/Catalyst/blob/release/docs/ADR/STATE-MACHINE.md).
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What standard is changing and why now.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Explicit in/out boundaries.
+    validations:
+      required: true
+  - type: textarea
+    id: gherkin
+    attributes:
+      label: Gherkin Acceptance Criteria
+      description: Use Given/When/Then scenarios.
+      value: |
+        ```gherkin
+        Feature: <kaizen name>
+          Scenario: <scenario name>
+            Given ...
+            When ...
+            Then ...
+        ```
+    validations:
+      required: true
