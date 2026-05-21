@@ -44,6 +44,10 @@ jobs:
             bootstrap:
               - 'scripts/bootstrap-aws-account.*'
               - 'scripts/tests/**'
+              - 'scripts/catalyst-*.py'
+              - 'scripts/lib/**'
+              - 'registry/**'
+              - 'tests/scripts/**'
             policies:
               - 'policies/**'
               - '**/*.rego'
@@ -268,7 +272,10 @@ jobs:
       - name: Install pytest
         run: pip install pytest
       - name: Run bootstrap smoke tests
-        run: pytest scripts/tests/test_bootstrap_scripts.py -v
+        run: |
+          pytest scripts/tests/test_bootstrap_scripts.py -v
+          pip install pyyaml
+          pytest tests/scripts/ -v
   e2e-tests:
     # Cross-cutting end-to-end fast suite. Fires whenever ANY component path
     # changes (per the canonical map: services / CLI / infra / tests/e2e/).

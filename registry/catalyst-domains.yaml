@@ -1,0 +1,48 @@
+# Catalyst kind/* routing registry (ADR-024 §B.3)
+version: 1
+repo: Cloud-Byte-Consulting/Catalyst
+kinds:
+  iac:
+    label: kind/iac
+    personas: [terraform-engineer, checkov-expert, opa-expert]
+    signals: [terraform, hcl, checkov, opa, rego, conftest, module, tftest, iam policy, kms]
+  cicd:
+    label: kind/cicd
+    personas: [cicd-operator]
+    signals: [github actions, workflow, deploy pipeline, oidc, blue/green, canary, pipeline]
+  service:
+    label: kind/service
+    personas: [automation-architect]
+    signals: [fastapi, lambda handler, sqs, eventbridge, step functions, multi-tenant, control plane]
+  ai-workflow:
+    label: kind/ai-workflow
+    personas: [ai-reviewer-architect]
+    signals: [bedrock, converse api, pr review, prompt engineering, pydantic, emf metrics]
+  security:
+    label: kind/security
+    personas: [security-hardener]
+    signals: [secret scanning, secrets rotation, container hardening, waf, threat model, least privilege, encryption at rest]
+  docs:
+    label: kind/docs
+    personas: [platform-engineering-architect]
+    signals: [adr, readme, runbook, diagram, onboarding, madr]
+  score:
+    label: kind/score
+    personas: [score-expert]
+    signals: [score.yaml, score.dev, portability, workload spec]
+  platform:
+    label: kind/platform
+    personas: [platform-engineering-architect]
+    signals: [golden path, idp, service catalog, paved road, operating model]
+  umbrella:
+    label: kind/umbrella
+    personas: [platform-engineering-architect]
+    signals: [epic, umbrella, parent issue, sub-issue index, milestone rollup]
+keyword_kind:
+  checkov gate failure: iac
+  opa eval: iac
+  state_machine.rego: iac
+  github actions oidc: cicd
+  secret_protection: security
+  score.yaml validation: score
+  bedrock converse: ai-workflow
