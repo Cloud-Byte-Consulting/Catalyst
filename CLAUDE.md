@@ -13,3 +13,5 @@ Registered MCP servers:
 2. AWS MCP server
 3. Context7 MCP server
 4. Sequential Thinking MCP server
+
+After clone or when `skills/` / `agents/` change, run `python platform/bootstrap.py` to wire `.claude/skills/` and `.claude/agents/` to canonical paths (ADR-024). Use `python platform/bootstrap.py --check` to verify.

@@ -1,13 +1,25 @@
-# Multi-tool config — Claude Code and Cursor
+# Multi-tool config — Cursor, Claude Code, and Gemini CLI
 
-This doc is the operating map for Catalyst's two-tool config surface. It explains where each kind of agent-facing artifact lives, which tool consumes it, and how the canonical-source refactor (ADR-022) keeps both tools in sync without dual-maintenance.
+Operating map for Catalyst agent config. Canonical content lives under `skills/` and `agents/`; per-tool trees are **wired by bootstrap** (ADR-024), replacing ADR-022 committed stub copies in phased sub-issues.
+
+## Bootstrap (ADR-024)
+
+After clone or when canonical `skills/` / `agents/` change:
+
+```bash
+python platform/bootstrap.py          # symlink on Unix, copy on Windows
+python platform/bootstrap.py --check  # verify tool trees match canonical
+python platform/bootstrap.py --copy   # force copy mode (Windows / no symlinks)
+```
+
+**Dual mode until A-4**: CI may still enforce committed ADR-022 stubs via `scripts/sync_tool_skills.py --check`. Locally, bootstrap is the editor source of truth. `.gitignore` lists generated tool trees; committed stubs are removed in ADR-024 A-4.
 
 ## Quick map
 
-| Surface | Canonical source | Claude Code path | Cursor path | Sync mechanism |
+| Surface | Canonical source | Claude Code path | Cursor / Gemini path | Sync mechanism |
 |---|---|---|---|---|
-| Skills | `skills/<name>/SKILL.md` (+ scripts/, templates/, *_mcp_server.py) | `.claude/skills/<name>/SKILL.md` | `.cursor/skills/<name>/SKILL.md` | `scripts/sync_tool_skills.py` auto-generates stubs; CI checks |
-| Personas | `agents/<name>.md` | `.claude/agents/<name>.md` (hand-authored adapter with Claude frontmatter) | `.cursor/agents/<name>.md` (auto-generated stub) | `scripts/build_claude_agent_adapters.py` (one-shot for Claude side); `scripts/sync_tool_skills.py` regenerates Cursor side |
+| Skills | `skills/<name>/SKILL.md` (+ scripts/, templates/, *_mcp_server.py) | `.claude/skills/<name>/` | `.cursor/skills/<name>/`, `.gemini/skills/<name>/` | `platform/bootstrap.py`; CI `--check` after A-4 |
+| Personas | `agents/<name>.md` | `.claude/agents/<name>.md` | `.cursor/agents/<name>.md`, `.gemini/agents/<name>.md` | `platform/bootstrap.py`; unified frontmatter in A-3 |
 | Routing skills | `skills/<name>/` | `.claude/skills/<name>/SKILL.md` stub | `.cursor/skills/<name>/SKILL.md` stub | Same as Skills |
 | MCP servers | `skills/<name>/<name>_mcp_server.py` | `.mcp.json` references it | `.cursor/mcp.json` references it | Both JSONs hand-edited together (small surface) |
 | Operating contract | `AGENTS.md`, `CLAUDE.md` | Both | Both | Already shared; no sync needed |
@@ -43,47 +55,43 @@ If/when a Cursor hook's *intent* needs Claude-side coverage, add an entry to `.c
 mkdir -p skills/my-new-skill/
 $EDITOR skills/my-new-skill/SKILL.md   # author SKILL.md with frontmatter
 
-# 2. Regenerate per-tool stubs
-python scripts/sync_tool_skills.py
+# 2. Wire per-tool trees
+python platform/bootstrap.py
 
-# 3. Verify CI will be happy
-python scripts/sync_tool_skills.py --check  # exits 0
+# 3. Verify locally
+python platform/bootstrap.py --check  # exits 0
 
-# 4. Stage and commit canonical + both stubs
-git add skills/my-new-skill/ .claude/skills/my-new-skill/ .cursor/skills/my-new-skill/
+# 4. Stage and commit canonical only (after A-4); until then also run sync if CI still checks stubs
+git add skills/my-new-skill/
 git commit -m "feat(skill): add my-new-skill (#issue-number)"
 ```
 
 ## Adding a new persona (runbook)
 
 ```bash
-# 1. Author canonical persona body
+# 1. Author canonical persona (include claude/cursor/gemini frontmatter per ADR-024 A-3)
 $EDITOR agents/my-new-persona.md
 
-# 2. Add an entry to the PERSONAS dict in scripts/build_claude_agent_adapters.py
-#    (description, model, tools)
+# 2. Wire per-tool trees
+python platform/bootstrap.py
 
-# 3. Rebuild the Claude adapter
-python scripts/build_claude_agent_adapters.py
+# 3. Verify
+python platform/bootstrap.py --check
 
-# 4. Regenerate the Cursor stub
-python scripts/sync_tool_skills.py
-
-# 5. Stage and commit
-git add agents/ .claude/agents/ .cursor/agents/ scripts/build_claude_agent_adapters.py
+# 4. Stage and commit canonical
+git add agents/my-new-persona.md
 git commit -m "feat(agent): add my-new-persona (#issue-number)"
 ```
 
 ## CI guard
 
-`.github/workflows/multi-tool-sync.yml` runs on every PR to `release` and fails if:
+Until ADR-024 A-4 lands, `.github/workflows/multi-tool-sync.yml` still runs `scripts/sync_tool_skills.py --check` against committed stubs.
 
-- A canonical skill is missing its `.claude/skills/<name>/SKILL.md` or `.cursor/skills/<name>/SKILL.md` stub
-- A canonical persona is missing its `.claude/agents/<name>.md` adapter
-- Any stub content has drifted from its canonical source (delegates to `scripts/sync_tool_skills.py --check`)
+After A-4, CI runs `python platform/bootstrap.py --check` only; PRs touch `skills/` and `agents/` canonical paths.
 
 ## Related
 
-- ADR-022 — Unify Claude Code and Cursor skills/agents under canonical-source layout
+- ADR-022 — Canonical `skills/` and `agents/` layout (stub delivery superseded by ADR-024 bootstrap)
+- ADR-024 — Unified agent config and bootstrap-wired tool trees
 - Issue #255 — the one-time refactor that produced this layout
 - ADR-011 — Catalyst agentic workflow (the operating contract that this layout serves)
