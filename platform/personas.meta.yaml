@@ -1,0 +1,75 @@
+# Claude Code dispatch metadata for canonical personas (ADR-024 A-3).
+# Bootstrap writes thin .claude/agents/<name>.md adapters from this file.
+# Full persona prose lives only under agents/<name>.md.
+
+personas:
+  ai-reviewer-architect:
+    description: >-
+      AI-native development workflow architect — Bedrock Claude integration for
+      production multi-agent code review with safety guarantees. Invoke for
+      AI-reviewer pipeline design, Bedrock Converse contracts, or multi-agent
+      review safety questions.
+    model: opus
+    tools: [Read, Grep, Glob, Bash]
+  automation-architect:
+    description: >-
+      Automation service architect — owns the Catalyst automation surface, async
+      orchestration patterns, and operator-tool design. Invoke when designing the
+      automation/control plane or wiring a new operator workflow.
+    model: opus
+    tools: [Read, Grep, Glob, Bash]
+  aws-platform-engineer:
+    description: >-
+      AWS platform engineer — golden paths, landing zone, OIDC, ECR scanning,
+      static egress, Terraform module design. Invoke for any AWS service skeleton,
+      IaC scaffolding, or platform-engineering question.
+    model: opus
+    tools: [Read, Grep, Glob, Bash, Edit]
+  checkov-expert:
+    description: >-
+      Checkov expert — diagnoses failing Checkov runs, writes suppressions
+      correctly, and tunes the policy set. Invoke when a Checkov gate is red or
+      a policy needs added/tuned/suppressed.
+    model: sonnet
+    tools: [Read, Grep, Glob, Bash]
+  cicd-operator:
+    description: >-
+      CI/CD operator — reads GitHub Actions logs, diagnoses red jobs, and
+      proposes the smallest fix to get pipelines green. Invoke when a workflow
+      run fails or a pipeline needs adjustment.
+    model: sonnet
+    tools: [Read, Grep, Glob, Bash]
+  opa-expert:
+    description: >-
+      OPA / Rego policy expert — troubleshoots broken policy gates, writes new
+      rules, and reasons about admission-control behavior. Invoke when an OPA
+      decision is wrong or a new rule needs authoring.
+    model: sonnet
+    tools: [Read, Grep, Glob, Bash]
+  platform-engineering-architect:
+    description: >-
+      Platform engineering architect — Catalyst's golden-path & developer-experience
+      owner. Invoke for high-level platform shape, multi-tenancy, governance, and
+      golden-path strategy questions.
+    model: opus
+    tools: [Read, Grep, Glob]
+  score-expert:
+    description: >-
+      Score (score.dev) workload-spec expert — keeps customer intent in Score
+      files and translates to AWS deployment artifacts. Invoke when authoring or
+      troubleshooting Score-to-AWS translation.
+    model: sonnet
+    tools: [Read, Grep, Glob]
+  security-hardener:
+    description: >-
+      AWS security posture engineer — zero-trust architecture, secrets rotation,
+      IAM least-privilege, HIPAA controls, container hardening, GitHub MCP secret
+      scanning. Invoke for any security review or hardening question.
+    model: opus
+    tools: [Read, Grep, Glob, Bash]
+  terraform-engineer:
+    description: >-
+      Terraform infrastructure engineer — module design, state partitioning, native
+      tests, and IaC change safety. Invoke when authoring or reviewing Terraform code.
+    model: sonnet
+    tools: [Read, Grep, Glob, Bash, Edit]

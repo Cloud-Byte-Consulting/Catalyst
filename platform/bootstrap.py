@@ -20,6 +20,11 @@ import shutil
 import sys
 from pathlib import Path
 
+try:
+    import yaml
+except ImportError:  # pragma: no cover - CI installs pyyaml
+    yaml = None  # type: ignore[assignment]
+
 ROOT = Path(__file__).resolve().parent.parent
 
 TOOL_SKILL_DIRS = (
@@ -202,11 +207,64 @@ def bootstrap_mcp(*, check_only: bool) -> list[str]:
     return drift
 
 
+def _load_personas_meta() -> dict[str, dict[str, object]]:
+    meta_path = ROOT / "platform" / "personas.meta.yaml"
+    if yaml is None:
+        raise RuntimeError("PyYAML required to load platform/personas.meta.yaml")
+    data = yaml.safe_load(meta_path.read_text(encoding="utf-8"))
+    personas = data.get("personas", {})
+    if not isinstance(personas, dict):
+        raise ValueError(f"{meta_path}: personas must be a mapping")
+    return personas
+
+
+def _render_claude_adapter(name: str, meta: dict[str, object]) -> str:
+    tools = ", ".join(meta["tools"])  # type: ignore[arg-type]
+    return (
+        "---\n"
+        f"name: {name}\n"
+        f"description: {meta['description']}\n"
+        f"model: {meta['model']}\n"
+        f"tools: [{tools}]\n"
+        "---\n\n"
+        f"<!-- Thin Claude adapter (ADR-024 A-3). Canonical persona body: agents/{name}.md -->\n\n"
+        f"Read `agents/{name}.md` before acting as this subagent. Persona prose is not duplicated here.\n"
+    )
+
+
+def bootstrap_claude_adapters(*, check_only: bool) -> list[str]:
+    personas = _load_personas_meta()
+    drift: list[str] = []
+    out_dir = ROOT / ".claude" / "agents"
+    for name, meta in sorted(personas.items()):
+        canonical = ROOT / "agents" / f"{name}.md"
+        if not canonical.is_file():
+            continue
+        content = _render_claude_adapter(name, meta)
+        path = out_dir / f"{name}.md"
+        if _write_text_if_changed(path, content, check_only=check_only):
+            drift.append(str(path.relative_to(ROOT)))
+    return drift
+
+
+def _write_text_if_changed(path: Path, content: str, *, check_only: bool) -> bool:
+    existing = path.read_text(encoding="utf-8") if path.is_file() else None
+    if existing == content:
+        return False
+    if check_only:
+        return True
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8", newline="\n")
+    return True
+
+
 def bootstrap_agents(*, use_symlinks: bool, check_only: bool) -> list[str]:
     drift: list[str] = []
     for canonical in iter_canonical_agents():
         name = canonical.name
         for tool_dir in TOOL_AGENT_DIRS:
+            if tool_dir == ROOT / ".claude" / "agents":
+                continue
             link_path = tool_dir / name
             if _link_or_copy(
                 canonical,
@@ -215,6 +273,7 @@ def bootstrap_agents(*, use_symlinks: bool, check_only: bool) -> list[str]:
                 check_only=check_only,
             ):
                 drift.append(str(link_path.relative_to(ROOT)))
+    drift.extend(bootstrap_claude_adapters(check_only=check_only))
     return drift
 
 
