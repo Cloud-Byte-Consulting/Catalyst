@@ -20,3 +20,14 @@ infrastructure/branch-protection/.terraform.lock.hcl
 # Environment configuration (never commit .env with live secrets/values)
 .env
 services/**/.env
+
+# ADR-024 bootstrap-generated tool trees (canonical-only in git after A-4).
+# Until A-4, committed ADR-022 stubs remain tracked; run bootstrap locally so
+# editors resolve the same bytes as skills/ and agents/.
+.cursor/skills/
+.cursor/agents/
+.claude/skills/
+.claude/agents/
+!.claude/agents/rlm-subcall.md
+.gemini/skills/
+.gemini/agents/
