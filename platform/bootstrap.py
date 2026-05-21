@@ -9,11 +9,12 @@ Run after clone or when canonical skills/agents change:
   python platform/bootstrap.py --check   # CI / verify (exit 1 on drift)
 
 Claude-only rlm-subcall.md under .claude/agents/ is never removed or overwritten.
-MCP client configs are emitted in a later bootstrap phase (ADR-024 A-2).
+MCP client configs are emitted from platform/mcp.servers.json (ADR-024 A-2).
 """
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -157,6 +158,50 @@ def bootstrap_skills(*, use_symlinks: bool, check_only: bool) -> list[str]:
     return drift
 
 
+def _load_mcp_manifest() -> dict[str, object]:
+    manifest_path = ROOT / "platform" / "mcp.servers.json"
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if "mcpServers" not in data:
+        raise ValueError(f"{manifest_path}: missing mcpServers")
+    return data
+
+
+def _filter_servers(
+    servers: dict[str, object], *, exclude: set[str]
+) -> dict[str, object]:
+    return {k: v for k, v in servers.items() if k not in exclude}
+
+
+def _write_json_if_changed(path: Path, payload: object, *, check_only: bool) -> bool:
+    content = json.dumps(payload, indent=2) + "\n"
+    existing = path.read_text(encoding="utf-8") if path.is_file() else None
+    if existing == content:
+        return False
+    if check_only:
+        return True
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8", newline="\n")
+    return True
+
+
+def bootstrap_mcp(*, check_only: bool) -> list[str]:
+    data = _load_mcp_manifest()
+    all_servers: dict[str, object] = data["mcpServers"]  # type: ignore[assignment]
+    cursor_only = set(data.get("cursorOnly", []))
+
+    targets: list[tuple[Path, dict[str, object]]] = [
+        (ROOT / ".cursor" / "mcp.json", {"mcpServers": all_servers}),
+        (ROOT / ".mcp.json", {"mcpServers": _filter_servers(all_servers, exclude=cursor_only)}),
+        (ROOT / ".gemini" / "settings.json", {"mcpServers": _filter_servers(all_servers, exclude=cursor_only)}),
+    ]
+
+    drift: list[str] = []
+    for path, payload in targets:
+        if _write_json_if_changed(path, payload, check_only=check_only):
+            drift.append(str(path.relative_to(ROOT)))
+    return drift
+
+
 def bootstrap_agents(*, use_symlinks: bool, check_only: bool) -> list[str]:
     drift: list[str] = []
     for canonical in iter_canonical_agents():
@@ -178,6 +223,7 @@ def bootstrap(*, force_copy: bool, check_only: bool) -> int:
     mode = "symlink" if use_symlinks else "copy"
     drift = bootstrap_skills(use_symlinks=use_symlinks, check_only=check_only)
     drift.extend(bootstrap_agents(use_symlinks=use_symlinks, check_only=check_only))
+    drift.extend(bootstrap_mcp(check_only=check_only))
 
     if check_only and drift:
         print("Bootstrap drift detected:", file=sys.stderr)
