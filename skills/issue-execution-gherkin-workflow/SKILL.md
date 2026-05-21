@@ -58,6 +58,21 @@ Then <observable outcome>
 
 **Gherkin rules:** scenarios are **testable** (Then = observable); avoid vague “should work”; one primary When per scenario unless clearly compound.
 
+## Required labels (agent routing index)
+
+When **creating** or **picking up** an Issue, verify the full namespaced label set per `docs/ADR/STATE-MACHINE.md` §2.7–2.8:
+
+| Family | Cardinality | Agent action |
+|---|---|---|
+| Construct (`tenant/*`, `env/*`, `lz/*`, `project/*`, `app/*`) | one each | Add from template defaults or construct context |
+| `state/*` | one | Usually `state/pending` at create |
+| `type/*` | one | From issue template or work category |
+| `kind/*` | one for implementable work | **Required** for agent search/routing |
+
+- Use `.github/ISSUE_TEMPLATE/*.yml` — each template documents required labels; `kaizen.yml` pre-applies repo-wide kaizen anchors.
+- Validate with `gh issue view <N> --json labels | python3 scripts/validate_issue_labels.py` before pickup.
+- Do **not** add deprecated `Kind/*`, `Priority/*`, `Status/*`, or bare GitHub defaults — remove when editing an Issue.
+
 ## Execution loop (agent or human)
 
 1. **Read** current labels from GitHub (decision boundary — eventual consistency per `docs/ADR/STATE-MACHINE.md` §6).

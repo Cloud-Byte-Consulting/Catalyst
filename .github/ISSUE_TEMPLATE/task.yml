@@ -1,6 +1,25 @@
 name: Task
-about: Platform task with executable acceptance criteria
+description: Platform task with executable acceptance criteria
+title: "task: "
+labels:
+  - state/pending
 body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Required labels (add after create)
+
+        Every implementable issue needs **exactly one** label from each family below.
+        See [`STATE-MACHINE.md` §2.7–2.8](https://github.com/Cloud-Byte-Consulting/Catalyst/blob/release/docs/ADR/STATE-MACHINE.md).
+
+        | Family | Example |
+        |---|---|
+        | Construct | `tenant/catalyst`, `env/shared`, `lz/shared`, `project/platform`, `app/<name>` |
+        | State | `state/pending` (pre-applied) |
+        | Type | `type/feat`, `type/kaizen`, … |
+        | Kind (routing) | `kind/iac`, `kind/cicd`, `kind/service`, `kind/docs`, … |
+
+        Do **not** use deprecated `Kind/*`, `Priority/*`, or bare `bug`/`enhancement` labels.
   - type: textarea
     id: context
     attributes:
