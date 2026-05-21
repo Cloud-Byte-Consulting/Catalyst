@@ -117,6 +117,71 @@ For `type/preview-env`:
 - `budget-exhausted` — daily token budget hit; review skipped
 - `kaizen-target` — flagged as a candidate for a **`type/kaizen`** Issue (or follow-up on an existing one)
 
+### 2.7 Kind labels (exclusive — exactly one for implementable work)
+
+`kind/*` is the **agent routing and search index** over GitHub Issues (ADR-024 §B.3).
+Every open implementable Issue MUST carry exactly one `kind/*` label so agents can
+query `gh issue list --label "kind/iac" --label "state/agent-working"` without
+legacy label noise.
+
+| Label | Persona(s) | Signals |
+|---|---|---|
+| `kind/iac` | `terraform-engineer`, `checkov-expert`, `opa-expert` | Terraform, HCL, Checkov, OPA, modules |
+| `kind/cicd` | `cicd-operator` | GitHub Actions, deploy pipelines, OIDC workflows |
+| `kind/service` | `automation-architect` | FastAPI, Lambda, `services/`, async orchestration |
+| `kind/ai-workflow` | `ai-reviewer-architect` | Bedrock, PR review, prompts, pydantic output |
+| `kind/security` | `security-hardener` | IAM, secrets, containers, scanning, WAF |
+| `kind/docs` | `platform-engineering-architect` | ADRs, README, diagrams, onboarding |
+| `kind/score` | `score-expert` | score.yaml, portability |
+| `kind/platform` | `platform-engineering-architect` | IDP strategy, golden paths, cross-cutting |
+| `kind/umbrella` | `platform-engineering-architect` | Parent / epic issues |
+
+**Cardinality**: exactly one `kind/*` per implementable Issue. Umbrella / meta Issues
+may use `kind/umbrella`; `type/kaizen` Issues typically use `kind/docs`, `kind/platform`,
+or the domain `kind/*` that best matches the change.
+
+**Do not** add `persona/<name>` labels — too granular, duplicates
+`skills/catalyst-agent-routing`, drifts when personas change.
+
+#### 2.7.1 Optional additive scoping labels
+
+These labels are **additive** (zero or more) and supplement `kind/*` for multi-cloud
+or area scoping. They do not replace `kind/*`.
+
+| Family | Labels | Purpose |
+|---|---|---|
+| `cloud/*` | `cloud/aws`, `cloud/azure`, `cloud/gcp` | Cloud provider scope |
+| `area/*` | `area/infrastructure`, `area/services`, `area/docs` | Broad repo area |
+
+### 2.8 Label registry — keep vs deprecate
+
+Agents query **namespaced Catalyst labels only**. The table below lists families
+to keep and legacy vocabularies to retire.
+
+**Keep** (namespaced — agents query these):
+
+| Family | Cardinality | Purpose |
+|---|---|---|
+| `state/*` | exactly one | State machine (§2.1) |
+| `type/*` | exactly one | Work category (§2.2) |
+| `tenant/*`, `env/*`, `lz/*`, `project/*`, `app/*` | exactly one each | Construct address (ADR-002) |
+| `kind/*` | exactly one for implementable work | Agent routing / domain index (§2.7) |
+| `severity/*`, `verdict/*`, `deploy/*`, modifiers | additive | Contextual (§2.3–2.6) |
+| `cloud/*`, `area/*` | additive | Optional scoping (§2.7.1) |
+
+**Deprecate** (do not add to new Issues; remove when editing an Issue):
+
+| Legacy pattern | Namespaced equivalent |
+|---|---|
+| `Kind/*` | `kind/*` |
+| `Priority/*` | `severity/*` (where applicable) |
+| `Status/*` | `state/*` |
+| `Reviewed/*` | audit comments + `verdict/*` for PR review |
+| Bare GitHub defaults (`bug`, `enhancement`, `documentation`) | `type/*` + `kind/*` |
+
+**Time-boxed**: `phase/*` labels are campaign modifiers; exclude from default agent
+queries after the campaign ends (see §4.2).
+
 ## 3. Legal state transitions
 
 ```mermaid
@@ -347,4 +412,4 @@ other code change. The PR MUST update:
 
 A CI policy (`policy/opa/state_machine.rego`) asserts these stay in sync.
 
-Last reviewed: 2026-05-08.
+Last reviewed: 2026-05-20.

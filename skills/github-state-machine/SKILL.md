@@ -2,9 +2,9 @@
 name: github-state-machine
 description: >-
   GitHub Issues as Catalyst's durable state machine: label vocabulary (state/,
-  type/, severity/, verdict/, modifier labels), legal transitions, ownership
-  semantics, audit comments, webhook event routing, and the Catalyst Andon
-  project board. Use when implementing state transitions, webhook handlers,
+  type/, kind/, severity/, verdict/, modifier labels), legal transitions,
+  ownership semantics, audit comments, webhook event routing, and the Catalyst
+  Andon project board. Use when implementing state transitions, webhook handlers,
   or debugging illegal-transition errors.
 ---
 <!-- Vendored from: platform-catalyst/skills/github-state-machine/SKILL.md (BittahCriminal/platform-catalyst, BSD-3-Clause). Adapted for Catalyst: PLAN.md/CLAUDE.md/DECISIONS.md scrubbed; ADR-008->ADR-001, ADR-009->ADR-002. -->
@@ -48,6 +48,12 @@ Every Catalyst automation MUST satisfy all five (from `docs/ADR/STATE-MACHINE.md
 **Type labels** (exclusive): `type/deploy`, `type/secret-rotation`, `type/preview-env`, `type/pr-review`, `type/ops-intel-finding`, `type/ops-intel-digest`, `type/incident`
 
 **Construct address labels** (mandatory, from ADR-002): `tenant/*`, `env/*`, `lz/*`, `project/*`, `app/*`
+
+**Kind labels** (exclusive — exactly one for implementable work, ADR-024 §B.3): `kind/iac`, `kind/cicd`, `kind/service`, `kind/ai-workflow`, `kind/security`, `kind/docs`, `kind/score`, `kind/platform`, `kind/umbrella`. Each maps to persona agent files — see `docs/ADR/STATE-MACHINE.md` §2.7.
+
+**Optional additive scoping**: `cloud/*` (`cloud/aws`, `cloud/azure`, `cloud/gcp`), `area/*` (`area/infrastructure`, `area/services`, `area/docs`).
+
+**Deprecated** (do not add to new Issues): `Kind/*`, `Priority/*`, `Status/*`, `Reviewed/*`, bare GitHub defaults (`bug`, `enhancement`, `documentation`). See `docs/ADR/STATE-MACHINE.md` §2.8.
 
 **Additive labels**: deploy subtypes, severity, verdict, modifiers — see `docs/ADR/STATE-MACHINE.md` §2.3-2.6.
 
