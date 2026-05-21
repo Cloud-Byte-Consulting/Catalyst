@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "rlm-repl": {
+      "command": "python",
+      "args": ["skills/rlm/rlm_mcp_server.py"],
+      "env": {}
+    },
+    "aws-pe": {
+      "command": "python",
+      "args": ["skills/aws-platform-engineering/aws_pe_mcp_server.py"],
+      "env": {}
+    },
+    "bedrock-binding": {
+      "command": "python",
+      "args": ["skills/bedrock-binding/bedrock_mcp_server.py"],
+      "env": {}
+    },
+    "intent-judge": {
+      "command": "python",
+      "args": ["skills/intent-judge-shim/intent_judge_mcp_server.py"],
+      "env": {}
+    },
+    "catalyst-github-secret-scanning": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${env:GITHUB_MCP_PAT}",
+        "X-MCP-Toolsets": "secret_protection",
+        "X-MCP-Tools": "run_secret_scanning"
+      }
+    }
+  },
+  "cursorOnly": ["catalyst-github-secret-scanning"]
+}

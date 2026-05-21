@@ -9,7 +9,7 @@ This doc is the operating map for Catalyst's two-tool config surface. It explain
 | Skills | `skills/<name>/SKILL.md` (+ scripts/, templates/, *_mcp_server.py) | `.claude/skills/<name>/SKILL.md` | `.cursor/skills/<name>/SKILL.md` | `scripts/sync_tool_skills.py` auto-generates stubs; CI checks |
 | Personas | `agents/<name>.md` | `.claude/agents/<name>.md` (hand-authored adapter with Claude frontmatter) | `.cursor/agents/<name>.md` (auto-generated stub) | `scripts/build_claude_agent_adapters.py` (one-shot for Claude side); `scripts/sync_tool_skills.py` regenerates Cursor side |
 | Routing skills | `skills/<name>/` | `.claude/skills/<name>/SKILL.md` stub | `.cursor/skills/<name>/SKILL.md` stub | Same as Skills |
-| MCP servers | `skills/<name>/<name>_mcp_server.py` | `.mcp.json` references it | `.cursor/mcp.json` references it | Both JSONs hand-edited together (small surface) |
+| MCP servers | `skills/<name>/<name>_mcp_server.py` | `.mcp.json` (generated) | `.cursor/mcp.json` (generated) | Edit `platform/mcp.servers.json`; `platform/bootstrap.py` emits per-tool JSON |
 | Operating contract | `AGENTS.md`, `CLAUDE.md` | Both | Both | Already shared; no sync needed |
 | Cursor-only rules | `.cursor/rules/*.mdc` | (no equivalent — see below) | Cursor reads natively | Documented by intent here, not duplicated |
 | Cursor-only hooks | `.cursor/hooks/` | (no equivalent — see below) | Cursor reads natively | Documented by intent here, not duplicated |
@@ -82,8 +82,24 @@ git commit -m "feat(agent): add my-new-persona (#issue-number)"
 - A canonical persona is missing its `.claude/agents/<name>.md` adapter
 - Any stub content has drifted from its canonical source (delegates to `scripts/sync_tool_skills.py --check`)
 
+## Adding an MCP server (runbook)
+
+```bash
+# 1. Add or extend the server script under skills/<name>/
+# 2. Register in the canonical manifest (Cursor-only HTTP servers: add name to cursorOnly)
+$EDITOR platform/mcp.servers.json
+
+# 3. Regenerate client configs
+python platform/bootstrap.py
+
+# 4. Verify
+python platform/bootstrap.py --check
+```
+
+The `catalyst-github-secret-scanning` HTTP server stays Cursor-only (`cursorOnly` in the manifest) so `${env:GITHUB_MCP_PAT}` is not required in Claude/Gemini configs.
+
 ## Related
 
-- ADR-022 — Unify Claude Code and Cursor skills/agents under canonical-source layout
-- Issue #255 — the one-time refactor that produced this layout
+- ADR-022 — Canonical `skills/` and `agents/` layout
+- ADR-024 — Unified agent config, bootstrap, and `platform/mcp.servers.json`
 - ADR-011 — Catalyst agentic workflow (the operating contract that this layout serves)
