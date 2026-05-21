@@ -19,7 +19,7 @@ python platform/bootstrap.py --copy   # force copy mode (Windows / no symlinks)
 | Surface | Canonical source | Claude Code path | Cursor / Gemini path | Sync mechanism |
 |---|---|---|---|---|
 | Skills | `skills/<name>/SKILL.md` (+ scripts/, templates/, *_mcp_server.py) | `.claude/skills/<name>/` | `.cursor/skills/<name>/`, `.gemini/skills/<name>/` | `platform/bootstrap.py`; CI `--check` after A-4 |
-| Personas | `agents/<name>.md` | `.claude/agents/<name>.md` | `.cursor/agents/<name>.md`, `.gemini/agents/<name>.md` | `platform/bootstrap.py`; unified frontmatter in A-3 |
+| Personas | `agents/<name>.md` | `.claude/agents/<name>.md` (thin adapter from `platform/personas.meta.yaml`) | `.cursor/agents/<name>.md`, `.gemini/agents/<name>.md` | `platform/bootstrap.py`; Claude dispatch in `personas.meta.yaml` |
 | Routing skills | `skills/<name>/` | `.claude/skills/<name>/` | `.cursor/skills/<name>/`, `.gemini/skills/<name>/` | Same as Skills |
 | MCP servers | `skills/<name>/<name>_mcp_server.py` | `.mcp.json` (generated) | `.cursor/mcp.json` (generated) | Edit `platform/mcp.servers.json`; bootstrap emits per-tool JSON |
 | Operating contract | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` | Both | Both | Already shared; no sync needed |
@@ -69,17 +69,19 @@ git commit -m "feat(skill): add my-new-skill (#issue-number)"
 ## Adding a new persona (runbook)
 
 ```bash
-# 1. Author canonical persona (include claude/cursor/gemini frontmatter per ADR-024 A-3)
+# 1. Author canonical persona body
 $EDITOR agents/my-new-persona.md
 
-# 2. Wire per-tool trees
+# 2. Add Claude dispatch metadata in platform/personas.meta.yaml (model, tools, description)
+
+# 3. Wire per-tool trees and thin Claude adapters
 python platform/bootstrap.py
 
-# 3. Verify
+# 4. Verify
 python platform/bootstrap.py --check
 
-# 4. Stage and commit canonical
-git add agents/my-new-persona.md
+# 5. Stage and commit canonical + personas.meta.yaml (+ thin .claude adapter until A-4)
+git add agents/my-new-persona.md platform/personas.meta.yaml .claude/agents/my-new-persona.md
 git commit -m "feat(agent): add my-new-persona (#issue-number)"
 ```
 
