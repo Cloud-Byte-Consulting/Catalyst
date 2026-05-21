@@ -7,6 +7,8 @@ Catalyst execution guardrails:
 - Use GitHub OIDC roles for all AWS automation; never use long-lived AWS keys.
 - Keep issue and PR artifacts in Context/Scope/Gherkin shape.
 
+**Getting started:** [`docs/AGENT-GETTING-STARTED.md`](docs/AGENT-GETTING-STARTED.md) · **Per-tool config:** [`docs/multi-tool-config.md`](docs/multi-tool-config.md)
+
 Registered MCP servers:
 
 1. GitHub MCP server
