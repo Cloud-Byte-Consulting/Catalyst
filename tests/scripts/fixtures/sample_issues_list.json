@@ -1,0 +1,4 @@
+[
+  {"number": 42, "title": "Add ECS autoscaling module", "state": "OPEN", "labels": [{"name": "kind/iac"}, {"name": "state/agent-working"}]},
+  {"number": 99, "title": "Bedrock reviewer pipeline", "state": "OPEN", "labels": [{"name": "kind/ai-workflow"}, {"name": "state/pending"}]}
+]

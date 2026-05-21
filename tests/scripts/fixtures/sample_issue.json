@@ -1,0 +1,14 @@
+{
+  "number": 42,
+  "title": "Add ECS autoscaling module",
+  "state": "OPEN",
+  "body": "## Gherkin\n\nGiven a tracking issue\n\n### Context\n\nPrior work on ECS.\n\n### Decision\n\nUse target tracking scaling.\n\n### Next\n\nOpen PR.",
+  "labels": [
+    {"name": "kind/iac"},
+    {"name": "state/agent-working"},
+    {"name": "type/feat"}
+  ],
+  "comments": [
+    {"id": "c1", "author": {"login": "agent"}, "body": "### Verification\n\npytest green locally.\n"}
+  ]
+}

@@ -27,6 +27,7 @@ Catalyst's `agents/` directory holds a small set of specialised personas vendore
 
 ## Routing protocol
 
+0. **Issue context (when a tracking issue exists)** — If the user names `#N` or you are executing from a GitHub issue, run `python3 scripts/catalyst-issue-context.py --issue <N>` (or `--fixture` in tests) and skim `handoff` + Gherkin AC. For free-form tasks, run `python3 scripts/catalyst-ask.py "<task>"` and align with `kind/*` on the issue when labels exist. See `skills/catalyst-issue-context/SKILL.md`.
 1. **Single-area request** — pick the one persona above whose row matches and read its file with the Read tool before composing the answer. The persona file is the system prompt for that part of the work.
 2. **Cross-cutting request** — name the personas you are coordinating (typically architect → terraform → security/CI/CD), and follow their **adjacent experts** sections to chain.
 3. **No persona match** — fall back to default Cursor behaviour and `AGENTS.md`. Do not invent a persona.
