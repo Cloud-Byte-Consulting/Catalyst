@@ -15,6 +15,7 @@
 
 ## Learned Workspace Facts
 
+- **Hybrid forge ([ADR-021](docs/ADR/ADR-021-migration-github-to-gitea.md)):** Git operations (clone, push, canonical `origin`) → **Gitea** homelab; issues, Projects v2, `gh`, and GitHub MCP → **GitHub** (permanent). GitHub mirrors `release` (+ tags) from Gitea for AWS OIDC CI. Operator docs: [`docs/gitea/`](docs/gitea/README.md).
 - **GitHub MCP Server secret scanning is enabled** (`secret_protection` toolset + `run_secret_scanning` tool, registered in `.cursor/mcp.json`). Agents MUST invoke secret-scanning tools on any PR that adds new files or credentials before posting a `pr_merged=true` done gate. Triage rules and escalation path are in `.cursor/rules/github-secret-scanning.mdc`. The `security-hardener` persona (`.cursor/agents/security-hardener.md`) owns this gate. _Sources_: [changelog GA 2026-05-05](https://github.blog/changelog/2026-05-05-secret-scanning-with-github-mcp-server-is-now-generally-available/), [GHAS guide](https://docs.github.com/en/code-security/how-tos/use-ghas-with-ai-coding-agents/scan-for-secrets-with-github-mcp-server).
 - Canonical label and transition vocabulary for the GitHub Issues state machine is `docs/ADR/STATE-MACHINE.md` (not `docs/STATE-MACHINE.md`).
 - ADR-001 documents GitHub Issues as the durable state machine and comments as the audit trail.
