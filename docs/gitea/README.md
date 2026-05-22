@@ -62,10 +62,22 @@ Serve should target **`http://127.0.0.1:<nodeport>`** on the TrueNAS host (same 
 
 ## Git remotes
 
+Canonical layout after hybrid cutover ([#337](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/337)):
+
+| Remote | URL | Use |
+|---|---|---|
+| `origin` | Gitea HTTPS (MagicDNS) | `git pull`, `git push`, feature branches |
+| `github` | `https://github.com/Cloud-Byte-Consulting/Catalyst.git` | Mirror reference; issues/`gh` still use GitHub |
+
 ```bash
-# Canonical layout (after hybrid cutover)
-git remote add origin  https://<machine>.<tailnet>.ts.net/<org>/Catalyst.git
-git remote add github  https://github.com/Cloud-Byte-Consulting/Catalyst.git
+# New clone
+git clone https://<machine>.<tailnet>.ts.net/Cloud-Byte-Consulting/Catalyst.git
+cd Catalyst
+git remote add github https://github.com/Cloud-Byte-Consulting/Catalyst.git
+
+# Migrate legacy GitHub-primary clone
+./scripts/git-remotes-hybrid.sh \
+  --gitea-url "https://<machine>.<tailnet>.ts.net/Cloud-Byte-Consulting/Catalyst.git"
 ```
 
 See [mirror-setup.md](./mirror-setup.md) for push-mirror configuration and branch/tag policy.
