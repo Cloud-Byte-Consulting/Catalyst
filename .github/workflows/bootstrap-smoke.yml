@@ -1,13 +1,9 @@
+# Script jobs migrated to .gitea/workflows/bootstrap-smoke.yaml (#340).
+# GitHub copy retains workflow_dispatch for aws-bootstrap-validation only.
+# DO NOT MERGE #340 until Gitea Actions verified green (#338).
 name: bootstrap-smoke
 
 on:
-  pull_request:
-    branches: [release]
-    paths:
-      - scripts/bootstrap-aws-account.sh
-      - scripts/bootstrap-aws-account.ps1
-      - scripts/tests/**
-      - .github/workflows/bootstrap-smoke.yml
   workflow_dispatch:
     inputs:
       run_aws_validation:

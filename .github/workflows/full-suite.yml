@@ -1,3 +1,5 @@
+# DEPRECATED on GitHub — migrated to .gitea/workflows/full-suite.yaml (#340)
+# DO NOT MERGE #340 until Gitea Actions verified green (#338).
 name: full-suite
 # Manual full-suite escape hatch for wide-blast-radius changes (#208).
 #

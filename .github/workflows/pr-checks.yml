@@ -1,7 +1,13 @@
+# DEPRECATED on GitHub — migrated to .gitea/workflows/pr-checks.yaml (#340)
+# DO NOT MERGE #340 until Gitea Actions verified green (#338).
 name: pr-checks
 on:
-  pull_request:
-    branches: [release]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Emergency fallback — primary CI is Gitea Actions"
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:

@@ -1,10 +1,14 @@
+# DEPRECATED on GitHub — migrated to .gitea/workflows/multi-tool-sync.yaml (#340)
+# DO NOT MERGE #340 until Gitea Actions verified green (#338).
 name: multi-tool-sync
 
 on:
-  pull_request:
-    branches: [release, main]
-  push:
-    branches: [release, main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Emergency fallback — primary CI is Gitea Actions"
+        required: false
+        type: string
 
 jobs:
   check-sync:
