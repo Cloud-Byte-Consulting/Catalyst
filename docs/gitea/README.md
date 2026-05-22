@@ -74,6 +74,8 @@ See [mirror-setup.md](./mirror-setup.md) for push-mirror configuration and branc
 
 | Doc | Contents |
 |---|---|
+| [operator-cutover-checklist.md](./operator-cutover-checklist.md) | Ordered hybrid cutover steps (Serve → mirror → remotes → Actions) |
+| [truenas-operator-checklist.md](./truenas-operator-checklist.md) | Copy-paste TrueNAS + Tailscale Serve runbook ([#335](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/335)) |
 | [mirror-setup.md](./mirror-setup.md) | TrueNAS Gitea → GitHub mirror; remotes; `release` + tags |
 | [workflow-migration.md](./workflow-migration.md) | Which workflows run on Gitea vs GitHub |
 | [tailscale-exposure.md](./tailscale-exposure.md) | TrueNAS + Tailscale Serve; MagicDNS; verification |
