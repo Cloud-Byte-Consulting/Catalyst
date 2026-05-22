@@ -1,0 +1,224 @@
+name: full-suite
+# Gitea Actions port — manual full-suite escape hatch (#208).
+#
+# Mirrors `pr-checks.yml`'s job set but without the `changes` path-filter — every
+# job runs unconditionally with `if: always()`. The two other escape-hatch
+# mechanisms (`vars.FORCE_ALL_TESTS=true` and the `force-all-tests` PR label)
+# stay in `pr-checks.yml` itself; this workflow is the manual-button-press
+# path from the Actions tab.
+#
+# See `.claude/skills/test-coverage-discipline/SKILL.md` Rule 3 for the full
+# story on when to reach for the full suite vs trust the path-filter.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run actionlint
+        uses: raven-actions/actionlint@v2
+        with:
+          version: latest
+          fail-on-error: false
+  terraform-quality:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform fmt
+        run: terraform -chdir=infrastructure fmt -recursive -check
+      - name: Terraform init
+        run: terraform -chdir=infrastructure init -backend=false
+      - name: Terraform validate
+        run: terraform -chdir=infrastructure validate
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+      - name: Run TFLint
+        run: |
+          tflint --init --chdir infrastructure
+          tflint --chdir infrastructure
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: infrastructure
+      - name: Checkov
+        run: |
+          pip install checkov
+          checkov -d infrastructure --quiet --soft-fail
+      - name: Trivy IaC
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: infrastructure
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+  python-tests:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: pip install -r services/catalyst-api/requirements-dev.txt
+      - name: Run pytest
+        run: pytest services/catalyst-api/tests --cov=services/catalyst-api/catalyst --cov-branch --cov-fail-under=85
+  cursor-config:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate MCP JSON files
+        run: |
+          python -m json.tool .cursor/mcp.json > /dev/null
+          python -m json.tool .mcp.json > /dev/null
+      - name: No merge conflict markers in .cursor/agents
+        run: |
+          if grep -rE '^(<<<<<<<|=======|>>>>>>>)' .cursor/agents/; then
+            echo "Merge conflict markers found in .cursor/agents/"
+            exit 1
+          fi
+  cli-tests:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CLI + dev deps
+        run: |
+          pip install -r clients/catalyst-cli/requirements.txt
+          pip install -r clients/catalyst-cli/requirements-dev.txt
+      - name: Run CLI tests
+        run: pytest clients/catalyst-cli/tests -v -m 'not live' --cov=catalyst_cli --cov-branch --cov-fail-under=80 --cov-report=term-missing
+  workflow-structure:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: pip install pyyaml pytest
+      - name: Run structural validator
+        run: python .github/scripts/validate_workflows.py
+      - name: Run pytest harness
+        run: pytest .github/scripts/test_workflow_structure.py -v
+  conftest:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install conftest
+        run: |
+          wget -qO- https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz | tar xz
+          sudo mv conftest /usr/local/bin/conftest
+      - name: Validate policy bundle syntax
+        run: conftest verify --policy infrastructure/policy/opa
+  bootstrap-script-tests:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate shell syntax
+        run: bash -n scripts/bootstrap-aws-account.sh
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          $path = Join-Path $env:GITHUB_WORKSPACE 'scripts/bootstrap-aws-account.ps1'
+          $tokens = $null
+          $errors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+          if ($errors) {
+            $errors | Format-List
+            exit 1
+          }
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run bootstrap smoke tests
+        run: pytest scripts/tests/test_bootstrap_scripts.py -v
+  e2e-tests:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run e2e fast suite
+        run: |
+          if [ ! -d tests/e2e ]; then
+            echo "::notice::tests/e2e/ not present yet (lands via #207); skipping."
+            exit 0
+          fi
+          set +e
+          pytest tests/e2e -v
+          rc=$?
+          if [ "$rc" -eq 5 ]; then
+            echo "::notice::no e2e tests collected yet (lands via #207); pass."
+            exit 0
+          fi
+          exit "$rc"
+  summary:
+    name: summary
+    if: always()
+    runs-on: ubuntu-latest
+    needs:
+      - actionlint
+      - terraform-quality
+      - python-tests
+      - cursor-config
+      - cli-tests
+      - workflow-structure
+      - conftest
+      - bootstrap-script-tests
+      - e2e-tests
+    steps:
+      - name: Per-job results in step summary
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## full-suite results"
+            echo ""
+            echo "| Job | Result |"
+            echo "|---|---|"
+            echo "| actionlint | ${{ needs.actionlint.result }} |"
+            echo "| terraform-quality | ${{ needs.terraform-quality.result }} |"
+            echo "| python-tests | ${{ needs.python-tests.result }} |"
+            echo "| cursor-config | ${{ needs.cursor-config.result }} |"
+            echo "| cli-tests | ${{ needs.cli-tests.result }} |"
+            echo "| workflow-structure | ${{ needs.workflow-structure.result }} |"
+            echo "| conftest | ${{ needs.conftest.result }} |"
+            echo "| bootstrap-script-tests | ${{ needs.bootstrap-script-tests.result }} |"
+            echo "| e2e-tests | ${{ needs.e2e-tests.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Result map: $NEEDS_JSON"
+          if echo "$NEEDS_JSON" | grep -qE '"result"[[:space:]]*:[[:space:]]*"(failure|cancelled)"'; then
+            echo "::error::At least one full-suite job failed or was cancelled"
+            exit 1
+          fi
+          echo "Full suite green."

@@ -1,0 +1,49 @@
+name: bootstrap-smoke
+
+# Gitea port: script/syntax/pytest jobs only. Live AWS validation stays on
+# .github/workflows/bootstrap-smoke.yml (GitHub OIDC). See docs/gitea/workflow-migration.md.
+
+on:
+  pull_request:
+    branches: [release]
+    paths:
+      - scripts/bootstrap-aws-account.sh
+      - scripts/bootstrap-aws-account.ps1
+      - scripts/tests/**
+      - .gitea/workflows/bootstrap-smoke.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap-script-tests:
+    name: bootstrap-script-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate shell syntax
+        run: bash -n scripts/bootstrap-aws-account.sh
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          $path = Join-Path $env:GITHUB_WORKSPACE 'scripts/bootstrap-aws-account.ps1'
+          $tokens = $null
+          $errors = $null
+          $null = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+          if ($errors) {
+            $errors | Format-List
+            exit 1
+          }
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run bootstrap smoke tests
+        run: pytest scripts/tests/test_bootstrap_scripts.py -v
