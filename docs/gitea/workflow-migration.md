@@ -39,7 +39,7 @@ Port to `.gitea/workflows/` with Gitea Actions syntax (GitHub Actions–compatib
 4. `full-suite.yml`
 5. `bootstrap-smoke.yml` — **jobs without** `id-token: write` / `configure-aws-credentials` only
 
-Placeholder: [`.gitea/workflows/README.md`](../../.gitea/workflows/README.md).
+Workflows live in [`.gitea/workflows/`](../../.gitea/workflows/) — see [README](../../.gitea/workflows/README.md).
 
 ### Gitea prerequisites
 

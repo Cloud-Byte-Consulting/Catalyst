@@ -1,0 +1,45 @@
+name: multi-tool-sync
+
+on:
+  pull_request:
+    branches: [release, main]
+  push:
+    branches: [release, main]
+
+jobs:
+  check-sync:
+    name: Verify bootstrap-wired tool trees (ADR-024)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install bootstrap dependencies
+        run: pip install pyyaml
+
+      - name: Wire tool trees and MCP configs
+        run: python platform/bootstrap.py
+
+      - name: Verify bootstrap check passes
+        run: python platform/bootstrap.py --check
+
+      - name: Verify Gemini MCP settings generated
+        run: test -f .gemini/settings.json
+
+      - name: Verify thin Claude adapters exist for canonical personas
+        run: |
+          set -euo pipefail
+          missing=0
+          for f in agents/*.md; do
+            name=$(basename "$f" .md)
+            if [ ! -f ".claude/agents/$name.md" ]; then
+              echo "::error::Missing .claude/agents/$name.md (run platform/bootstrap.py)"
+              missing=$((missing + 1))
+            fi
+          done
+          if [ "$missing" -gt 0 ]; then
+            exit 1
+          fi
