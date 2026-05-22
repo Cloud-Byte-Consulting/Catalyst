@@ -66,6 +66,13 @@ git remote set-url origin https://truenas-scale-1.tail5a208d.ts.net/Cloud-Byte-C
 
 Configure in the TrueNAS Gitea UI: **Repository → Settings → Mirror Settings** (wording may vary by chart).
 
+**Helper script (dry-run / tea hints):**
+
+```bash
+./scripts/gitea-configure-github-mirror.sh --dry-run \
+  --gitea-url "https://<machine>.<tailnet>.ts.net/Cloud-Byte-Consulting/Catalyst.git"
+```
+
 1. Enable **Push Mirror**.
 2. Remote URL: `https://github.com/Cloud-Byte-Consulting/Catalyst.git`
 3. Authenticate with a GitHub PAT (`repo` scope) or deploy key with write access — store in Gitea mirror settings only.
@@ -142,6 +149,7 @@ Then flip canonical remotes on developer machines per above.
 | AWS CI triggered | Push to Gitea `release` → verify `terraform.yml` / `service-cd.yml` on GitHub |
 | Gitea mirror UI | Last sync time; no 401 on PAT |
 | TrueNAS | Gitea app healthy; outbound DNS/HTTPS to github.com |
+| Helper script | `./scripts/gitea-configure-github-mirror.sh --dry-run` prints operator checklist |
 
 Alert if mirror lag exceeds SLA (e.g. 15 minutes).
 
