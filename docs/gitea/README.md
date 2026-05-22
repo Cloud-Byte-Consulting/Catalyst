@@ -76,6 +76,7 @@ See [mirror-setup.md](./mirror-setup.md) for push-mirror configuration and branc
 |---|---|
 | [mirror-setup.md](./mirror-setup.md) | TrueNAS Gitea → GitHub mirror; remotes; `release` + tags |
 | [workflow-migration.md](./workflow-migration.md) | Which workflows run on Gitea vs GitHub |
+| [oidc-aws-spike.md](./oidc-aws-spike.md) | Gitea OIDC + AWS IAM design spike ([#339](https://github.com/Cloud-Byte-Consulting/Catalyst/issues/339)) |
 | [tailscale-exposure.md](./tailscale-exposure.md) | TrueNAS + Tailscale Serve; MagicDNS; verification |
 
 ## Issue and PR conventions
