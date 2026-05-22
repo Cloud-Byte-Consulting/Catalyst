@@ -255,7 +255,7 @@ substrate.
   `infrastructure/modules/composite/github-bootstrap/`
 - **Webhook reactor**: `services/webhook-handler/src/router.py`
 - **Runbook entry**: `RUNBOOK.md` § "GitHub dependency Sev1"
-- **Multi-host gap (Gitea / non-GitHub):** see [Known gaps: multi-host agent access](#known-gaps-multi-host-agent-access-github-mcp-vs-gitea). Planned deliverables: issue-backend config; Gitea MCP (or shared issues MCP); Gitea webhook or translator aligned with `STATE-MACHINE.md` verbs.
+- **Multi-host gap (Gitea / non-GitHub):** see [Known gaps: multi-host agent access](#known-gaps-multi-host-agent-access-github-mcp-vs-gitea). [ADR-021](ADR-021-migration-github-to-gitea.md) **defers a Gitea issue backend** — GitHub remains the permanent issue host under the accepted hybrid model; Gitea MCP for issues is not planned.
 
 ## Update cadence
 

@@ -4,12 +4,22 @@ Unified onboarding for coding agents working in Catalyst across **Cursor**, **Cl
 
 ## 1. Clone and bootstrap
 
+**Hybrid forge ([ADR-021](./ADR/ADR-021-migration-github-to-gitea.md)):** canonical git is on **Gitea**; GitHub is a read mirror + issue host. See [`docs/gitea/`](./gitea/README.md) for URLs, remotes, and Tailscale access.
+
 ```bash
-git clone https://github.com/Cloud-Byte-Consulting/Catalyst.git
+# Preferred: clone from Gitea (Tailscale Serve URL or operator-provided endpoint)
+git clone <gitea-clone-url>
 cd Catalyst
+git remote add github https://github.com/Cloud-Byte-Consulting/Catalyst.git  # mirror reference
 git checkout release
 python platform/bootstrap.py
 python platform/bootstrap.py --check   # verify tool trees match canonical paths
+```
+
+GitHub-only clone (read/mirror; issues and AWS CI still use GitHub):
+
+```bash
+git clone https://github.com/Cloud-Byte-Consulting/Catalyst.git
 ```
 
 **What bootstrap does** ([ADR-024](./ADR/ADR-024-unified-agent-config-and-issue-indexing.md)):
