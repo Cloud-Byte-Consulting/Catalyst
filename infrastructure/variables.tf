@@ -66,6 +66,23 @@ variable "enable_network_firewall" {
   default     = false
 }
 
+# ---------------------------------------------------------------------------
+# ADR-023 Phase 1 — Well-Architected IaC Analyzer feature flag (#283).
+#
+# Defaults to `false` so `terraform plan` on stock vars emits ZERO analyzer
+# resources. The downstream `module "wa_aws_iac_analyzer"` instantiation in
+# main.tf wraps the entire composite in `count = ... ? 1 : 0`, which is the
+# canonical zero-impact-when-off pattern in this repo (mirrors
+# enable_network_firewall / enable_ecs_runtime). Flip to `true` (e.g. via
+# `TF_VAR_enable_wa_aws_iac_analyzer=true`) once Phase 1 implementation lands
+# in modules/composite/wa-iac-analyzer.
+# ---------------------------------------------------------------------------
+variable "enable_wa_aws_iac_analyzer" {
+  type        = bool
+  description = "ADR-023 Phase 1 feature flag — when true, provisions the Well-Architected IaC Analyzer composite (ECS Fargate + ALB + Cognito + Bedrock). Default false keeps the scaffold zero-impact; #283 ships only the module surface and discovery doc."
+  default     = false
+}
+
 variable "kms_admin_role_arn" {
   type        = string
   description = "Optional ARN of an IAM role granted a dedicated AllowKeyAdministration statement on the platform CMKs (ADR-016 / #228). When null (the default), the statement is OMITTED entirely — admin access flows via the EnableIAMUserPermissions statement (account root) + IAM-policy-delegated grants (e.g. PowerUserAccess on the apply role). Set TF_VAR_kms_admin_role_arn in environments that want an additional key-policy-pinned admin (e.g. an SSO break-glass role). The previous default (auto-compose bootstrap-admin from data.aws_caller_identity) was unsafe on fresh accounts where that role had not been provisioned yet — see #268."
