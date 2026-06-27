@@ -320,6 +320,107 @@ jobs:
             exit 0
           fi
           exit "$rc"
+  wa-aws-analyzer:
+    # ADR-023 Phase 2 — Well-Architected AWS IaC Analyzer scoring (issue #286).
+    #
+    # Posts a PR comment with the AWS WA score for Terraform plan changes by
+    # calling the Phase 1 analyzer endpoint (composite scaffold landed in
+    # #296, observability in #299, security contract in #300). The Phase 1
+    # endpoint is NOT deployed yet, so this job is GATED OFF by default and
+    # exits 0 with a skip log line until the repo variable
+    # `WA_AWS_ANALYZER_PR_COMMENTS_ENABLED` is set to 'true'.
+    #
+    # Intentionally NOT added to `test-summary`'s needs list — the job must
+    # never block PR merges today. Once Phase 1 ships and the endpoint is
+    # reachable, a follow-up flips both flags atomically.
+    #
+    # Failure mode (Gherkin Scenario 3 from #286): any analyzer error becomes
+    # a non-blocking warning PR comment + exit 0 (fail-open).
+    needs: changes
+    if: |
+      needs.changes.outputs.infra == 'true' ||
+      vars.FORCE_ALL_TESTS == 'true' ||
+      contains(github.event.pull_request.labels.*.name, 'force-all-tests')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Check gating flag
+        id: gate
+        env:
+          ENABLED: ${{ vars.WA_AWS_ANALYZER_PR_COMMENTS_ENABLED }}
+        run: |
+          if [ "${ENABLED:-false}" != "true" ]; then
+            echo "::notice::WA_AWS_ANALYZER_PR_COMMENTS_ENABLED is not 'true' — skipping WA AWS analyzer (ADR-023 Phase 2 default)."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.enabled == 'true'
+      - uses: hashicorp/setup-terraform@v3
+        if: steps.gate.outputs.enabled == 'true'
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          role-to-assume: ${{ vars.WA_AWS_ANALYZER_PLAN_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Terraform plan
+        if: steps.gate.outputs.enabled == 'true'
+        working-directory: infrastructure
+        run: |
+          # OIDC creds from the step above are required because `terraform plan`
+          # evaluates data sources (e.g. data.aws_caller_identity in modules/kms)
+          # which call STS at plan time. NEVER long-lived keys — CLAUDE.md guardrail.
+          set -euo pipefail
+          terraform init -backend=false -input=false
+          terraform plan -input=false -out=plan.tfplan || true
+          terraform show -json plan.tfplan > plan.json || echo '{}' > plan.json
+      - name: Post plan to WA analyzer endpoint (fail-open)
+        if: steps.gate.outputs.enabled == 'true'
+        id: analyze
+        env:
+          ANALYZER_ENDPOINT: ${{ vars.WA_AWS_ANALYZER_ENDPOINT }}
+        run: |
+          set +e
+          if [ -z "${ANALYZER_ENDPOINT:-}" ]; then
+            echo "::warning::WA_AWS_ANALYZER_ENDPOINT not configured — fail-open."
+            echo 'body=WA AWS analyzer endpoint not configured (Phase 1 not yet deployed). Non-blocking.' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          response=$(curl -sS -X POST \
+            -H 'Content-Type: application/json' \
+            --data @infrastructure/plan.json \
+            --max-time 60 \
+            "$ANALYZER_ENDPOINT" 2>&1)
+          rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::Analyzer call failed (rc=$rc): $response"
+            echo 'body=WA AWS analyzer unreachable — non-blocking warning (fail-open per ADR-023 Phase 2).' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Randomized per-run delimiter prevents body-collision injection
+          # into GITHUB_OUTPUT (GitHub Actions multiline-output best practice).
+          DELIM="ghadelim_$(openssl rand -hex 16)"
+          {
+            echo "body<<$DELIM"
+            echo '## AWS Well-Architected Analyzer (ADR-023 Phase 2)'
+            echo ''
+            echo "$response"
+            echo "$DELIM"
+          } >> "$GITHUB_OUTPUT"
+      - name: Post WA score PR comment
+        if: steps.gate.outputs.enabled == 'true' && steps.analyze.outputs.body != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: ${{ steps.analyze.outputs.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Fail-open: comment-post errors must not fail the job.
+          gh pr comment "$PR_NUMBER" --body "$BODY" || \
+            echo "::warning::Failed to post WA analyzer PR comment — non-blocking."
   test-summary:
     # Single required status check for branch protection. Depends on every
     # conditional test job above and aggregates their results: `skipped` is
